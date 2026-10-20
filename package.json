@@ -5,7 +5,7 @@
   "type": "module",
   "description": "온답 격식지수 기반 답례품 추천 엔진 MVP",
   "engines": {
-    "node": ">=24"
+    "node": "24.x"
   },
   "scripts": {
     "dev": "next dev -H 127.0.0.1",
