@@ -1,7 +1,9 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { saveAttributes, saveConfig, saveExpectation, saveProducts } from '@/data/repository.ts';
+import { getCatalog, saveAttributes, saveConfig, saveExpectation, saveProducts } from '@/data/repository.ts';
+import { buildPrompt, normalizeSuggestion, suggestionSchema, type AiSuggestion } from '@/ai/suggest.ts';
+import { generateJson } from '@/ai/gemini.ts';
 import { cafe24ConfigFromEnv, fetchAllProducts } from '@/cafe24/client.ts';
 import type { EngineConfig, ProductAttributes } from '@/engine/types.ts';
 import { requireAdmin } from '@/lib/admin-guard.ts';
@@ -42,6 +44,33 @@ export async function syncCafe24Action(): Promise<{ ok: boolean; message: string
     await saveProducts(config.mallId, products);
     revalidatePath('/', 'layout');
     return { ok: true, message: `상품 ${products.length}개를 가져왔습니다.` };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+// AI 점수 제안. 저장하지 않고 제안만 돌려준다 (관리자가 확인 후 저장)
+// 상품명·가격은 클라이언트 값을 믿지 않고 저장소에서 다시 읽는다
+export async function suggestScoresAction(
+  productNo: number,
+  draft: { region: string; category: string; story: string; tags: string[] },
+): Promise<{ ok: true; suggestion: AiSuggestion } | { ok: false; message: string }> {
+  await requireAdmin();
+  try {
+    const catalog = await getCatalog();
+    const product = catalog.products.find((p) => p.productNo === productNo);
+    if (!product) return { ok: false, message: '상품을 찾을 수 없습니다.' };
+    const input = {
+      productName: product.name,
+      price: product.price,
+      region: String(draft.region ?? '').slice(0, 30),
+      category: String(draft.category ?? '').slice(0, 30),
+      story: String(draft.story ?? '').slice(0, 2000),
+      tags: (Array.isArray(draft.tags) ? draft.tags : []).map((t) => String(t).slice(0, 20)).slice(0, 10),
+    };
+    const { system, user } = buildPrompt(catalog.config, input);
+    const { data, model } = await generateJson({ system, user, schema: suggestionSchema(catalog.config) });
+    return { ok: true, suggestion: normalizeSuggestion(data, catalog.config, model) };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : String(e) };
   }

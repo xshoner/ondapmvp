@@ -17,7 +17,8 @@
     "recommend": "node scripts/recommend.ts",
     "typecheck": "tsc --noEmit",
     "db:seed-sql": "node scripts/db-seed-sql.ts",
-    "db:pull": "node scripts/db-pull.ts"
+    "db:pull": "node scripts/db-pull.ts",
+    "ai:suggest": "node scripts/ai-suggest.ts"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
@@ -26,6 +27,7 @@
     "typescript": "5.9"
   },
   "dependencies": {
+    "@google/genai": "2.26.0",
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.117.2",
     "next": "16.3.8",

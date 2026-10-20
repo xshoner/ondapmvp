@@ -4,7 +4,9 @@ import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { baseIndex } from '@/engine/formality.ts';
 import type { Cafe24Product, EngineConfig, EventType, ProductAttributes, Relation } from '@/engine/types.ts';
-import { saveAttributesAction, syncCafe24Action } from './actions.ts';
+import { saveAttributesAction, suggestScoresAction, syncCafe24Action } from './actions.ts';
+import { applySuggestion, type AiSuggestion } from '@/ai/suggest.ts';
+import { AiSuggestionPanel } from './ai-suggestion-panel.tsx';
 
 type Props = {
   products: Cafe24Product[];
@@ -50,6 +52,9 @@ export function ProductEditor({ products, attributes, config, mallId, syncedAt }
   const [sort, setSort] = useState<'no' | 'score' | 'review'>('no');
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [suggestion, setSuggestion] = useState<AiSuggestion | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiPending, startAi] = useTransition();
 
   const product = products.find((p) => p.productNo === selected);
   const eventIds = Object.keys(config.events) as EventType[];
@@ -76,6 +81,23 @@ export function ProductEditor({ products, attributes, config, mallId, syncedAt }
     setDraft(structuredClone(attrMap.get(no) ?? emptyAttributes(config, no)));
     setDirty(false);
     setMessage(null);
+    setSuggestion(null);
+    setAiError(null);
+  }
+
+  function askAi() {
+    if (!draft) return;
+    setAiError(null);
+    startAi(async () => {
+      const r = await suggestScoresAction(draft.productNo, {
+        region: draft.region,
+        category: draft.category,
+        story: draft.story,
+        tags: draft.tags,
+      });
+      if (r.ok) setSuggestion(r.suggestion);
+      else setAiError(r.message);
+    });
   }
 
   function update(patch: Partial<ProductAttributes>) {
@@ -181,6 +203,32 @@ export function ProductEditor({ products, attributes, config, mallId, syncedAt }
           </div>
 
           <hr style={{ border: 0, borderTop: '1px solid var(--line)', margin: '18px 0' }} />
+
+          <div className="spread" style={{ marginBottom: 12 }}>
+            <span className="small muted">
+              상품명·가격·스토리를 바탕으로 AI가 지표 점수와 어울리는 상황을 제안합니다. 스토리를 먼저 채우면 더 정확합니다.
+            </span>
+            <button type="button" className="btn small" onClick={askAi} disabled={aiPending}>
+              {aiPending ? 'AI가 검토하는 중…' : '✦ AI 점수 제안'}
+            </button>
+          </div>
+          {aiError && <p className="small" style={{ color: 'var(--red)', marginTop: 0 }}>{aiError}</p>}
+          {suggestion && (
+            <AiSuggestionPanel
+              config={config}
+              draft={draft}
+              suggestion={suggestion}
+              onApplyScore={(id, value) => update({ scores: { ...draft.scores, [id]: value } })}
+              onApplyScores={() => update({ scores: { ...draft.scores, ...suggestion.scores } })}
+              onApplyAll={() => {
+                const next = applySuggestion(draft, suggestion);
+                update(next);
+                setSuggestion(null);
+                setMessage('AI 제안을 적용했습니다. 확인 후 저장하세요.');
+              }}
+              onClose={() => setSuggestion(null)}
+            />
+          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
             <div>
