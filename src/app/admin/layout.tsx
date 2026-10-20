@@ -1,6 +1,10 @@
+import { notFound } from 'next/navigation';
+import { isLocalAdminAllowed } from '@/lib/admin-guard.ts';
 import { AdminNav } from './admin-nav.tsx';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  // 로그인이 붙기 전까지 운영 환경에서는 관리자 화면 자체를 숨긴다
+  if (!isLocalAdminAllowed()) notFound();
   return (
     <div className="admin">
       <AdminNav />
