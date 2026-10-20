@@ -11,7 +11,7 @@ type Props = {
   attributes: ProductAttributes[];
   config: EngineConfig;
   mallId: string;
-  syncedAt: string;
+  syncedAt: string | null;
 };
 
 const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
@@ -115,7 +115,7 @@ export function ProductEditor({ products, attributes, config, mallId, syncedAt }
           <span className="small muted">검토 완료 {reviewedCount}/{attributes.length}</span>
         </div>
         <div className="small muted" style={{ marginTop: 2 }}>
-          카페24 {mallId} · {kstLabel(syncedAt)} 동기화
+          카페24 {mallId} · {syncedAt ? `${kstLabel(syncedAt)} 동기화` : '아직 동기화 안 함'}
         </div>
         <button className="btn ghost small" style={{ marginTop: 8 }} onClick={sync} disabled={pending}>카페24 상품 다시 가져오기</button>
 

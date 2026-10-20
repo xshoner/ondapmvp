@@ -52,3 +52,23 @@ Node 24 이상이 필요합니다(TypeScript를 그대로 실행).
 ## 카페24 연결
 
 `.env.local`에 쇼핑몰 ID, Client ID, Front API Key를 넣습니다. 앱이 쇼핑몰에 설치(운영자 동의)돼 있어야 하며, 설치 주소는 `node scripts/cafe24-install-url.mjs`로 만듭니다.
+
+## Supabase 전환 (4단계)
+
+데이터 저장소는 `.env.local`의 `ONDAP_DATA_SOURCE`로 고른다. `local`이면 `data/` JSON, `supabase`이면 Supabase DB.
+
+1. Supabase 대시보드 → SQL Editor에서 `supabase/migrations/20261020000000_init.sql` 실행 (테이블·RLS)
+2. 같은 곳에서 `supabase/seed.sql` 실행 (현재 로컬 데이터 40개 상품·지표·설정). 다시 만들려면 `npm run db:seed-sql`
+3. Authentication → Users → Add user로 관리자 계정 생성 후, SQL Editor에서
+   `insert into public.admins (user_id) select id from auth.users where email = '관리자 이메일';`
+4. Authentication → Sign In / Providers에서 새 가입 허용(Allow new users to sign up)을 끈다 (관리자만 로그인)
+5. `.env.local`의 `ONDAP_DATA_SOURCE=supabase`로 바꾸고 개발 서버 재시작 → `/login`
+
+| 표 | 누가 읽나 | 누가 쓰나 |
+| --- | --- | --- |
+| products, product_attributes, engine_config | 누구나 | 관리자 |
+| scenario_expectations | 관리자 | 관리자 |
+| recommendation_logs | 관리자 | 누구나(추천할 때 자동 기록) |
+| admins | 본인 행만 | SQL Editor에서만 |
+
+`npm run db:pull`은 DB 내용을 `data/`로 내려받아 CLI(`report`, `recommend`)와 테스트에 쓴다.

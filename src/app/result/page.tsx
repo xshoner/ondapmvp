@@ -1,4 +1,4 @@
-import { loadCatalog } from '@/data/catalog.ts';
+import { getCatalog, logRecommendation } from '@/data/repository.ts';
 import { recommend } from '@/engine/recommend.ts';
 import type { EventType, Relation, ScoredProduct } from '@/engine/types.ts';
 import { ScoreBreakdown } from '../components/score-breakdown.tsx';
@@ -11,7 +11,7 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export default async function ResultPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
-  const catalog = loadCatalog();
+  const catalog = await getCatalog();
   const { config } = catalog;
 
   const event = String(sp.event ?? '') as EventType;
@@ -29,6 +29,7 @@ export default async function ResultPage({ searchParams }: { searchParams: Searc
   const quantity = Math.max(1, Number(sp.qty ?? 1) || 1);
 
   const result = recommend(catalog, { event, relation, budgetMax, quantity });
+  await logRecommendation(result, config.modelVersion);
   const [main, ...others] = result.results;
   const eventName = config.events[event].name;
   const bannedCount = result.excluded.filter((x) => x.reason.startsWith(`${eventName} 제외`)).length;

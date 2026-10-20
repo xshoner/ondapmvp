@@ -1,17 +1,34 @@
-import { notFound } from 'next/navigation';
-import { isLocalAdminAllowed } from '@/lib/admin-guard.ts';
+import { notFound, redirect } from 'next/navigation';
+import { getAdminStatus } from '@/lib/admin-guard.ts';
+import { signOutAction } from '../login/actions.ts';
 import { AdminNav } from './admin-nav.tsx';
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  // 로그인이 붙기 전까지 운영 환경에서는 관리자 화면 자체를 숨긴다
-  if (!isLocalAdminAllowed()) notFound();
+export const dynamic = 'force-dynamic';
+
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const status = await getAdminStatus();
+
+  if (!status.allowed && status.reason === 'production') notFound();
+  if (!status.allowed && status.reason === 'login') redirect('/login?next=/admin');
+  if (!status.allowed) {
+    return (
+      <main className="mobile" style={{ paddingTop: 80, textAlign: 'center' }}>
+        <h1>관리자 권한이 없습니다</h1>
+        <p className="muted">{status.email} 계정은 관리자로 등록되어 있지 않습니다.</p>
+        <form action={signOutAction}><button className="btn ghost" type="submit">다른 계정으로 로그인</button></form>
+      </main>
+    );
+  }
+
   return (
     <div className="admin">
-      <AdminNav />
+      <AdminNav email={status.mode === 'supabase' ? status.email : null} />
       <div className="admin-body">
-        <p className="notice" style={{ marginTop: 0 }}>
-          로컬 개발용 관리자입니다. 로그인 없이 열리며, 저장하면 <code>data/</code> 폴더의 JSON 파일이 바로 바뀝니다.
-        </p>
+        {status.mode === 'local' ? (
+          <p className="notice" style={{ marginTop: 0 }}>
+            로컬 모드입니다. 로그인 없이 열리며, 저장하면 <code>data/</code> 폴더의 JSON 파일이 바뀝니다.
+          </p>
+        ) : null}
         {children}
       </div>
     </div>

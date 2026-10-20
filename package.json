@@ -15,7 +15,9 @@
     "test": "node --test \"test/**/*.test.ts\"",
     "report": "node scripts/report.ts",
     "recommend": "node scripts/recommend.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:seed-sql": "node scripts/db-seed-sql.ts",
+    "db:pull": "node scripts/db-pull.ts"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
@@ -24,6 +26,8 @@
     "typescript": "5.9"
   },
   "dependencies": {
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.117.2",
     "next": "16.3.8",
     "react": "19.3.0",
     "react-dom": "19.3.0"

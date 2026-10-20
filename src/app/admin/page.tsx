@@ -1,11 +1,11 @@
-import { loadCatalog, loadSyncInfo } from '@/data/catalog.ts';
+import { getCatalog, getSyncInfo } from '@/data/repository.ts';
 import { ProductEditor } from './product-editor.tsx';
 
 export const dynamic = 'force-dynamic';
 
-export default function AdminProductsPage() {
-  const catalog = loadCatalog();
-  const sync = loadSyncInfo();
+export default async function AdminProductsPage() {
+  const catalog = await getCatalog();
+  const sync = await getSyncInfo();
   return (
     <ProductEditor
       products={catalog.products}

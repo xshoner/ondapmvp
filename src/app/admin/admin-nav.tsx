@@ -1,6 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import { signOutAction } from '../login/actions.ts';
 
 const LINKS = [
   { href: '/admin', label: '상품 지표' },
@@ -8,7 +9,7 @@ const LINKS = [
   { href: '/admin/verify', label: '알고리즘 검증' },
 ];
 
-export function AdminNav() {
+export function AdminNav({ email }: { email: string | null }) {
   const path = usePathname();
   return (
     <nav className="admin-nav">
@@ -18,6 +19,12 @@ export function AdminNav() {
       ))}
       <span style={{ flex: 1 }} />
       <a href="/" target="_blank" rel="noreferrer">고객 화면 열기 ↗</a>
+      {email && (
+        <form action={signOutAction} className="row" style={{ gap: 8 }}>
+          <span className="small" style={{ opacity: 0.75 }}>{email}</span>
+          <button type="submit" className="btn ghost small" style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.5)' }}>로그아웃</button>
+        </form>
+      )}
     </nav>
   );
 }

@@ -1,7 +1,7 @@
-import { loadCatalog, loadExpectations } from '@/data/catalog.ts';
+import { getCatalog, getExpectations } from '@/data/repository.ts';
 import { recommend } from '@/engine/recommend.ts';
 import { scoreForSituation, baseIndex } from '@/engine/formality.ts';
-import type { EventType, Relation } from '@/engine/types.ts';
+import type { Catalog, EventType, Relation } from '@/engine/types.ts';
 import { ScoreBreakdown } from '../../components/score-breakdown.tsx';
 import { ExpectationPicker } from './expectation-picker.tsx';
 
@@ -14,9 +14,9 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export default async function VerifyPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
-  const catalog = loadCatalog();
+  const catalog = await getCatalog();
   const { config } = catalog;
-  const expectations = loadExpectations();
+  const expectations = await getExpectations();
   const budget = Number(sp.budget ?? 60000) || 60000;
   const eventIds = Object.keys(config.events) as EventType[];
   const relationIds = Object.keys(config.relations) as Relation[];
@@ -100,7 +100,7 @@ export default async function VerifyPage({ searchParams }: { searchParams: Searc
       </section>
 
       {selEvent && selRelation && (
-        <Detail catalogKey={`${selEvent}:${selRelation}`} event={selEvent} relation={selRelation} budget={budget} expected={expectations[`${selEvent}:${selRelation}`] ?? null} />
+        <Detail catalog={catalog} catalogKey={`${selEvent}:${selRelation}`} event={selEvent} relation={selRelation} budget={budget} expected={expectations[`${selEvent}:${selRelation}`] ?? null} />
       )}
     </div>
   );
@@ -116,8 +116,7 @@ function Metric({ label, value, hint }: { label: string; value: string; hint: st
   );
 }
 
-function Detail({ catalogKey, event, relation, budget, expected }: { catalogKey: string; event: EventType; relation: Relation; budget: number; expected: number | null }) {
-  const catalog = loadCatalog();
+function Detail({ catalog, catalogKey, event, relation, budget, expected }: { catalog: Catalog; catalogKey: string; event: EventType; relation: Relation; budget: number; expected: number | null }) {
   const { config } = catalog;
   const result = recommend(catalog, { event, relation, budgetMax: budget });
   const picked = new Set(result.results.map((x) => x.product.productNo));

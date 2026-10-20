@@ -1,10 +1,10 @@
-import { loadCatalog } from '@/data/catalog.ts';
+import { getCatalog } from '@/data/repository.ts';
 import { GiftFinderForm } from './gift-finder-form.tsx';
 
 export const dynamic = 'force-dynamic';
 
-export default function Home() {
-  const { config } = loadCatalog();
+export default async function Home() {
+  const { config } = await getCatalog();
   const events = Object.entries(config.events).map(([id, e]) => ({ id, name: e.name }));
   const relations = Object.entries(config.relations).map(([id, r]) => ({ id, name: r.name }));
 
