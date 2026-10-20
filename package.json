@@ -1,0 +1,31 @@
+{
+  "name": "ondap-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "온답 격식지수 기반 답례품 추천 엔진 MVP",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "sync": "node scripts/sync-products.ts",
+    "test": "node --test \"test/**/*.test.ts\"",
+    "report": "node scripts/report.ts",
+    "recommend": "node scripts/recommend.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "5.9"
+  },
+  "dependencies": {
+    "next": "16.3.8",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  }
+}

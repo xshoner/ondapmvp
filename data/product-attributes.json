@@ -1,0 +1,1385 @@
+{
+  "_note": "온답 격식지수 가안 v0.1. 상품명에 드러난 정보만 근거로 개발 측이 매긴 값(reviewed=false). 관리자 화면에서 검토·수정한다.",
+  "products": [
+    {
+      "productNo": 11,
+      "region": "국내",
+      "category": "정육/축산",
+      "scores": {
+        "rarity": 5,
+        "craftsmanship": 3,
+        "regional": 4,
+        "trust": 6,
+        "practicality": 5,
+        "formality": 6
+      },
+      "events": [
+        "thanks",
+        "birthday",
+        "longevity"
+      ],
+      "relations": [
+        "family",
+        "senior",
+        "peer"
+      ],
+      "excludedEvents": [
+        {
+          "event": "funeral",
+          "reason": "신선·냉장 상품이라 다수에게 대량 발송하는 장례 답례에 부적합"
+        }
+      ],
+      "meanings": {},
+      "tags": [
+        "한우",
+        "차돌박이"
+      ],
+      "story": "구이·국거리로 두루 쓰는 한우 차돌박이와 양지",
+      "reviewed": false
+    },
+    {
+      "productNo": 12,
+      "region": "국내",
+      "category": "정육/축산",
+      "scores": {
+        "rarity": 8,
+        "craftsmanship": 5,
+        "regional": 4,
+        "trust": 8,
+        "practicality": 4,
+        "formality": 10
+      },
+      "events": [
+        "promotion",
+        "longevity",
+        "wedding",
+        "thanks"
+      ],
+      "relations": [
+        "senior",
+        "business"
+      ],
+      "excludedEvents": [
+        {
+          "event": "funeral",
+          "reason": "신선·냉장 상품이라 다수에게 대량 발송하는 장례 답례에 부적합"
+        }
+      ],
+      "meanings": {
+        "longevity": "어르신 상차림의 으뜸으로 꼽히는 귀한 선물"
+      },
+      "tags": [
+        "1++등급",
+        "한우등심"
+      ],
+      "story": "최상급 1++ 등급 한우 등심 선물세트",
+      "reviewed": false
+    },
+    {
+      "productNo": 13,
+      "region": "국내",
+      "category": "정육/축산",
+      "scores": {
+        "rarity": 6,
+        "craftsmanship": 7,
+        "regional": 4,
+        "trust": 6,
+        "practicality": 6,
+        "formality": 7
+      },
+      "events": [
+        "longevity",
+        "thanks",
+        "promotion",
+        "birthday"
+      ],
+      "relations": [
+        "senior",
+        "family",
+        "business"
+      ],
+      "excludedEvents": [
+        {
+          "event": "funeral",
+          "reason": "신선·냉장 상품이라 다수에게 대량 발송하는 장례 답례에 부적합"
+        }
+      ],
+      "meanings": {},
+      "tags": [
+        "수제양념",
+        "한우갈비"
+      ],
+      "story": "전통 명가에서 직접 양념한 수제 한우 갈비",
+      "reviewed": false
+    },
+    {
+      "productNo": 14,
+      "region": "지리산",
+      "category": "정육/축산",
+      "scores": {
+        "rarity": 7,
+        "craftsmanship": 4,
+        "regional": 6,
+        "trust": 7,
+        "practicality": 4,
+        "formality": 8
+      },
+      "events": [
+        "promotion",
+        "longevity",
+        "thanks",
+        "wedding"
+      ],
+      "relations": [
+        "senior",
+        "business",
+        "family"
+      ],
+      "excludedEvents": [
+        {
+          "event": "funeral",
+          "reason": "신선·냉장 상품이라 다수에게 대량 발송하는 장례 답례에 부적합"
+        }
+      ],
+      "meanings": {},
+      "tags": [
+        "한우안심",
+        "지리산"
+      ],
+      "story": "지리산 청정 지역에서 키운 한우 안심",
+      "reviewed": false
+    },
+    {
+      "productNo": 15,
+      "region": "국내",
+      "category": "정육/축산",
+      "scores": {
+        "rarity": 2,
+        "craftsmanship": 2,
+        "regional": 2,
+        "trust": 7,
+        "practicality": 6,
+        "formality": 2
+      },
+      "events": [
+        "birthday"
+      ],
+      "relations": [
+        "peer",
+        "family"
+      ],
+      "excludedEvents": [
+        {
+          "event": "funeral",
+          "reason": "신선·냉장 상품이라 다수에게 대량 발송하는 장례 답례에 부적합"
+        }
+      ],
+      "meanings": {},
+      "tags": [
+        "무항생제",
+        "한돈"
+      ],
+      "story": "무항생제 한돈 삼겹살 구이용",
+      "reviewed": false
+    },
+    {
+      "productNo": 16,
+      "region": "국내",
+      "category": "정육/축산",
+      "scores": {
+        "rarity": 2,
+        "craftsmanship": 2,
+        "regional": 2,
+        "trust": 5,
+        "practicality": 6,
+        "formality": 3
+      },
+      "events": [
+        "birthday",
+        "thanks"
+      ],
+      "relations": [
+        "peer",
+        "family"
+      ],
+      "excludedEvents": [
+        {
+          "event": "funeral",
+          "reason": "신선·냉장 상품이라 다수에게 대량 발송하는 장례 답례에 부적합"
+        }
+      ],
+      "meanings": {},
+      "tags": [
+        "한돈",
+        "목살"
+      ],
+      "story": "육즙이 풍부한 한돈 목살",
+      "reviewed": false
+    },
+    {
+      "productNo": 17,
+      "region": "국내",
+      "category": "정육/축산",
+      "scores": {
+        "rarity": 3,
+        "craftsmanship": 6,
+        "regional": 2,
+        "trust": 4,
+        "practicality": 6,
+        "formality": 2
+      },
+      "events": [
+        "birthday",
+        "opening"
+      ],
+      "relations": [
+        "peer",
+        "family"
+      ],
+      "excludedEvents": [
+        {
+          "event": "funeral",
+          "reason": "신선·냉장 상품이라 다수에게 대량 발송하는 장례 답례에 부적합"
+        }
+      ],
+      "meanings": {},
+      "tags": [
+        "수제",
+        "족발보쌈"
+      ],
+      "story": "전통 방식으로 삶아낸 수제 족발과 보쌈",
+      "reviewed": false
+    },
+    {
+      "productNo": 18,
+      "region": "국내",
+      "category": "정육/축산",
+      "scores": {
+        "rarity": 8,
+        "craftsmanship": 5,
+        "regional": 4,
+        "trust": 8,
+        "practicality": 4,
+        "formality": 8
+      },
+      "events": [
+        "promotion",
+        "longevity",
+        "thanks",
+        "wedding"
+      ],
+      "relations": [
+        "senior",
+        "business"
+      ],
+      "excludedEvents": [
+        {
+          "event": "funeral",
+          "reason": "신선·냉장 상품이라 다수에게 대량 발송하는 장례 답례에 부적합"
+        }
+      ],
+      "meanings": {},
+      "tags": [
+        "1++등급",
+        "특수부위"
+      ],
+      "story": "1++ 한우 특수부위 모둠",
+      "reviewed": false
+    },
+    {
+      "productNo": 19,
+      "region": "제주",
+      "category": "정육/축산",
+      "scores": {
+        "rarity": 5,
+        "craftsmanship": 3,
+        "regional": 7,
+        "trust": 5,
+        "practicality": 5,
+        "formality": 4
+      },
+      "events": [
+        "birthday",
+        "thanks"
+      ],
+      "relations": [
+        "peer",
+        "family"
+      ],
+      "excludedEvents": [
+        {
+          "event": "funeral",
+          "reason": "신선·냉장 상품이라 다수에게 대량 발송하는 장례 답례에 부적합"
+        }
+      ],
+      "meanings": {},
+      "tags": [
+        "제주흑돼지"
+      ],
+      "story": "제주 토종 흑돼지 등갈비",
+      "reviewed": false
+    },
+    {
+      "productNo": 20,
+      "region": "완도",
+      "category": "수산/해산물",
+      "scores": {
+        "rarity": 7,
+        "craftsmanship": 4,
+        "regional": 8,
+        "trust": 6,
+        "practicality": 4,
+        "formality": 7
+      },
+      "events": [
+        "longevity",
+        "birth",
+        "thanks",
+        "promotion"
+      ],
+      "relations": [
+        "senior",
+        "business",
+        "family"
+      ],
+      "excludedEvents": [
+        {
+          "event": "funeral",
+          "reason": "신선·냉장 상품이라 다수에게 대량 발송하는 장례 답례에 부적합"
+        }
+      ],
+      "meanings": {
+        "birth": "산모의 몸을 보하는 대표 보양식",
+        "longevity": "귀한 보양식으로 건강과 장수를 기원하는 마음"
+      },
+      "tags": [
+        "완도",
+        "활전복"
+      ],
+      "story": "완도 청정 바다에서 키운 활전복",
+      "reviewed": false
+    },
+    {
+      "productNo": 21,
+      "region": "국내",
+      "category": "수산/해산물",
+      "scores": {
+        "rarity": 3,
+        "craftsmanship": 2,
+        "regional": 4,
+        "trust": 5,
+        "practicality": 5,
+        "formality": 3
+      },
+      "events": [
+        "thanks"
+      ],
+      "relations": [
+        "family",
+        "peer"
+      ],
+      "excludedEvents": [
+        {
+          "event": "funeral",
+          "reason": "신선·냉장 상품이라 다수에게 대량 발송하는 장례 답례에 부적합"
+        }
+      ],
+      "meanings": {},
+      "tags": [
+        "생물",
+        "고등어삼치"
+      ],
+      "story": "생물 고등어와 삼치 세트",
+      "reviewed": false
+    },
+    {
+      "productNo": 22,
+      "region": "국내",
+      "category": "정육/축산",
+      "scores": {
+        "rarity": 3,
+        "craftsmanship": 2,
+        "regional": 2,
+        "trust": 8,
+        "practicality": 7,
+        "formality": 2
+      },
+      "events": [
+        "birth",
+        "birthday"
+      ],
+      "relations": [
+        "family",
+        "peer"
+      ],
+      "excludedEvents": [
+        {
+          "event": "funeral",
+          "reason": "신선·냉장 상품이라 다수에게 대량 발송하는 장례 답례에 부적합"
+        }
+      ],
+      "meanings": {
+        "birth": "새 생명의 탄생을 축하하는 의미"
+      },
+      "tags": [
+        "동물복지",
+        "자연방사"
+      ],
+      "story": "자연방사 동물복지 유정란",
+      "reviewed": false
+    },
+    {
+      "productNo": 23,
+      "region": "영광",
+      "category": "수산/해산물",
+      "scores": {
+        "rarity": 8,
+        "craftsmanship": 8,
+        "regional": 10,
+        "trust": 7,
+        "practicality": 6,
+        "formality": 10
+      },
+      "events": [
+        "longevity",
+        "promotion",
+        "thanks",
+        "wedding",
+        "opening"
+      ],
+      "relations": [
+        "senior",
+        "business"
+      ],
+      "excludedEvents": [],
+      "meanings": {
+        "promotion": "'굴하지 않는다'는 뜻을 담은 굴비로 새 자리에서의 기개를 응원하는 마음",
+        "longevity": "임금님께 올리던 진상품으로 귀한 어른께 드리는 예"
+      },
+      "tags": [
+        "법성포",
+        "진상품"
+      ],
+      "story": "임금님 진상품으로 알려진 영광 법성포 굴비",
+      "reviewed": false
+    },
+    {
+      "productNo": 24,
+      "region": "국내",
+      "category": "정육/축산",
+      "scores": {
+        "rarity": 5,
+        "craftsmanship": 3,
+        "regional": 4,
+        "trust": 6,
+        "practicality": 5,
+        "formality": 3
+      },
+      "events": [
+        "birth",
+        "birthday",
+        "thanks"
+      ],
+      "relations": [
+        "family",
+        "peer"
+      ],
+      "excludedEvents": [
+        {
+          "event": "funeral",
+          "reason": "신선·냉장 상품이라 다수에게 대량 발송하는 장례 답례에 부적합"
+        }
+      ],
+      "meanings": {
+        "birth": "산후 몸조리를 돕는 전통 보양식"
+      },
+      "tags": [
+        "방목",
+        "토종닭"
+      ],
+      "story": "방목해 키운 재래 토종닭",
+      "reviewed": false
+    },
+    {
+      "productNo": 25,
+      "region": "지리산",
+      "category": "정육/축산",
+      "scores": {
+        "rarity": 6,
+        "craftsmanship": 5,
+        "regional": 6,
+        "trust": 6,
+        "practicality": 5,
+        "formality": 4
+      },
+      "events": [
+        "thanks",
+        "birthday"
+      ],
+      "relations": [
+        "peer",
+        "family"
+      ],
+      "excludedEvents": [
+        {
+          "event": "funeral",
+          "reason": "신선·냉장 상품이라 다수에게 대량 발송하는 장례 답례에 부적합"
+        }
+      ],
+      "meanings": {},
+      "tags": [
+        "유황오리",
+        "지리산"
+      ],
+      "story": "지리산 유황오리 로스",
+      "reviewed": false
+    },
+    {
+      "productNo": 26,
+      "region": "제주",
+      "category": "수산/해산물",
+      "scores": {
+        "rarity": 7,
+        "craftsmanship": 3,
+        "regional": 7,
+        "trust": 6,
+        "practicality": 5,
+        "formality": 7
+      },
+      "events": [
+        "thanks",
+        "longevity",
+        "promotion"
+      ],
+      "relations": [
+        "senior",
+        "business",
+        "family"
+      ],
+      "excludedEvents": [
+        {
+          "event": "funeral",
+          "reason": "신선·냉장 상품이라 다수에게 대량 발송하는 장례 답례에 부적합"
+        }
+      ],
+      "meanings": {},
+      "tags": [
+        "제주",
+        "은갈치"
+      ],
+      "story": "제주 바다 은갈치 특대형",
+      "reviewed": false
+    },
+    {
+      "productNo": 27,
+      "region": "남해",
+      "category": "수산/해산물",
+      "scores": {
+        "rarity": 8,
+        "craftsmanship": 8,
+        "regional": 9,
+        "trust": 7,
+        "practicality": 8,
+        "formality": 7
+      },
+      "events": [
+        "funeral",
+        "thanks",
+        "longevity",
+        "wedding"
+      ],
+      "relations": [
+        "senior",
+        "business",
+        "family"
+      ],
+      "excludedEvents": [],
+      "meanings": {},
+      "tags": [
+        "죽방렴",
+        "자연건조"
+      ],
+      "story": "남해 전통 죽방렴으로 잡아 자연 건조한 멸치",
+      "reviewed": false
+    },
+    {
+      "productNo": 28,
+      "region": "동해",
+      "category": "수산/해산물",
+      "scores": {
+        "rarity": 8,
+        "craftsmanship": 3,
+        "regional": 7,
+        "trust": 6,
+        "practicality": 3,
+        "formality": 7
+      },
+      "events": [
+        "promotion",
+        "thanks",
+        "longevity",
+        "birthday"
+      ],
+      "relations": [
+        "senior",
+        "business",
+        "family"
+      ],
+      "excludedEvents": [
+        {
+          "event": "funeral",
+          "reason": "신선·냉장 상품이라 다수에게 대량 발송하는 장례 답례에 부적합"
+        }
+      ],
+      "meanings": {},
+      "tags": [
+        "자연산",
+        "대게"
+      ],
+      "story": "동해안 자연산 대게",
+      "reviewed": false
+    },
+    {
+      "productNo": 29,
+      "region": "독도",
+      "category": "수산/해산물",
+      "scores": {
+        "rarity": 9,
+        "craftsmanship": 3,
+        "regional": 9,
+        "trust": 6,
+        "practicality": 3,
+        "formality": 5
+      },
+      "events": [
+        "birthday",
+        "thanks"
+      ],
+      "relations": [
+        "peer",
+        "family"
+      ],
+      "excludedEvents": [
+        {
+          "event": "funeral",
+          "reason": "신선·냉장 상품이라 다수에게 대량 발송하는 장례 답례에 부적합"
+        }
+      ],
+      "meanings": {},
+      "tags": [
+        "독도",
+        "자연산"
+      ],
+      "story": "독도 자연산 새우와 딱새우",
+      "reviewed": false
+    },
+    {
+      "productNo": 30,
+      "region": "울릉도",
+      "category": "수산/해산물",
+      "scores": {
+        "rarity": 7,
+        "craftsmanship": 4,
+        "regional": 8,
+        "trust": 6,
+        "practicality": 6,
+        "formality": 4
+      },
+      "events": [
+        "thanks",
+        "birthday"
+      ],
+      "relations": [
+        "peer",
+        "family"
+      ],
+      "excludedEvents": [
+        {
+          "event": "funeral",
+          "reason": "신선·냉장 상품이라 다수에게 대량 발송하는 장례 답례에 부적합"
+        }
+      ],
+      "meanings": {},
+      "tags": [
+        "울릉도",
+        "반건조"
+      ],
+      "story": "울릉도 청정 바다 반건조 오징어",
+      "reviewed": false
+    },
+    {
+      "productNo": 31,
+      "region": "제주",
+      "category": "과일/과채",
+      "scores": {
+        "rarity": 6,
+        "craftsmanship": 3,
+        "regional": 7,
+        "trust": 6,
+        "practicality": 6,
+        "formality": 6
+      },
+      "events": [
+        "thanks",
+        "birthday",
+        "longevity"
+      ],
+      "relations": [
+        "family",
+        "peer",
+        "business"
+      ],
+      "excludedEvents": [],
+      "meanings": {},
+      "tags": [
+        "제주",
+        "만감류"
+      ],
+      "story": "제주 황금향과 한라봉 세트",
+      "reviewed": false
+    },
+    {
+      "productNo": 32,
+      "region": "완도",
+      "category": "수산/해산물",
+      "scores": {
+        "rarity": 5,
+        "craftsmanship": 5,
+        "regional": 7,
+        "trust": 7,
+        "practicality": 9,
+        "formality": 6
+      },
+      "events": [
+        "birth",
+        "funeral",
+        "thanks"
+      ],
+      "relations": [
+        "family",
+        "senior",
+        "peer"
+      ],
+      "excludedEvents": [],
+      "meanings": {
+        "birth": "미역은 산모의 회복을 바라는 전통 출산 선물"
+      },
+      "tags": [
+        "완도",
+        "재래김",
+        "미역"
+      ],
+      "story": "완도 재래김과 미역, 참기름 세트",
+      "reviewed": false
+    },
+    {
+      "productNo": 33,
+      "region": "청송",
+      "category": "과일/과채",
+      "scores": {
+        "rarity": 6,
+        "craftsmanship": 4,
+        "regional": 8,
+        "trust": 7,
+        "practicality": 6,
+        "formality": 7
+      },
+      "events": [
+        "thanks",
+        "longevity",
+        "wedding",
+        "promotion"
+      ],
+      "relations": [
+        "senior",
+        "business",
+        "family",
+        "peer"
+      ],
+      "excludedEvents": [],
+      "meanings": {
+        "wedding": "평안과 화목을 뜻하는 사과로 새 가정을 축하하는 마음"
+      },
+      "tags": [
+        "청송",
+        "고당도"
+      ],
+      "story": "경북 청송 고당도 꿀사과",
+      "reviewed": false
+    },
+    {
+      "productNo": 34,
+      "region": "나주",
+      "category": "과일/과채",
+      "scores": {
+        "rarity": 6,
+        "craftsmanship": 4,
+        "regional": 8,
+        "trust": 7,
+        "practicality": 6,
+        "formality": 8
+      },
+      "events": [
+        "longevity",
+        "thanks",
+        "wedding",
+        "funeral",
+        "promotion"
+      ],
+      "relations": [
+        "senior",
+        "business",
+        "family"
+      ],
+      "excludedEvents": [],
+      "meanings": {},
+      "tags": [
+        "나주",
+        "명품배"
+      ],
+      "story": "나주 전통 명품 배 세트",
+      "reviewed": false
+    },
+    {
+      "productNo": 35,
+      "region": "음성·이천",
+      "category": "과일/과채",
+      "scores": {
+        "rarity": 6,
+        "craftsmanship": 3,
+        "regional": 7,
+        "trust": 6,
+        "practicality": 4,
+        "formality": 5
+      },
+      "events": [
+        "thanks",
+        "birthday"
+      ],
+      "relations": [
+        "family",
+        "peer"
+      ],
+      "excludedEvents": [
+        {
+          "event": "funeral",
+          "reason": "복숭아는 제례·상례에 쓰지 않는 관습"
+        }
+      ],
+      "meanings": {},
+      "tags": [
+        "햇사레"
+      ],
+      "story": "과즙이 풍부한 햇사레 복숭아",
+      "reviewed": false
+    },
+    {
+      "productNo": 36,
+      "region": "국내",
+      "category": "과일/과채",
+      "scores": {
+        "rarity": 5,
+        "craftsmanship": 3,
+        "regional": 3,
+        "trust": 6,
+        "practicality": 6,
+        "formality": 6
+      },
+      "events": [
+        "birthday",
+        "thanks",
+        "promotion"
+      ],
+      "relations": [
+        "peer",
+        "family",
+        "business"
+      ],
+      "excludedEvents": [],
+      "meanings": {},
+      "tags": [
+        "샤인머스캣",
+        "고당도"
+      ],
+      "story": "고당도 샤인머스캣",
+      "reviewed": false
+    },
+    {
+      "productNo": 37,
+      "region": "국내",
+      "category": "쌀/잡곡",
+      "scores": {
+        "rarity": 5,
+        "craftsmanship": 5,
+        "regional": 4,
+        "trust": 9,
+        "practicality": 9,
+        "formality": 6
+      },
+      "events": [
+        "funeral",
+        "wedding",
+        "birth",
+        "thanks"
+      ],
+      "relations": [
+        "family",
+        "business",
+        "senior"
+      ],
+      "excludedEvents": [],
+      "meanings": {
+        "funeral": "쌀은 정성과 감사를 담는 가장 기본의 답례",
+        "birth": "유기농 쌀로 산모와 아기의 건강을 바라는 마음"
+      },
+      "tags": [
+        "유기농",
+        "우렁이농법"
+      ],
+      "story": "우렁이 농법으로 키운 유기농 쌀",
+      "reviewed": false
+    },
+    {
+      "productNo": 38,
+      "region": "철원",
+      "category": "쌀/잡곡",
+      "scores": {
+        "rarity": 6,
+        "craftsmanship": 4,
+        "regional": 7,
+        "trust": 7,
+        "practicality": 9,
+        "formality": 6
+      },
+      "events": [
+        "funeral",
+        "wedding",
+        "thanks",
+        "opening"
+      ],
+      "relations": [
+        "senior",
+        "business",
+        "peer",
+        "family"
+      ],
+      "excludedEvents": [],
+      "meanings": {
+        "funeral": "쌀은 정성과 감사를 담는 가장 기본의 답례",
+        "opening": "곳간이 가득 차듯 번창을 기원하는 쌀"
+      },
+      "tags": [
+        "철원",
+        "오대쌀",
+        "신곡"
+      ],
+      "story": "철원 오대쌀 신곡",
+      "reviewed": false
+    },
+    {
+      "productNo": 39,
+      "region": "상주",
+      "category": "전통다과/한과",
+      "scores": {
+        "rarity": 6,
+        "craftsmanship": 7,
+        "regional": 8,
+        "trust": 7,
+        "practicality": 7,
+        "formality": 7
+      },
+      "events": [
+        "longevity",
+        "thanks",
+        "funeral",
+        "promotion"
+      ],
+      "relations": [
+        "senior",
+        "business",
+        "family"
+      ],
+      "excludedEvents": [],
+      "meanings": {},
+      "tags": [
+        "상주",
+        "자연건조",
+        "반건시"
+      ],
+      "story": "전통 방식으로 자연 건조한 상주 반건시 곶감",
+      "reviewed": false
+    },
+    {
+      "productNo": 40,
+      "region": "공주",
+      "category": "과일/과채",
+      "scores": {
+        "rarity": 5,
+        "craftsmanship": 3,
+        "regional": 7,
+        "trust": 6,
+        "practicality": 6,
+        "formality": 5
+      },
+      "events": [
+        "thanks",
+        "longevity",
+        "birthday",
+        "wedding"
+      ],
+      "relations": [
+        "family",
+        "peer",
+        "senior"
+      ],
+      "excludedEvents": [],
+      "meanings": {
+        "wedding": "폐백의 밤처럼 자손의 번창을 기원하는 마음"
+      },
+      "tags": [
+        "공주",
+        "알밤"
+      ],
+      "story": "충남 공주 알밤 선물용 큰 사이즈",
+      "reviewed": false
+    },
+    {
+      "productNo": 41,
+      "region": "국내",
+      "category": "쌀/잡곡",
+      "scores": {
+        "rarity": 6,
+        "craftsmanship": 4,
+        "regional": 5,
+        "trust": 6,
+        "practicality": 9,
+        "formality": 6
+      },
+      "events": [
+        "funeral",
+        "wedding",
+        "thanks",
+        "opening",
+        "longevity"
+      ],
+      "relations": [
+        "senior",
+        "business",
+        "peer",
+        "family"
+      ],
+      "excludedEvents": [],
+      "meanings": {
+        "funeral": "쌀은 정성과 감사를 담는 가장 기본의 답례",
+        "opening": "곳간이 가득 차듯 번창을 기원하는 쌀"
+      },
+      "tags": [
+        "향미",
+        "골든퀸"
+      ],
+      "story": "향이 고소한 골든퀸 향미 쌀",
+      "reviewed": false
+    },
+    {
+      "productNo": 42,
+      "region": "국내",
+      "category": "과일/과채",
+      "scores": {
+        "rarity": 5,
+        "craftsmanship": 3,
+        "regional": 3,
+        "trust": 6,
+        "practicality": 5,
+        "formality": 5
+      },
+      "events": [
+        "birthday",
+        "thanks",
+        "birth"
+      ],
+      "relations": [
+        "peer",
+        "family"
+      ],
+      "excludedEvents": [],
+      "meanings": {},
+      "tags": [
+        "머스크멜론"
+      ],
+      "story": "하우스 재배 머스크멜론",
+      "reviewed": false
+    },
+    {
+      "productNo": 43,
+      "region": "국내",
+      "category": "쌀/잡곡",
+      "scores": {
+        "rarity": 3,
+        "craftsmanship": 3,
+        "regional": 3,
+        "trust": 7,
+        "practicality": 9,
+        "formality": 4
+      },
+      "events": [
+        "funeral",
+        "thanks",
+        "birth"
+      ],
+      "relations": [
+        "family",
+        "peer"
+      ],
+      "excludedEvents": [],
+      "meanings": {},
+      "tags": [
+        "15곡",
+        "혼합잡곡"
+      ],
+      "story": "15곡 프리미엄 혼합잡곡",
+      "reviewed": false
+    },
+    {
+      "productNo": 44,
+      "region": "국내",
+      "category": "쌀/잡곡",
+      "scores": {
+        "rarity": 3,
+        "craftsmanship": 5,
+        "regional": 3,
+        "trust": 6,
+        "practicality": 8,
+        "formality": 3
+      },
+      "events": [
+        "thanks",
+        "birthday"
+      ],
+      "relations": [
+        "peer",
+        "family"
+      ],
+      "excludedEvents": [],
+      "meanings": {},
+      "tags": [
+        "가마솥",
+        "미숫가루"
+      ],
+      "story": "가마솥 방식으로 볶은 미숫가루",
+      "reviewed": false
+    },
+    {
+      "productNo": 45,
+      "region": "순창",
+      "category": "전통장/발효식품",
+      "scores": {
+        "rarity": 5,
+        "craftsmanship": 8,
+        "regional": 9,
+        "trust": 7,
+        "practicality": 9,
+        "formality": 6
+      },
+      "events": [
+        "funeral",
+        "thanks",
+        "wedding"
+      ],
+      "relations": [
+        "senior",
+        "family",
+        "business"
+      ],
+      "excludedEvents": [],
+      "meanings": {
+        "wedding": "오래 익을수록 깊어지는 장맛처럼 깊어질 인연을 축하하는 마음"
+      },
+      "tags": [
+        "순창",
+        "태양초"
+      ],
+      "story": "순창 태양초 고추장 명가의 전통 고추장",
+      "reviewed": false
+    },
+    {
+      "productNo": 46,
+      "region": "신안",
+      "category": "오일/조미료",
+      "scores": {
+        "rarity": 7,
+        "craftsmanship": 6,
+        "regional": 8,
+        "trust": 7,
+        "practicality": 9,
+        "formality": 5
+      },
+      "events": [
+        "funeral",
+        "opening",
+        "thanks"
+      ],
+      "relations": [
+        "business",
+        "peer",
+        "family"
+      ],
+      "excludedEvents": [],
+      "meanings": {
+        "opening": "소금은 나쁜 기운을 막고 새 출발을 지켜준다는 의미"
+      },
+      "tags": [
+        "신안",
+        "토판염"
+      ],
+      "story": "청정 신안 토판에서 생산한 천일염",
+      "reviewed": false
+    },
+    {
+      "productNo": 47,
+      "region": "국내",
+      "category": "오일/조미료",
+      "scores": {
+        "rarity": 5,
+        "craftsmanship": 7,
+        "regional": 5,
+        "trust": 7,
+        "practicality": 9,
+        "formality": 7
+      },
+      "events": [
+        "funeral",
+        "wedding",
+        "thanks",
+        "birth",
+        "opening"
+      ],
+      "relations": [
+        "senior",
+        "business",
+        "family"
+      ],
+      "excludedEvents": [],
+      "meanings": {
+        "wedding": "'깨가 쏟아지는' 신혼을 바라는 고소한 마음"
+      },
+      "tags": [
+        "저온압착",
+        "참기름",
+        "들기름"
+      ],
+      "story": "전통 저온 압착 참기름과 들기름 세트",
+      "reviewed": false
+    },
+    {
+      "productNo": 48,
+      "region": "하동",
+      "category": "다도/천연꿀",
+      "scores": {
+        "rarity": 8,
+        "craftsmanship": 8,
+        "regional": 9,
+        "trust": 7,
+        "practicality": 6,
+        "formality": 8
+      },
+      "events": [
+        "funeral",
+        "thanks",
+        "promotion",
+        "longevity",
+        "opening"
+      ],
+      "relations": [
+        "senior",
+        "business",
+        "peer",
+        "family"
+      ],
+      "excludedEvents": [],
+      "meanings": {
+        "funeral": "차 한 잔에 담은 차분한 위로와 마음의 평안",
+        "promotion": "맑은 정신으로 새 자리에서의 건승을 기원하는 마음"
+      },
+      "tags": [
+        "하동",
+        "우전",
+        "수제"
+      ],
+      "story": "하동 전통 차밭에서 딴 수제 우전 녹차",
+      "reviewed": false
+    },
+    {
+      "productNo": 49,
+      "region": "지리산",
+      "category": "다도/천연꿀",
+      "scores": {
+        "rarity": 7,
+        "craftsmanship": 6,
+        "regional": 8,
+        "trust": 7,
+        "practicality": 8,
+        "formality": 8
+      },
+      "events": [
+        "longevity",
+        "thanks",
+        "funeral",
+        "wedding",
+        "promotion",
+        "birth"
+      ],
+      "relations": [
+        "senior",
+        "business",
+        "family",
+        "peer"
+      ],
+      "excludedEvents": [],
+      "meanings": {
+        "wedding": "달콤한 새 출발을 바라는 마음",
+        "longevity": "건강하고 달콤한 날들을 기원하는 마음"
+      },
+      "tags": [
+        "지리산",
+        "야생화꿀"
+      ],
+      "story": "지리산 야생화로 채밀한 자연산 벌꿀",
+      "reviewed": false
+    },
+    {
+      "productNo": 50,
+      "region": "국내",
+      "category": "전통장/발효식품",
+      "scores": {
+        "rarity": 6,
+        "craftsmanship": 9,
+        "regional": 6,
+        "trust": 7,
+        "practicality": 9,
+        "formality": 6
+      },
+      "events": [
+        "funeral",
+        "wedding",
+        "thanks",
+        "opening",
+        "longevity"
+      ],
+      "relations": [
+        "senior",
+        "business",
+        "family"
+      ],
+      "excludedEvents": [],
+      "meanings": {
+        "wedding": "오래 익을수록 깊어지는 장맛처럼 깊어질 인연을 축하하는 마음"
+      },
+      "tags": [
+        "3년숙성",
+        "명인"
+      ],
+      "story": "전통 명인이 3년 숙성한 재래 된장",
+      "reviewed": false
+    }
+  ]
+}

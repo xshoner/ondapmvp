@@ -1,0 +1,40 @@
+{
+  "_note": "온답 격식지수 가안 v0.1 (개발 측 자체 모델). 심이사 관리자 시안의 4개 지표에 회의·결과 화면에서 나온 요소(위생·신뢰, 실용성, 선물의 의미, 소멸위기지역 상생, 격식 단계)를 더했다. 특허 자료가 오면 비교해 교체하거나 병행한다.",
+  "modelVersion": "v0.1",
+  "indicators": [
+    { "id": "rarity", "name": "희소성", "description": "지역 한정, 소량 생산일수록 높음", "max": 10, "mode": "higher", "reasonPhrase": "쉽게 구하기 어려운 귀한 상품" },
+    { "id": "craftsmanship", "name": "장인·전통성", "description": "명인, 대가, 전통 기법, 가업일수록 높음", "max": 10, "mode": "higher", "reasonPhrase": "장인의 손길과 전통 방식이 담긴 상품" },
+    { "id": "regional", "name": "지역 가치", "description": "산지의 이야기, 역사성, 지역 대표성", "max": 10, "mode": "higher", "reasonPhrase": "산지의 이야기가 담긴 지역 대표 상품" },
+    { "id": "trust", "name": "신뢰·안전", "description": "인증(유기농·무항생제·등급), 위생, 생산 이력", "max": 10, "mode": "higher", "reasonPhrase": "믿고 드릴 수 있는 안심 상품" },
+    { "id": "practicality", "name": "실용성", "description": "보관이 쉽고 받는 분이 두루 쓰기 좋은 정도", "max": 10, "mode": "higher", "reasonPhrase": "받는 분이 두루 쓰기 좋은 실속 상품" },
+    { "id": "formality", "name": "격식 적합도", "description": "품격, 가격대, 포장. 상황별 목표 수준에 가까울수록 좋음", "max": 10, "mode": "target", "reasonPhrase": "자리의 격식에 꼭 맞는 상품" }
+  ],
+  "events": {
+    "funeral":   { "name": "장례",      "formalityTarget": 7, "weights": { "rarity": 0.5, "craftsmanship": 1.5, "regional": 1.0, "trust": 1.5, "practicality": 2.0, "formality": 3.0 } },
+    "wedding":   { "name": "결혼",      "formalityTarget": 7, "weights": { "rarity": 1.5, "craftsmanship": 1.5, "regional": 1.0, "trust": 1.0, "practicality": 1.0, "formality": 2.0 } },
+    "longevity": { "name": "회갑/칠순", "formalityTarget": 8, "weights": { "rarity": 1.0, "craftsmanship": 2.0, "regional": 1.5, "trust": 1.5, "practicality": 0.5, "formality": 2.5 } },
+    "birth":     { "name": "출산",      "formalityTarget": 5, "weights": { "rarity": 0.5, "craftsmanship": 1.0, "regional": 1.0, "trust": 2.5, "practicality": 1.5, "formality": 1.0 } },
+    "promotion": { "name": "승진/이직", "formalityTarget": 8, "weights": { "rarity": 2.0, "craftsmanship": 1.5, "regional": 1.0, "trust": 1.0, "practicality": 0.5, "formality": 2.0 } },
+    "opening":   { "name": "신축/개업", "formalityTarget": 6, "weights": { "rarity": 1.5, "craftsmanship": 1.0, "regional": 1.5, "trust": 1.0, "practicality": 1.0, "formality": 1.5 } },
+    "thanks":    { "name": "감사선물",  "formalityTarget": 6, "weights": { "rarity": 1.5, "craftsmanship": 1.5, "regional": 2.0, "trust": 1.0, "practicality": 1.0, "formality": 1.5 } },
+    "birthday":  { "name": "생일",      "formalityTarget": 4, "weights": { "rarity": 2.0, "craftsmanship": 1.0, "regional": 1.0, "trust": 0.5, "practicality": 1.0, "formality": 1.0 } }
+  },
+  "relations": {
+    "senior":   { "name": "상급자/어르신", "formalityShift": 1.5,  "multipliers": { "craftsmanship": 1.2, "trust": 1.2, "formality": 1.5 } },
+    "business": { "name": "거래처/공식",   "formalityShift": 1.0,  "multipliers": { "regional": 1.2, "trust": 1.2, "formality": 1.4 } },
+    "peer":     { "name": "동료/친구",     "formalityShift": -1.0, "multipliers": { "rarity": 1.2, "practicality": 1.2 } },
+    "family":   { "name": "가족/친밀",     "formalityShift": -1.5, "multipliers": { "trust": 1.2, "practicality": 1.3 } }
+  },
+  "targetSlope": 1.5,
+  "bonus": { "eventFit": 6, "eventMiss": -12, "relationFit": 4, "meaning": 6, "depopulation": 3 },
+  "depopulationAreas": ["영광", "신안", "완도", "하동", "남해", "상주", "청송", "순창", "울릉도", "독도", "철원", "공주"],
+  "_depopulationNote": "행정안전부 2021년 인구감소지역 지정 기준으로 개발 측이 정리. 공식 목록과 대조 필요.",
+  "tiers": [
+    { "minFormality": 8, "label": "격을 갖춘 선택" },
+    { "minFormality": 6, "label": "실속 있는 정성" },
+    { "minFormality": 0, "label": "가벼운 안부의 예의" }
+  ],
+  "diversity": { "maxPerCategory": 1 },
+  "budgetRelaxRatio": 1.3,
+  "resultCount": 3
+}
