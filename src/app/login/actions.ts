@@ -3,12 +3,7 @@
 import { redirect } from 'next/navigation';
 import { dataSource } from '@/lib/supabase/env.ts';
 import { createClient } from '@/lib/supabase/server.ts';
-
-// 로그인 후 돌아갈 곳은 내부 경로만 허용한다 (외부 주소로 보내는 오픈 리다이렉트 방지)
-function safeNext(next: FormDataEntryValue | null): string {
-  const v = typeof next === 'string' ? next : '';
-  return v.startsWith('/') && !v.startsWith('//') ? v : '/admin';
-}
+import { safeNext } from '@/lib/safe-next.ts';
 
 export async function signInAction(_prev: { error: string | null }, form: FormData): Promise<{ error: string | null }> {
   if (dataSource() !== 'supabase') return { error: '로컬 모드에서는 로그인이 필요 없습니다.' };
