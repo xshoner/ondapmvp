@@ -1,6 +1,8 @@
 /*
  * 온답 포장 디자인 도우미 (카페24 쇼핑몰에서 실행)
- * 카페24 스마트디자인 레이아웃의 </body> 바로 위에 한 줄만 넣는다 (PC·모바일 스킨 각각):
+ * 카페24 스마트디자인에 아래 한 줄을 넣는다 (PC·모바일 스킨 각각):
+ *   - layout/basic/layout.html 의 </body> 바로 위 (상품 상세·로그인 화면)
+ *   - order/orderform.html 맨 아래 (주문서는 다른 레이아웃을 써서 따로 넣어야 한다)
  *   <script src="https://ondapmvp.vercel.app/cafe24/ondap-helper.js" defer></script>
  *
  * 1) 온답 '주문하러 가기' 주소의 ondap_code·ondap_qty를 이 브라우저에 24시간 기억
@@ -124,7 +126,7 @@
       }
     }
     banner('🎀 포장 디자인 ' + badge(state.code) + ' 접수 완료.' + qtyText +
-      '<br>‘바로 구매’를 누르면 주문서에 코드가 자동으로 들어가요.');
+      '<br>‘바로 구매’(모바일은 ‘구매하기’)를 누르면 주문서에 코드가 자동으로 들어가요.');
   }
 
   function onLoginPage(state) {

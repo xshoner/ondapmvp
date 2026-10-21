@@ -35,10 +35,12 @@ const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
 
-// 카페24 상품 주소에 코드·수량을 붙인다. 쇼핑몰 스킨의 public/cafe24/ondap-helper.js가 읽어 수량을 맞추고 주문서에 코드를 넣는다
+// 카페24 상품 주소에 코드·수량을 붙인다. 쇼핑몰 스킨의 public/cafe24/ondap-helper.js가 읽어 수량을 맞추고 주문서에 코드를 넣는다.
+// 휴대폰은 처음부터 모바일 쇼핑몰(/m/) 주소로 보낸다: PC 주소로 가면 카페24가 /m/으로 넘기면서 붙인 값을 버린다
 function orderUrl(productUrl: string, code: string, quantity: number): string {
   try {
     const u = new URL(productUrl);
+    if (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) && !u.pathname.startsWith('/m/')) u.pathname = `/m${u.pathname}`;
     u.searchParams.set('ondap_code', code);
     u.searchParams.set('ondap_qty', String(quantity));
     return u.toString();
