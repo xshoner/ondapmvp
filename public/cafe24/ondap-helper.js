@@ -132,30 +132,42 @@
     banner('🎀 회원가입 없이 아래 <b>‘비회원 구매’</b>로도 주문할 수 있어요.<br>포장 디자인 ' + badge(state.code) + '는 주문서에 자동으로 들어가요.');
   }
 
-  // 항목 이름이 적힌 칸(th·label 등)을 찾고, 같은 줄(tr·li)의 입력칸을 돌려준다. 스킨마다 구조가 달라 이름으로 찾는다
-  function findCodeField() {
-    var heads = document.querySelectorAll('th, label, dt, strong, span, p');
+  // 항목 이름이 적힌 제목 칸(th·dt·label)을 찾고, 같은 줄(tr·li·dl)의 입력칸을 모은다. 스킨마다 구조가 달라 이름으로 찾는다.
+  // 카페24는 이 항목을 상품마다 하나씩 그린다(oa_content[항목|상품번호]) → 장바구니 상품이 여럿이면 칸도 여럿
+  function findCodeFields() {
+    var heads = document.querySelectorAll('th, dt, label');
+    var found = [];
     for (var i = 0; i < heads.length; i++) {
-      var h = heads[i];
-      if (h.textContent.indexOf(LABEL) === -1 || h.textContent.length > LABEL.length + 20) continue;
-      var row = h.closest('tr, li, dl, .ec-base-table') || h.parentElement;
+      if (heads[i].textContent.indexOf(LABEL) === -1) continue;
+      var row = heads[i].closest('tr, li, dl');
       var field = row && row.querySelector('input[type="text"], input:not([type]), textarea');
-      if (field) return field;
+      if (field && found.indexOf(field) === -1) found.push(field);
     }
-    return null;
+    return found.length ? found : null;
+  }
+
+  // 칸 이름에 상품번호가 있으면(oa_content[1|27]) 코드를 받은 상품의 칸만 쓴다. 다른 상품 주문에 엉뚱한 코드가 들어가지 않도록
+  function forProduct(fields, productNo) {
+    if (!fields || !productNo) return fields;
+    var mine = fields.filter(function (f) { return new RegExp('\\|' + productNo + '\\]$').test(f.name || ''); });
+    var numbered = fields.some(function (f) { return /\|\d+\]$/.test(f.name || ''); });
+    return numbered ? (mine.length ? mine : null) : fields;
   }
 
   function onOrderForm(state) {
-    waitFor(findCodeField, function (field) {
-      if (field) {
-        if (!field.value.trim()) {
-          field.value = state.code;
-          fire(field);
-        }
-        field.style.outline = '2px solid #2f5a4b';
+    waitFor(function () { return forProduct(findCodeFields(), state.productNo); }, function (fields) {
+      if (fields) {
+        fields.forEach(function (field) {
+          if (!field.value.trim()) {
+            field.value = state.code;
+            fire(field);
+          }
+          field.style.outline = '2px solid #2f5a4b';
+        });
         // 안내 띠에는 검증된 코드만 넣는다 (입력칸 값은 고객이 바꿀 수 있으므로 HTML에 쓰지 않음)
         banner('🎀 주문서 ‘' + LABEL + '’ 칸에 포장 디자인 코드 ' + badge(state.code) + '를 넣어 두었어요. 이대로 주문하시면 돼요.');
-      } else {
+      } else if (!findCodeFields()) {
+        // 항목 칸 자체가 없을 때만 복사 안내 (칸은 있는데 다른 상품 주문이면 조용히 넘어감)
         banner('🎀 포장 디자인 ' + badge(state.code) + '를 주문서 요청 칸에 적어 주세요.', [copyButton(state.code)]);
       }
     });
@@ -169,7 +181,7 @@
       save({
         code: linkCode,
         qty: Math.min(100000, Math.max(1, parseInt(params.get('ondap_qty'), 10) || 1)),
-        productNo: params.get('product_no') || '',
+        productNo: (params.get('product_no') || '').replace(/\D/g, ''),
         at: Date.now(),
       });
     }
