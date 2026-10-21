@@ -1,0 +1,4 @@
+- [온답 추천 엔진 프로젝트](project-ondap-recommendation-engine.md) — 심이사 용역 범위·마감, 10/21 완료 상태, 다음은 PRD 초안, 먼저 docs/CLONE.md 읽기
+- [온답 인프라 식별자·함정](reference-ondap-infra.md) — Vercel/Supabase ID, MCP 계정 불일치, SSO 보호, 127.0.0.1
+- [카페24 검증 결과](reference-cafe24-front-api.md) — 앱 설치 필수, localhost 불가, 호출 한도, 모바일 진열 번호
+- [한국어 응답·비밀값 취급](feedback-korean-and-credentials.md) — 항상 한국어, 채팅으로 받은 비밀번호는 저장 안 함

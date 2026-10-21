@@ -165,3 +165,4 @@ npm run cafe24:snippets -- https://운영주소
 - 저장소 루트의 `CLAUDE.md`가 작업 규칙(한국어, 127.0.0.1, 비밀값, 테스트·배포 순서)을 담고 있다. Claude Code로 열면 자동으로 읽는다
 - `.claude/launch.json`의 `ondap-dev`로 미리보기 서버를 띄운다
 - 자주 쓰는 명령은 [RUNBOOK.md 7장](RUNBOOK.md#7-명령어-모음)
+- **Claude 계정이 바뀌었거나 이전 대화 맥락이 필요하면** [handoff/README.md](handoff/README.md): 대화 이력 전체, Claude 기억 파일, 고객 원자료, `npm run handoff:restore`(기억 되살리기)·`npm run handoff:export`(갱신)

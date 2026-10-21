@@ -21,7 +21,9 @@
     "db:setup-sql": "node scripts/db-setup-sql.ts",
     "ai:suggest": "node scripts/ai-suggest.ts",
     "doctor": "node scripts/doctor.ts",
-    "cafe24:snippets": "node scripts/cafe24-snippets.ts"
+    "cafe24:snippets": "node scripts/cafe24-snippets.ts",
+    "handoff:export": "node scripts/handoff-export.mjs",
+    "handoff:restore": "node scripts/handoff-restore.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
