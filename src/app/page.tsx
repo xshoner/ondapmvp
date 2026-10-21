@@ -20,6 +20,9 @@ export default async function Home() {
         <p className="muted" style={{ marginTop: 8 }}>
           행사와 받는 분을 알려주시면 격식에 맞는 지역 답례품 3가지를 골라드립니다.
         </p>
+        <a className="small" href="/packaging/pick" style={{ color: 'var(--green)', fontWeight: 600 }}>
+          🎀 추천 없이 원하는 상품의 포장만 꾸미기 →
+        </a>
       </section>
 
       <GiftFinderForm events={events} relations={relations} />

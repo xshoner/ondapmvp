@@ -4,13 +4,16 @@ import type { EventType } from '@/engine/types.ts';
 import { CATEGORY_ORDER, categoryName } from '@/packaging/rules.ts';
 import type { PackagingAssets } from '@/packaging/types.ts';
 import { stickerFontFamilies } from './fonts.ts';
-import { PackagingEditor } from './packaging-editor.tsx';
+import { PackagingEditor, type PackagingEntry } from './packaging-editor.tsx';
 
 export const dynamic = 'force-dynamic';
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-// 추천 결과의 '이 상품으로 포장 꾸미기'에서 들어온다: /packaging?product=12&qty=30&event=longevity&relation=senior&budget=50000
+// 들어오는 길 세 가지 (from):
+//   추천 결과 '이 상품으로 포장 꾸미기'  /packaging?product=12&qty=30&event=longevity&relation=senior&budget=50000
+//   카페24 상품 페이지 버튼(도우미 스크립트) /packaging?product=12&qty=30&from=cafe24
+//   온답 '포장만 꾸미기' 상품 선택          /packaging?product=12&from=pick
 export default async function PackagingPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
   const catalog = await getCatalog();
@@ -25,14 +28,19 @@ export default async function PackagingPage({ searchParams }: { searchParams: Se
     console.error('[포장 디자인] 자산 읽기 실패:', e instanceof Error ? e.message : e);
   }
 
-  // 추천 결과로 돌아갈 주소 (행사·관계·예산·수량을 그대로 넘겨받는다)
+  const from: PackagingEntry = sp.from === 'cafe24' || sp.from === 'pick' ? sp.from : 'recommend';
+  // 돌아갈 곳: 카페24 상품 페이지 / 상품 고르기 / 추천 결과(행사·관계·예산·수량을 그대로 넘겨받는다) / 처음
   const backQuery = new URLSearchParams();
   for (const k of ['event', 'relation', 'budget', 'qty']) if (typeof sp[k] === 'string') backQuery.set(k, sp[k] as string);
-  const backHref = sp.relation ? `/result?${backQuery}` : '/';
+  const [backHref, backLabel] =
+    from === 'cafe24' && product ? [product.url, '‹ 상품으로']
+    : from === 'pick' ? ['/packaging/pick', '‹ 상품 고르기']
+    : sp.relation ? [`/result?${backQuery}`, '‹ 추천 결과']
+    : ['/', '‹ 처음으로'];
 
   const back = (
     <header className="topbar">
-      <a className="small muted" href={backHref} style={{ textDecoration: 'none' }}>‹ 추천 결과</a>
+      <a className="small muted" href={backHref} style={{ textDecoration: 'none' }}>{backLabel}</a>
       <span className="serif" style={{ fontSize: 15 }}>포장 꾸미기</span>
       <span style={{ width: 60 }} />
     </header>
@@ -60,7 +68,8 @@ export default async function PackagingPage({ searchParams }: { searchParams: Se
         product={{ productNo: product.productNo, name: product.name, price: product.price, image: product.image ?? null, url: product.url }}
         quantity={quantity}
         event={event}
-        eventName={event ? eventNames[event] : null}
+        events={(Object.keys(catalog.config.events) as EventType[]).map((id) => ({ id, name: eventNames[id] }))}
+        from={from}
         styles={assets.styles}
         images={assets.images}
         texts={assets.texts}

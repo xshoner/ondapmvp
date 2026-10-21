@@ -5,6 +5,7 @@
  *   - order/orderform.html 맨 아래 (주문서는 다른 레이아웃을 써서 따로 넣어야 한다)
  *   <script src="https://ondapmvp.vercel.app/cafe24/ondap-helper.js" defer></script>
  *
+ * 0) 상품 상세: 구매 버튼 아래 '포장·스티커 꾸미기' 버튼 (추천을 거치지 않은 고객도 바로 꾸밀 수 있게)
  * 1) 온답 '주문하러 가기' 주소의 ondap_code·ondap_qty를 이 브라우저에 24시간 기억
  * 2) 상품 상세: 수량을 맞추고 안내 띠를 보여 준다
  * 3) 로그인 화면: 비회원 구매도 된다고 알려 준다
@@ -20,6 +21,10 @@
   var TTL = 24 * 3600 * 1000;
   // 주문서에 넣은 뒤로는 1시간만 기억 (주문 완료 화면에 스크립트가 없어도 다음 주문에 남지 않게)
   var AFTER_FILL_TTL = 3600 * 1000;
+  // 이 스크립트를 내려준 온답 주소 (운영 주소가 바뀌면 스킨의 한 줄만 바꾸면 된다)
+  var APP = (function () {
+    try { return new URL(document.currentScript.src).origin; } catch (e) { return 'https://ondapmvp.vercel.app'; }
+  })();
 
   function load() {
     try {
@@ -134,6 +139,41 @@
       '<br>‘바로 구매’(모바일은 ‘구매하기’)를 누르면 주문서에 코드가 자동으로 들어가요.');
   }
 
+  function productNoHere() {
+    var m = location.pathname.match(/\/product\/[^/]+\/(\d+)/);
+    return String(window.iProductNo || new URLSearchParams(location.search).get('product_no') || (m && m[1]) || '').replace(/\D/g, '');
+  }
+
+  // 구매 버튼 묶음 바로 아래에 둔다. 화면 아래에 고정되는 구매 막대(#orderFixArea 등)에는 넣지 않는다
+  function addPackagingButton(state) {
+    var no = productNoHere();
+    if (!no || document.getElementById('ondap-pack-btn')) return;
+    var buy = [].slice.call(document.querySelectorAll('a, button')).filter(function (a) {
+      return /product_submit\(1/.test(a.getAttribute('onclick') || '') && !a.closest('#orderFixArea, .gFixed');
+    })[0];
+    var anchor = buy && (buy.closest('.xans-product-action') || buy.parentElement);
+    if (!anchor) return;
+    var again = state && state.productNo === no;
+    var link = document.createElement('a');
+    link.id = 'ondap-pack-btn';
+    link.style.cssText = [
+      'display:block', 'margin:10px 0', 'padding:12px 14px', 'border:1px solid #2f5a4b', 'border-radius:8px', 'background:#f4f7f5',
+      'color:#2f5a4b !important', 'text-align:center', 'text-decoration:none', 'line-height:1.4',
+      "font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif",
+    ].join(';');
+    link.innerHTML = '<b style="font-size:15px;color:#2f5a4b !important">🎀 ' + (again ? '포장 다시 꾸미기' : '포장·스티커 꾸미기 (무료)') + '</b>' +
+      '<br><span style="font-size:12px;color:#55665f !important">포장지를 고르고 스티커에 문구·사진을 넣을 수 있어요</span>';
+    // 누르는 순간의 수량을 함께 넘긴다
+    var go = function () {
+      var q = document.querySelector('#quantity');
+      var n = Math.min(100000, Math.max(1, parseInt(q && q.value, 10) || 1));
+      link.href = APP + '/packaging?product=' + no + '&qty=' + n + '&from=cafe24';
+    };
+    go();
+    link.addEventListener('click', go);
+    anchor.insertAdjacentElement('afterend', link);
+  }
+
   function onLoginPage(state) {
     if (!/noMember=1/.test(location.search)) return;
     banner('🎀 회원가입 없이 아래 <b>‘비회원 구매’</b>로도 주문할 수 있어요.<br>포장 디자인 ' + badge(state.code) + '는 주문서에 자동으로 들어가요.');
@@ -194,11 +234,13 @@
       });
     }
     var state = load();
+    var path = location.pathname;
+    var productPage = /\/product\/detail\.html|\/product\/[^/]+\/\d+/.test(path);
+    if (productPage) addPackagingButton(state);
     if (!state) return;
 
-    var path = location.pathname;
     if (/order_result\.html/.test(path)) return clear();
-    if (/\/product\/detail\.html|\/product\/[^/]+\/\d+/.test(path)) return onProductPage(state, fromLink);
+    if (productPage) return onProductPage(state, fromLink);
     if (/\/member\/login\.html/.test(path)) return onLoginPage(state);
     if (/\/order\/orderform\.html/.test(path)) return onOrderForm(state);
   }

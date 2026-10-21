@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FONTS, MIN_PRINT_DPI, PLACEHOLDER_BLANK, STICKER_SIZES, effectiveDpi, fillPlaceholders, printPixels, type FontId,
 } from '@/packaging/rules.ts';
+import type { EventType } from '@/engine/types.ts';
 import type { DesignCategory, DesignDraft, DesignImage, DesignText, PackagingStyle, StickerShape, StickerSizeCm, TextLayer } from '@/packaging/types.ts';
 import { saveDesignAction } from './actions.ts';
 import type { CanvasApi, EditorImageLayer, EditorLayer } from './editor-types.ts';
@@ -18,11 +19,15 @@ const StickerCanvas = dynamic(() => import('./sticker-canvas.tsx'), {
   loading: () => <div className="stage-loading">편집기를 불러오는 중…</div>,
 });
 
+export type PackagingEntry = 'recommend' | 'cafe24' | 'pick';
+
 type Props = {
   product: { productNo: number; name: string; price: number; image: string | null; url: string };
   quantity: number;
-  event: DesignCategory | null;
-  eventName: string | null;
+  event: EventType | null;
+  events: { id: EventType; name: string }[];
+  // 들어온 곳: 추천 결과, 카페24 상품 페이지 버튼, '포장만 꾸미기' 상품 선택
+  from: PackagingEntry;
   styles: PackagingStyle[];
   images: DesignImage[];
   texts: DesignText[];
@@ -81,7 +86,11 @@ function byRelevance<T extends { category: DesignCategory; sort: number }>(items
 }
 
 export function PackagingEditor(props: Props) {
-  const { product, quantity, event, eventName, styles, categoryNames, fontFamilies } = props;
+  const { product, styles, categoryNames, fontFamilies, events, from } = props;
+  // 추천을 거치지 않고 들어오면 행사를 모르므로 화면에서 고르게 한다 (안 골라도 공통 이미지로 꾸밀 수 있다)
+  const [event, setEvent] = useState<DesignCategory | null>(props.event);
+  const [quantity, setQuantity] = useState(props.quantity);
+  const eventName = event && event !== 'common' ? categoryNames[event] : null;
   const images = useMemo(() => byRelevance(props.images, event), [props.images, event]);
   const texts = useMemo(() => byRelevance(props.texts, event), [props.texts, event]);
   const nearTexts = texts.filter((t) => t.category === event || t.category === 'common');
@@ -102,17 +111,27 @@ export function PackagingEditor(props: Props) {
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<{ code: string; copied: boolean; preview: string | null } | null>(null);
   const apiRef = useRef<CanvasApi | null>(null);
+  const autoLayer = useRef<EditorLayer | null>(null); // 화면이 자동으로 깐 레이어 (고객이 움직이면 새 객체가 되어 더는 같지 않다)
   const wrapRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [displaySize, setDisplaySize] = useState(0);
 
   // 처음 화면: 행사 추천 이미지가 있으면 깔아 두고, 없으면 추천 문구 한 줄
+  const started = useRef(false);
   useEffect(() => {
+    if (started.current) return; // 개발 모드(StrictMode)에서 두 번 돌아도 한 번만 깐다
+    started.current = true;
     const first = images.find((i) => i.category === event);
     if (first) {
-      void loadNatural(first.imageUrl).then(({ w, h }) => setLayers((ls) => (ls.length ? ls : [coverLayer(first.imageUrl, w, h)])));
+      void loadNatural(first.imageUrl).then(({ w, h }) => {
+        const l = coverLayer(first.imageUrl, w, h);
+        autoLayer.current = l;
+        setLayers((ls) => (ls.length ? ls : [l]));
+      });
     } else if (nearTexts[0]) {
-      setLayers((ls) => (ls.length ? ls : [textLayer(nearTexts[0].text)]));
+      const l = textLayer(nearTexts[0].text);
+      autoLayer.current = l;
+      setLayers((ls) => (ls.length ? ls : [l]));
       setTab('text');
     }
   }, []); // 처음 한 번만
@@ -153,12 +172,34 @@ export function PackagingEditor(props: Props) {
     setSelectedId(null);
   };
 
-  const pickImage = async (img: DesignImage) => {
+  const pickImage = async (img: DesignImage, auto = false) => {
     try {
       const { w, h } = await loadNatural(img.imageUrl);
-      setBaseImage(coverLayer(img.imageUrl, w, h));
+      const layer = coverLayer(img.imageUrl, w, h);
+      if (auto) autoLayer.current = layer;
+      setBaseImage(layer);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  // 행사를 고르면 바탕이 추천 이미지(직접 올린 사진 아님)일 때 새 행사의 첫 이미지로 바꾸고, 고객이 넣은 문구는 그대로 둔다.
+  // 화면이 처음 자동으로 깐 것(손대기 전)은 새 행사 것으로 통째로 바꾼다
+  const chooseEvent = (id: EventType) => {
+    setEvent(id);
+    const untouched = layers.length === 0 || (layers.length === 1 && layers[0] === autoLayer.current);
+    const base = layers[0];
+    const first = props.images.find((i) => i.category === id);
+    if (first) {
+      if (untouched) setLayers([]);
+      if (untouched || !(base?.type === 'image' && base.uploaded)) void pickImage(first, true);
+    } else if (untouched) {
+      const t = props.texts.find((x) => x.category === id) ?? props.texts.find((x) => x.category === 'common');
+      if (t) {
+        const l = textLayer(t.text);
+        autoLayer.current = l;
+        setLayers([l]);
+      }
     }
   };
 
@@ -281,7 +322,20 @@ export function PackagingEditor(props: Props) {
         {product.image && <Image src={product.image} alt="" width={64} height={64} style={{ borderRadius: 10, objectFit: 'cover' }} />}
         <div style={{ minWidth: 0 }}>
           <div className="small" style={{ fontWeight: 600, lineHeight: 1.35 }}>{product.name}</div>
-          <div className="small muted">{won(product.price)} × {quantity}개{eventName ? ` · ${eventName}` : ''}</div>
+          <div className="small muted">{won(product.price)}{eventName ? ` · ${eventName}` : ''}</div>
+          <label className="small row" style={{ gap: 6, margin: '2px 0' }}>
+            수량
+            <input
+              type="number"
+              className="qty-input"
+              min={1}
+              max={100000}
+              value={quantity}
+              onChange={(e) => setQuantity(Math.min(100000, Math.max(1, Math.round(Number(e.target.value) || 1))))}
+              aria-label="수량"
+            />
+            개
+          </label>
           <div className="small" style={{ color: 'var(--green)', fontWeight: 600 }}>포장과 스티커는 무료예요</div>
         </div>
       </section>
@@ -313,6 +367,14 @@ export function PackagingEditor(props: Props) {
       {withSticker && (
         <section className="step">
           <div className="step-label">3. 스티커 꾸미기</div>
+          <div className="small" style={{ fontWeight: 600, marginBottom: 6 }}>
+            어떤 자리인가요? <span className="muted" style={{ fontWeight: 400 }}>고르면 어울리는 이미지·문구가 먼저 나와요</span>
+          </div>
+          <div className="chips event-chips">
+            {events.map((e) => (
+              <button key={e.id} type="button" className="chip" aria-pressed={event === e.id} onClick={() => chooseEvent(e.id)}>{e.name}</button>
+            ))}
+          </div>
           <div className="row" style={{ gap: 8 }}>
             <div className="chips">
               <button type="button" className="chip" aria-pressed={shape === 'circle'} onClick={() => setShape('circle')}>● 원형</button>
@@ -470,7 +532,8 @@ export function PackagingEditor(props: Props) {
               <li>주문서의 <b>‘온답 포장 디자인 코드’</b> 칸에 코드가 자동으로 들어가요. 비어 있으면 붙여 넣어 주세요.</li>
             </ol>
             <div style={{ display: 'grid', gap: 8, marginTop: 16 }}>
-              <a className="btn block" href={orderUrl(product.url, result.code, quantity)} target="_blank" rel="noreferrer">주문하러 가기</a>
+              {/* 카페24에서 온 고객은 같은 창으로 돌려보내고, 온답 화면에서 온 고객은 새 창으로 연다 */}
+              <a className="btn block" href={orderUrl(product.url, result.code, quantity)} target={from === 'cafe24' ? '_self' : '_blank'} rel="noreferrer">주문하러 가기</a>
               <button type="button" className="btn ghost block" onClick={() => void copyAgain()}>코드 복사</button>
               <button type="button" className="btn ghost block" style={{ border: 'none' }} onClick={() => setResult(null)}>디자인 더 고치기 (다시 저장하면 새 코드)</button>
             </div>

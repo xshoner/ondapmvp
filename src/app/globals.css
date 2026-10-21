@@ -161,3 +161,9 @@ table.data td:first-child, table.data th:first-child { white-space: nowrap; }
 .asset-card textarea { width: 100%; resize: vertical; }
 table.data.designs-table th { position: static; }
 .print-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 16px; }
+.event-chips { margin-bottom: 12px; }
+.event-chips .chip { padding: 6px 11px; font-size: 13px; }
+.qty-input { width: 84px; border: 1px solid var(--line); border-radius: 8px; padding: 3px 8px; background: #fff; }
+.pick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.pick-card { overflow: hidden; text-decoration: none; display: block; }
+.pick-card img { width: 100%; height: auto; aspect-ratio: 1; object-fit: cover; display: block; }
