@@ -312,7 +312,7 @@
    - 카카오톡은 미리보기를 오래 기억한다. 바뀐 그림이 안 보이면 카카오 개발자 도구의 '공유 디버거'에서 주소 캐시를 지운다
 2. 🤖 `/formality` 격식지수 소개(관리자 설정을 그대로 읽음). 결과 도장·계산 보기·메인에서 연결
 3. 🤖 기다림 화면(`loading.tsx`: 결과·포장·상품 고르기·내 디자인), `not-found.tsx`
-4. 🤖 메인 "이번 달 n번 답례를 골라 드렸습니다"(10번 이상일 때만). 👤 SQL Editor에서 `supabase/migrations/20261024000000_usage_count.sql` 실행 필요(실행 전에는 숨김)
+4. 🤖 메인 "이번 달 n번 답례를 골라 드렸습니다"(10번 이상일 때만). 👤 SQL Editor에서 `supabase/migrations/20261024000000_usage_count.sql` 실행 → 🤖 운영 확인(10/21): 함수 38 반환, 기록 표 직접 읽기는 0행, 메인에 "이번 달 38번" 표시. 지금 숫자에는 개발·시험 사용이 섞여 있음 → 실제 운영(심이사 새 프로젝트) 때는 0부터
 5. 🤖 아이콘: `src/app/icon.svg`(인주 마름모 표지), `apple-icon.png`, `public/icons/*`, `manifest.ts`(홈 화면 추가), 테마색
 6. 🤖 운영 DB(jsonb)는 설정 키 순서를 바꾼다 → `engine/labels.ts`의 `eventIds`·`relationIds`로 화면 순서 고정
 
