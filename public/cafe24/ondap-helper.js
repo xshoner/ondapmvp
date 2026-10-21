@@ -92,6 +92,24 @@
     return '<b style="font-family:Consolas,monospace;letter-spacing:.04em;background:rgba(255,255,255,.18);padding:1px 6px;border-radius:6px">' + code + '</b>';
   };
 
+  // 카페24 상품 스크립트가 페이지 로딩 뒤 수량을 1로 다시 맞추므로, 로딩이 끝날 때까지 몇 번 더 맞춘다.
+  // 고객이 수량을 직접 건드리면 그때부터는 손대지 않는다.
+  function keepQuantity(input, n) {
+    var touched = false;
+    var stop = function () { touched = true; };
+    var box = input.closest('.quantity, td, li') || input.parentElement;
+    box.addEventListener('click', stop, true);
+    input.addEventListener('keydown', stop);
+    var apply = function () {
+      if (touched || input.value === String(n)) return;
+      input.value = String(n);
+      fire(input);
+    };
+    apply();
+    window.addEventListener('load', apply);
+    [300, 800, 1500, 2500, 4000].forEach(function (ms) { setTimeout(apply, ms); });
+  }
+
   function onProductPage(state, fromLink) {
     var no = String(window.iProductNo || new URLSearchParams(location.search).get('product_no') || '');
     if (state.productNo && no && state.productNo !== no) return; // 다른 상품
@@ -99,8 +117,7 @@
     if (fromLink && state.qty > 1) {
       var qty = document.querySelector('#quantity');
       if (qty && qty.offsetParent !== null) {
-        qty.value = String(state.qty);
-        fire(qty);
+        keepQuantity(qty, state.qty);
         qtyText = ' 수량은 <b>' + state.qty + '개</b>로 맞춰 두었어요.';
       } else {
         qtyText = ' 옵션을 고르고 수량 <b>' + state.qty + '개</b>를 선택해 주세요.';
