@@ -148,10 +148,13 @@ table.data td:first-child, table.data th:first-child { white-space: nowrap; }
 .admin-tabs { display: inline-grid; grid-auto-flow: column; grid-template-columns: none; }
 .admin-tabs a { text-decoration: none; border-radius: 999px; padding: 8px 18px; font-weight: 600; color: var(--muted); font-size: 14px; }
 .admin-tabs a[aria-selected='true'] { background: var(--surface); color: var(--green); box-shadow: var(--shadow); }
-.asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+.asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 12px; }
 .asset-list { display: grid; gap: 10px; }
-.asset-card { display: flex; gap: 12px; padding: 12px; align-items: flex-start; }
+.asset-card { display: flex; gap: 12px; padding: 12px; align-items: flex-start; min-width: 0; }
 .asset-card img { width: 96px; height: 96px; object-fit: cover; border-radius: 10px; flex: none; }
+/* 입력칸 기본 폭(약 20자)이 카드를 밀어내지 않도록 본문을 남은 폭에 맞춘다 */
+.asset-body { flex: 1; min-width: 0; display: grid; gap: 8px; }
+.asset-body > input[type='text'], .asset-body > textarea { width: 100%; min-width: 0; }
 .asset-card input[type='text'], .asset-card textarea, .asset-card select, .admin-body table.data input[type='text'], .admin-body table.data select, .admin-body .field input[type='file'] {
   border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: #fff;
 }

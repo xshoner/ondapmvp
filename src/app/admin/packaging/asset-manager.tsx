@@ -176,7 +176,7 @@ function AssetCard({ kind, item, categoryNames }: { kind: Kind; item: Item; cate
   return (
     <div className="panel asset-card" style={{ opacity: draft.active ? 1 : 0.6 }}>
       {draft.imageUrl && <img src={draft.imageUrl} alt="" />}
-      <div style={{ display: 'grid', gap: 8, flex: 1 }}>
+      <div className="asset-body">
         {kind === 'texts' ? (
           <textarea value={draft.text} rows={2} maxLength={200} onChange={(e) => setDraft({ ...draft, text: e.target.value })} />
         ) : (
