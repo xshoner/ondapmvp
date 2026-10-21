@@ -304,7 +304,7 @@
    - 실적 `/admin/stats`: 추천 사용·포장 접수·주문 연결·인쇄 완료, 날짜별 막대(차트색 `--chart` #23805f, 검사 도구 통과), 행사·관계별, 많이 추천된 상품, 일별 CSV `/admin/stats/export`. 추천 기록은 1,000건씩 나눠 최대 2만 건
    - AI 일괄 제안 `/admin/ai-batch`: 여러 상품을 차례로(호출 사이 2.5초) 제안받고 상품마다 지금/제안 비교 → 저장. "검토 완료로 표시" 선택. 상품 지표에 `?product=번호`로 바로 열기
 4. 🤖 운영 확인 중 발견·수정: 기본 모델 503 뒤 대체 모델 응답이 오지 않아 3분 넘게 멈춤 → 호출마다 40초 제한(`CALL_TIMEOUT_MS`)
-5. 👤 **할 일:** SQL Editor에서 `supabase/migrations/20261023000000_design_lookup.sql` 실행 (실행 전에는 코드 조회만 "지금은 조회할 수 없어요", 이 기기 목록은 동작)
+5. 👤 SQL Editor에서 `supabase/migrations/20261023000000_design_lookup.sql` 실행 → 🤖 운영 확인(10/21): 접수 코드는 요약 조회, 취소·없는 코드는 빈 결과, designs 표 직접 읽기는 0행, `/packaging/mine?code=` 화면 조회·주문하러 가기 정상
 
 ---
 
