@@ -356,3 +356,37 @@ table.data.designs-table th { position: static; }
   .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stats-grid { grid-template-columns: 1fr; }
 }
+
+/* ---------- 기다림·빈 화면 ---------- */
+.state-screen { display: grid; justify-items: center; text-align: center; padding: 96px 8px 40px; }
+.seal-outline {
+  display: grid; place-items: center; width: 76px; height: 76px; border: 1.5px solid var(--seal); border-radius: 6px; transform: rotate(-4deg);
+  color: var(--seal); font-family: var(--font-serif), 'Nanum Myeongjo', serif; font-size: 34px; line-height: 1;
+  animation: seal-breathe 1.6s ease-in-out infinite;
+}
+.seal-outline::after { content: ''; position: absolute; inset: 5px; border: 1px solid rgba(176, 58, 46, 0.35); border-radius: 3px; }
+.seal-outline { position: relative; }
+.seal-outline.still { animation: none; opacity: 0.85; }
+@keyframes seal-breathe { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+.state-title { font-size: 22px; margin-top: 28px; }
+.state-sub { color: var(--muted); font-size: 14.5px; margin: 10px 0 0; max-width: 300px; }
+
+/* ---------- 격식지수 소개 ---------- */
+.formality-steps { list-style: none; counter-reset: fs; margin: 0; padding: 0; display: grid; gap: 14px; }
+.formality-steps li { counter-increment: fs; display: grid; grid-template-columns: 28px 1fr; column-gap: 10px; font-size: 14.5px; }
+.formality-steps li::before { content: counter(fs); grid-row: span 2; font-family: var(--font-serif), serif; font-size: 16px; font-weight: 600; color: var(--brass); }
+.formality-steps b { font-weight: 600; }
+.formality-steps span { color: var(--muted); line-height: 1.6; }
+.indicator-list { margin: 0; display: grid; border-top: 1px solid var(--line); }
+.indicator-list > div { display: grid; grid-template-columns: 96px 1fr; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.indicator-list dt { font-weight: 600; font-size: 14.5px; }
+.indicator-list dd { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.6; }
+.formality-targets li { grid-template-columns: 104px 1fr 28px; }
+.hanja-mini { display: inline-block; width: 20px; font-family: 'Nanum Myeongjo', var(--font-serif), serif; color: var(--brass); }
+.bonus-table td { font-size: 14px; padding: 10px 4px; }
+.bonus-table tbody tr:hover td { background: transparent; }
+.tier-list { display: grid; gap: 6px; }
+.tier-list > div { padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.usage-line { display: flex; align-items: center; gap: 10px; margin: 16px 0 0; font-size: 13.5px; color: var(--ink-soft); }
+.usage-line b { font-weight: 700; color: var(--ink); }
+.usage-line .brand-mark { width: 7px; height: 7px; transform: rotate(45deg); }

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { getCatalog, logRecommendation } from '@/data/repository.ts';
 import { recommend } from '@/engine/recommend.ts';
 import type { EventType, Relation, ScoredProduct } from '@/engine/types.ts';
@@ -9,6 +10,21 @@ export const dynamic = 'force-dynamic';
 const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+// 카카오톡 등으로 공유할 때 보이는 제목·그림 (그림은 /og/result가 같은 조건으로 그린다)
+export async function generateMetadata({ searchParams }: { searchParams: SearchParams }): Promise<Metadata> {
+  const sp = await searchParams;
+  const { config } = await getCatalog();
+  const event = String(sp.event ?? '') as EventType;
+  const relation = String(sp.relation ?? '') as Relation;
+  if (!config.events[event] || !config.relations[relation]) return {};
+  const q = new URLSearchParams({ event, relation });
+  for (const k of ['budget', 'qty']) if (typeof sp[k] === 'string') q.set(k, sp[k] as string);
+  const title = `${config.events[event].name} 자리에 맞춘 답례품 | 온답`;
+  const description = `${config.relations[relation].name}께 드릴 답례품을 격식지수로 골랐습니다. 추천 세 가지를 확인해 보세요.`;
+  const image = { url: `/og/result?${q}`, width: 1200, height: 630, alt: title };
+  return { title, description, openGraph: { title, description, images: [image], type: 'website', locale: 'ko_KR' }, twitter: { card: 'summary_large_image', title, description, images: [image.url] } };
+}
 
 function TopBar() {
   return (
@@ -102,12 +118,12 @@ function MainPick({ item, quantity, packagingHref }: { item: ScoredProduct; quan
     <article className="pick">
       <div className="pick-media">
         {image ? <img src={image} alt={product.name} /> : <div style={{ aspectRatio: '4 / 3' }} />}
-        <div className="seal" role="img" aria-label={`격식지수 ${Math.round(item.matchScore)}점`}>
+        <a className="seal" href="/formality" aria-label={`격식지수 ${Math.round(item.matchScore)}점, 격식지수 설명 보기`} style={{ textDecoration: 'none' }}>
           <div>
             <div className="seal-label">격식지수</div>
             <div className="seal-score num">{Math.round(item.matchScore)}</div>
           </div>
-        </div>
+        </a>
       </div>
 
       <div className="pick-body">
@@ -134,6 +150,7 @@ function MainPick({ item, quantity, packagingHref }: { item: ScoredProduct; quan
         <details className="disclosure">
           <summary>격식지수 계산 보기</summary>
           <div style={{ marginTop: 12 }}><ScoreBreakdown item={item} /></div>
+          <p className="small" style={{ margin: '12px 0 0' }}><a className="text-link" href="/formality">격식지수는 어떻게 매기나요?</a></p>
         </details>
 
         <div className="pick-actions">

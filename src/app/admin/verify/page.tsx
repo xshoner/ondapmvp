@@ -4,6 +4,7 @@ import { scoreForSituation, baseIndex } from '@/engine/formality.ts';
 import type { Catalog, EventType, Relation } from '@/engine/types.ts';
 import { ScoreBreakdown } from '../../components/score-breakdown.tsx';
 import { ExpectationPicker } from './expectation-picker.tsx';
+import { eventIds as orderedEvents, relationIds as orderedRelations } from '@/engine/labels.ts';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,8 +19,8 @@ export default async function VerifyPage({ searchParams }: { searchParams: Searc
   const { config } = catalog;
   const expectations = await getExpectations();
   const budget = Number(sp.budget ?? 60000) || 60000;
-  const eventIds = Object.keys(config.events) as EventType[];
-  const relationIds = Object.keys(config.relations) as Relation[];
+  const eventIds = orderedEvents(config);
+  const relationIds = orderedRelations(config);
   const selEvent = config.events[String(sp.event) as EventType] ? (String(sp.event) as EventType) : null;
   const selRelation = config.relations[String(sp.relation) as Relation] ? (String(sp.relation) as Relation) : null;
 

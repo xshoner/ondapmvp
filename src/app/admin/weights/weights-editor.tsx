@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { recommend } from '@/engine/recommend.ts';
 import type { Catalog, EngineConfig, EventType, Relation } from '@/engine/types.ts';
 import { saveConfigAction } from '../actions.ts';
+import { eventIds as orderedEvents, relationIds as orderedRelations } from '@/engine/labels.ts';
 
 const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
 
@@ -23,8 +24,8 @@ export function WeightsEditor({ catalog }: { catalog: Catalog }) {
   const [pending, startTransition] = useTransition();
   const [preview, setPreview] = useState<{ event: EventType; relation: Relation; budget: number }>({ event: 'funeral', relation: 'senior', budget: 60000 });
 
-  const eventIds = Object.keys(config.events) as EventType[];
-  const relationIds = Object.keys(config.relations) as Relation[];
+  const eventIds = orderedEvents(config);
+  const relationIds = orderedRelations(config);
 
   function edit(mutator: (c: EngineConfig) => void) {
     setConfig((c) => {

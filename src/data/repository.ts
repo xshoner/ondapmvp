@@ -131,3 +131,15 @@ export async function getRecommendationLogs(range: { gte: string | null; lt: str
   }
   return out;
 }
+
+// 메인 화면 '이번 달 n번' 한 줄. 함수가 아직 없거나(SQL 미실행) 로컬 모드면 null → 화면에서 숨김
+export async function getMonthlyRecommendationCount(): Promise<number | null> {
+  if (dataSource() === 'local') return null;
+  try {
+    const db = await createClient();
+    const { data, error } = await db.rpc('monthly_recommendation_count');
+    return error || typeof data !== 'number' ? null : data;
+  } catch {
+    return null;
+  }
+}

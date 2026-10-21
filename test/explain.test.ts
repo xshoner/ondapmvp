@@ -34,3 +34,13 @@ test('의미가 없는 행사·지역이면 가산하지 않는다', () => {
   const s = scoreForSituation(testConfig, a, 'funeral', 'senior');
   assert.ok(!s.bonuses.some((b) => b.reason.startsWith('선물의 의미') || b.reason.includes('소멸위기')));
 });
+
+test('행사·관계 순서: DB에서 키 순서가 섞여 와도 화면에는 정한 순서로', async () => {
+  const { eventIds, relationIds } = await import('../src/engine/labels.ts');
+  const config = {
+    events: { birth: {}, thanks: {}, funeral: {}, opening: {}, wedding: {}, birthday: {}, longevity: {}, promotion: {} },
+    relations: { family: {}, peer: {}, senior: {}, business: {} },
+  } as unknown as Parameters<typeof eventIds>[0];
+  assert.deepEqual(eventIds(config), ['funeral', 'wedding', 'longevity', 'birth', 'promotion', 'opening', 'thanks', 'birthday']);
+  assert.deepEqual(relationIds(config), ['senior', 'business', 'peer', 'family']);
+});

@@ -8,6 +8,7 @@ import { saveAttributesAction, suggestScoresAction, syncCafe24Action } from './a
 import { applySuggestion, type AiSuggestion } from '@/ai/suggest.ts';
 import { AiSuggestionPanel } from './ai-suggestion-panel.tsx';
 import { kstLabel } from '@/lib/kst.ts';
+import { eventIds as orderedEvents, relationIds as orderedRelations } from '@/engine/labels.ts';
 
 type Props = {
   products: Cafe24Product[];
@@ -54,8 +55,8 @@ export function ProductEditor({ products, attributes, config, mallId, syncedAt, 
   const [aiPending, startAi] = useTransition();
 
   const product = products.find((p) => p.productNo === selected);
-  const eventIds = Object.keys(config.events) as EventType[];
-  const relationIds = Object.keys(config.relations) as Relation[];
+  const eventIds = orderedEvents(config);
+  const relationIds = orderedRelations(config);
   const reviewedCount = attributes.filter((a) => a.reviewed).length;
 
   const list = useMemo(() => {

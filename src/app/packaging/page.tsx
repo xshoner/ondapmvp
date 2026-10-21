@@ -5,6 +5,7 @@ import { CATEGORY_ORDER, categoryName } from '@/packaging/rules.ts';
 import type { PackagingAssets } from '@/packaging/types.ts';
 import { stickerFontFamilies } from './fonts.ts';
 import { PackagingEditor, type PackagingEntry } from './packaging-editor.tsx';
+import { eventIds } from '@/engine/labels.ts';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,7 +69,7 @@ export default async function PackagingPage({ searchParams }: { searchParams: Se
         product={{ productNo: product.productNo, name: product.name, price: product.price, image: product.image ?? null, url: product.url }}
         quantity={quantity}
         event={event}
-        events={(Object.keys(catalog.config.events) as EventType[]).map((id) => ({ id, name: eventNames[id] }))}
+        events={eventIds(catalog.config).map((id) => ({ id, name: eventNames[id] }))}
         from={from}
         styles={assets.styles}
         images={assets.images}
