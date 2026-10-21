@@ -33,7 +33,7 @@ npm run dev
 ```
 
 - 브라우저는 **http://127.0.0.1:3000** (localhost로 열면 HMR이 끊기고 서버 액션 버튼이 멈춘다)
-- `.env.example` 기본값은 `ONDAP_DATA_SOURCE=local`: 저장소의 `data/*.json`(테스트몰 상품 40개·지표·설정)로 추천·포장 꾸미기·관리자(로그인 없음)가 바로 돈다. 로컬 모드의 디자인 접수는 `data/designs.json`·`data/design-files/`에 쌓인다(git 제외)
+- `.env.example` 기본값은 `ONDAP_DATA_SOURCE=local`: 저장소의 `data/*.json`(테스트몰 상품 40개·지표·설정)로 추천·포장 꾸미기·관리자(로그인 없음)가 바로 돈다. 로컬 모드의 디자인 접수는 `data/designs.json`·`data/design-files/`에 쌓인다(git 제외). 로컬 모드 관리자는 개발 서버(`npm run dev`)에서만 열린다(운영 빌드에서는 404)
 
 ## 2. `.env.local` 채우기
 

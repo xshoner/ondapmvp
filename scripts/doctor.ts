@@ -38,10 +38,13 @@ const has = (k: string) => Boolean(env[k]);
 const mode = env.ONDAP_DATA_SOURCE || 'local';
 if (mode === 'local' || mode === 'supabase') ok(`ONDAP_DATA_SOURCE=${mode}`);
 else bad(`ONDAP_DATA_SOURCE=${mode} (local 또는 supabase)`);
-const required = ['CAFE24_MALL_ID', 'CAFE24_CLIENT_ID', 'CAFE24_FRONT_API_KEY'];
-if (mode === 'supabase') required.push('NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY');
+// local 모드는 저장소의 data/로 돌아가므로 카페24 값이 없어도 된다 (상품 가져오기 때만 필요)
+const cafe24Keys = ['CAFE24_MALL_ID', 'CAFE24_CLIENT_ID', 'CAFE24_FRONT_API_KEY'];
+const required = mode === 'supabase' ? [...cafe24Keys, 'NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'] : [];
+const optional: Record<string, string> = { CAFE24_REDIRECT_URI: '카페24 앱 설치 주소 만들 때', ondap_ai: 'AI 점수 제안' };
+if (mode === 'local') for (const k of cafe24Keys) optional[k] = 'local 모드는 없어도 됨, 상품 가져오기 때 필요';
 for (const k of required) has(k) ? ok(`${k} 있음`) : bad(`${k} 비어 있음`);
-for (const k of ['CAFE24_REDIRECT_URI', 'ondap_ai']) has(k) ? ok(`${k} 있음`) : skip(`${k} 없음 (선택: ${k === 'ondap_ai' ? 'AI 점수 제안' : '카페24 앱 설치 주소 만들 때'})`);
+for (const [k, why] of Object.entries(optional)) has(k) ? ok(`${k} 있음`) : skip(`${k} 없음 (선택: ${why})`);
 
 section('Supabase');
 if (!has('NEXT_PUBLIC_SUPABASE_URL') || !has('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY')) {

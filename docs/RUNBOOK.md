@@ -323,6 +323,7 @@
 3. 🤖 `npm run doctor [-- https://주소]`: Node·패키지·.env 값 유무·Supabase 표/함수/RLS·카페24 조회·배포 화면·도우미 스크립트·관리자 보호를 한 번에 점검(비밀값 출력 안 함). 운영 기준 모두 통과
 4. 🤖 `npm run cafe24:snippets -- https://주소`: 메인 버튼 블록의 링크를 새 주소로 바꾸고 붙이는 곳 안내를 `cafe24/out/`(git 제외)에 만듦
 5. 🤖 `docs/CLONE.md`(수 분 복제 순서), 저장소 `CLAUDE.md`(작업 규칙), `.claude/launch.json`(미리보기 서버)
+6. 🤖 리허설: GitHub에서 빈 폴더로 clone → `npm ci`(45초) → `.env.example` 복사 → 테스트 98개 통과(합계 50초) → 키 없이 `npm run build` 성공 → 고객 화면·결과·포장·도우미 스크립트·미리보기 그림 200. 키 없는 local 모드에서 카페24 값을 실패로 보던 점검을 '선택'으로 고침
 
 ---
 
