@@ -37,6 +37,10 @@ const REDACTIONS = [
   // "패스워드는 abc123!" 처럼 숫자·기호가 섞인 6자 이상 값만 가린다 ("비밀번호 재설정" 같은 문장은 그대로)
   [/((?:password|passwd|pwd|pw|비밀번호|비번|패스워드|암호)\s*(?:은|는|이|가|:|=|：)?\s*)(?=[^\s,]*[0-9!@#$%^&*])[^\s,]{6,}/gi, '$1[가림]'],
   [/((?:FRONT_API_KEY|CLIENT_SECRET|SERVICE_ROLE_KEY|ondap_ai|SECRET|TOKEN)\s*=\s*)[^\s`'"]{4,}/g, '$1[가림]'],
+  [/(\b[A-Za-z0-9_]*(?:KEY|SECRET|TOKEN|PASSWORD|PASSWD)["']?\s*[=:]\s*["']?)(?!\[가림)[^\s`'",}]{6,}/g, '$1[가림]'],
+  [/(\b[a-z][a-z0-9+.\-]*:\/\/)[^\s:@\/]+:[^\s@\/]+@/gi, '$1[가림]@'],
+  [/(\bBearer\s+)[A-Za-z0-9._~+\/\-]{10,}=*/g, '$1[가림]'],
+  [/(\bBasic\s+)[A-Za-z0-9+\/]{16,}=*/g, '$1[가림]'],
 ];
 // 패턴으로 못 잡는 값: ../_handoff/redact.local.txt 에 한 줄에 하나씩 (저장소 바깥이라 커밋되지 않는다)
 const extraFile = path.join(ONDAP_ROOT, '_handoff', 'redact.local.txt');
@@ -205,21 +209,38 @@ list.forEach((s, i) => {
   flushTools();
 });
 
-fs.mkdirSync(OUT, { recursive: true });
-fs.writeFileSync(path.join(OUT, 'CONVERSATION-HISTORY.md'), md);
-
 // Claude 기억 파일 (새 환경에서 handoff:restore 가 제자리에 돌려놓는다)
-const memOut = path.join(OUT, 'memory');
-fs.mkdirSync(memOut, { recursive: true });
-let memCount = 0;
+const memFiles = [];
 for (const dir of sourceDirs) {
   const m = path.join(dir, 'memory');
   if (!fs.existsSync(m)) continue;
   for (const f of fs.readdirSync(m).filter((f) => f.endsWith('.md'))) {
-    fs.writeFileSync(path.join(memOut, f), redact(fs.readFileSync(path.join(m, f), 'utf8')));
-    memCount++;
+    memFiles.push([f, redact(fs.readFileSync(path.join(m, f), 'utf8'))]);
   }
 }
+
+// 마지막 안전장치: .env.local 의 비밀값이 가리기를 빠져나갔으면 아무것도 쓰지 않고 멈춘다
+const envFile = path.join(REPO, '.env.local');
+if (fs.existsSync(envFile)) {
+  const leaked = [];
+  const outputs = [md, ...memFiles.map(([, t]) => t)];
+  for (const line of fs.readFileSync(envFile, 'utf8').split(/\r?\n/)) {
+    const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*["']?(.+?)["']?\s*$/);
+    if (!m || /^NEXT_PUBLIC_|^ONDAP_|_ID$|_URI$|_SCOPE$/.test(m[1]) || m[2].length < 8) continue;
+    if (outputs.some((t) => t.includes(m[2]))) leaked.push(m[1]);
+  }
+  if (leaked.length) {
+    console.error(`✗ 비밀값이 결과에 남아 있어 멈춥니다: ${leaked.join(', ')} → 가리기 규칙을 고친 뒤 다시 실행하세요. (파일은 쓰지 않았습니다)`);
+    process.exit(1);
+  }
+}
+
+fs.mkdirSync(OUT, { recursive: true });
+fs.writeFileSync(path.join(OUT, 'CONVERSATION-HISTORY.md'), md);
+const memOut = path.join(OUT, 'memory');
+fs.mkdirSync(memOut, { recursive: true });
+for (const [f, t] of memFiles) fs.writeFileSync(path.join(memOut, f), t);
+const memCount = memFiles.length;
 
 // 대화 원본 백업 (저장소 바깥)
 fs.mkdirSync(RAW, { recursive: true });

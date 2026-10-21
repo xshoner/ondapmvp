@@ -1,6 +1,6 @@
 # 온답 프로젝트 대화 이력 (전체)
 
-> 만든 시각: 2026. 10. 21. 19:46 (KST) · 만든 도구: `npm run handoff:export`
+> 만든 시각: 2026. 10. 21. 19:48 (KST) · 만든 도구: `npm run handoff:export`
 > 사용자 메시지와 Claude 답변은 원문 그대로, 도구 사용은 한 줄 요약, 도구 결과·내부 추론은 뺐다. 비밀번호·키는 [가림] 처리.
 > 작업 결과의 정리본은 [CLONE.md](../CLONE.md)·[RUNBOOK.md](../RUNBOOK.md). 이 파일은 "왜 그렇게 했는지"를 찾을 때 본다.
 
@@ -9,7 +9,7 @@
 | # | 제목 | 기간 (KST) | 사용자 메시지 | 세션 ID |
 | --- | --- | --- | --- | --- |
 | 1 | 고객 개발 의뢰 사전 검토 | 2026. 10. 20. 09:28 ~ 2026. 10. 21. 18:23 | 74 | `c8b233ef-13ef-4492-b2ea-efbe725df5be` |
-| 2 | 계정 대화 이력 내보내기 | 2026. 10. 21. 19:29 ~ 2026. 10. 21. 19:46 | 3 | `1ef8cdfd-efdc-44d4-83de-bc3ab9ce5f55` |
+| 2 | 계정 대화 이력 내보내기 | 2026. 10. 21. 19:29 ~ 2026. 10. 21. 19:47 | 3 | `1ef8cdfd-efdc-44d4-83de-bc3ab9ce5f55` |
 
 ## 사용자 요청 순서 (목차)
 
@@ -5294,8 +5294,8 @@ Deployed. Checking the print PDF, thumbnail and admin screen in production using
 
 <details><summary>도구 사용 6건</summary>
 
-- `Bash` cd "/c/Users/Curioud/Desktop/온답/ondap-mvp" && URL=$(grep '^NEXT_PUBLIC_SUPABASE_URL=' .env.local | cut -d= -f2-) && KEY=$(grep '^NEXT_PUBLIC_SUPABASE_PUBLISHABL…
-- `Bash` cd "/c/Users/Curioud/Desktop/온답/ondap-mvp" && URL=$(grep '^NEXT_PUBLIC_SUPABASE_URL=' .env.local | cut -d= -f2-) && KEY=$(grep '^NEXT_PUBLIC_SUPABASE_PUBLISHABL…
+- `Bash` cd "/c/Users/Curioud/Desktop/온답/ondap-mvp" && URL=$(grep '^NEXT_PUBLIC_SUPABASE_URL=' .env.local | cut -d= -f2-) && KEY=[가림] '^NEXT_PUBLIC_SUPABASE_PUBLISHABL…
+- `Bash` cd "/c/Users/Curioud/Desktop/온답/ondap-mvp" && URL=$(grep '^NEXT_PUBLIC_SUPABASE_URL=' .env.local | cut -d= -f2-) && KEY=[가림] '^NEXT_PUBLIC_SUPABASE_PUBLISHABL…
 - `mcp:navigate` https://ondapmvp.vercel.app/packaging?product=27&qty=10&event=thanks
 - `mcp:resize_window` 
 - `mcp:javascript_tool` javascript_exec
@@ -6004,7 +6004,7 @@ Deployed. Re-running the AI batch test with one product.
 
 <details><summary>도구 사용 4건</summary>
 
-- `Bash` cd "/c/Users/Curioud/Desktop/온답/ondap-mvp" && URL=$(grep '^NEXT_PUBLIC_SUPABASE_URL=' .env.local | cut -d= -f2-) && KEY=$(grep '^NEXT_PUBLIC_SUPABASE_PUBLISHABL…
+- `Bash` cd "/c/Users/Curioud/Desktop/온답/ondap-mvp" && URL=$(grep '^NEXT_PUBLIC_SUPABASE_URL=' .env.local | cut -d= -f2-) && KEY=[가림] '^NEXT_PUBLIC_SUPABASE_PUBLISHABL…
 - `mcp:navigate` https://ondapmvp.vercel.app/packaging/mine?code=OD-JZFK-WXW6
 - `mcp:javascript_tool` javascript_exec
 - `Bash` cd "/c/Users/Curioud/Desktop/온답/ondap-mvp" && node -e ' const fs=require("fs");const f="docs/RUNBOOK.md";let s=fs.readFileSync(f,"utf8"); const a="5. 👤 **할 일:*…
@@ -6153,7 +6153,7 @@ _(백그라운드 작업 알림)_
 
 <details><summary>도구 사용 2건</summary>
 
-- `Bash` cd "/c/Users/Curioud/Desktop/온답/ondap-mvp" && URL=$(grep '^NEXT_PUBLIC_SUPABASE_URL=' .env.local | cut -d= -f2-) && KEY=$(grep '^NEXT_PUBLIC_SUPABASE_PUBLISHABL…
+- `Bash` cd "/c/Users/Curioud/Desktop/온답/ondap-mvp" && URL=$(grep '^NEXT_PUBLIC_SUPABASE_URL=' .env.local | cut -d= -f2-) && KEY=[가림] '^NEXT_PUBLIC_SUPABASE_PUBLISHABL…
 - `Bash` cd "/c/Users/Curioud/Desktop/온답/ondap-mvp" && node -e ' const fs=require("fs");const f="docs/RUNBOOK.md";let s=fs.readFileSync(f,"utf8"); const a="👤 SQL Editor…
 
 </details>
@@ -6513,9 +6513,84 @@ Claude 계정 안에만 있는 문서 2개(사전 질문지, PRD 기초자료)�
 
 테스트 98개가 모두 통과했어요. 마지막으로 이력을 최신으로 다시 만들고, 비밀번호가 없는지 한 번 더 확인한 뒤 비공개 저장소에 올릴게요.
 
-<details><summary>도구 사용 1건</summary>
+<details><summary>도구 사용 2건</summary>
 
 - `Bash` Final export, secret check, privacy check
+- `Bash` Commit handoff bundle and push to GitHub
+
+</details>
+
+**🤖 Claude**
+
+비공개 저장소에 인계 장치를 넣고 올렸어요(커밋 `e623c17`). 이제 다른 계정이나 다른 PC에서 저장소만 받아도, 정해진 순서대로 작업 맥락을 그대로 이어받을 수 있어요.
+
+## 무엇을 넣었나
+
+**[docs/handoff/](ondap-mvp/docs/handoff/README.md)** — GitHub에 올라간 인계 묶음
+- **[README.md](ondap-mvp/docs/handoff/README.md)**: 시작점이에요. 같은 PC에서 계정만 바뀔 때와 새 PC로 옮길 때의 순서를 표로 정리했어요. 계정에 묶여 있어 다시 연결해야 할 것(Vercel 연결, Chrome 확장 등), 지금 상태와 다음 할 일(심이사 PRD 초안)도 들어 있어요.
+- **CONVERSATION-HISTORY.md**: 온답 관련 대화 전체를 한 파일로 모았어요(세션 2개, 요청 77개, 355KB). 맨 앞에 요청 목차가 있고, 대화는 원문 그대로 시간순으로 이어져요.
+- **memory/**: 제가 쓰던 기억 파일 5개의 사본이에요.
+- **source/**: 첫 카톡 이미지, 요구사항, 심이사 회의 녹취, PRD 기초자료(docx)예요. Claude 계정 안에만 있던 사전 질문지와 PRD 기초자료 문서 2개도 파일로 받아 넣었어요.
+
+**새로 만든 명령 2개**
+- `npm run handoff:export`: 최신 대화까지 반영해서 위 파일들을 다시 만들어요. `-- --zip`을 붙이면 온답 폴더 전체를 바탕화면 zip으로도 묶어요.
+- `npm run handoff:restore`: 새 환경에서 기억 파일을 Claude가 읽는 위치에 넣어요. 대화 원본 백업이 있으면 `/resume`으로 예전 대화도 열 수 있게 해 줘요.
+
+**자동으로 안내되게 한 장치**
+저장소의 `CLAUDE.md`와 온답 폴더의 `CLAUDE.md`에 "새 계정·새 PC면 handoff/README.md부터 읽으라"는 규칙을 넣었어요. 새 계정의 Claude도 폴더를 열면 이 규칙을 자동으로 읽어요.
+
+## 새 환경에서 할 일
+저장소를 받은 뒤 아래 명령을 실행하세요.
+
+```bash
+npm ci
+```
+```bash
+npm run handoff:restore
+```
+
+그다음 Claude에게 이렇게 말하면 돼요. **"docs/handoff/README.md 순서대로 인계 받고, 지금 상태와 다음 할 일을 알려줘"**
+
+## 확인한 것
+- 다른 경로와 다른 사용자 폴더를 흉내 낸 환경에서 복원을 시험했어요. 기억 파일 5개와 대화 원본이 정확한 위치에 들어갔어요.
+- 기존 테스트 98개가 모두 통과했어요.
+- 올리기 직전에 저장소가 비공개인지 다시 확인했어요.
+
+## 보안 관련
+- 10/20에 채팅으로 보내신 카페24 비밀번호는 이력에서 `[가림]`으로 처리했고, 파일 전체를 검사해서 남은 곳이 없는 것도 확인했어요. 그래도 채팅에 노출된 적이 있으니 **아직 바꾸지 않으셨다면 비밀번호 교체를 권해요.**
+- 가리지 않은 대화 원본(jsonl, 64MB)은 비밀번호가 들어 있어서 GitHub에 올리지 않았어요. PC의 `온답\_handoff\raw\`에만 있어요.
+- 이력에 회의록과 이메일이 들어 있어요. **저장소를 다시 공개로 바꾸면 안 돼요.** 이 내용은 CLAUDE.md에도 경고로 적어 두었어요.
+- `main`에 올리면 Vercel 배포가 자동으로 돌아요. 이번에는 문서와 스크립트만 바뀌어서 서비스 화면에는 영향이 없어요.
+
+이 대화를 포함해 이후 작업은 큰 작업을 마칠 때마다 `npm run handoff:export`를 실행하고 커밋해야 이력에 반영돼요. 계정이 막히기 직전에도 한 번 실행해 두세요.
+
+_(백그라운드 작업 알림)_
+
+**🤖 Claude**
+
+보안 자동 검토에서 지적이 하나 나왔어요. 대화 이력의 비밀값 가리기 규칙이 일부 형태(주소 안에 든 아이디·비밀번호, `Bearer` 토큰, `…_PASSWORD=` 같은 값)를 놓칠 수 있다는 내용이에요. 지금 이력에서 실제로 새어 나간 값은 확인되지 않았지만, 앞으로 이력을 갱신할 때도 안전하도록 규칙을 보강할게요. 실제 비밀값이 결과 파일에 들어가면 파일을 쓰지 않고 멈추는 검사도 함께 넣을게요.
+
+<details><summary>도구 사용 6건</summary>
+
+- `Edit` C:\Users\Curioud\Desktop\온답\ondap-mvp\scripts\handoff-export.mjs
+- `Edit` C:\Users\Curioud\Desktop\온답\ondap-mvp\scripts\handoff-export.mjs
+- `Bash` Check new redaction rules on samples
+- `Bash` Fix sample checker and rerun
+- `Write` C:\Users\Curioud\AppData\Local\Temp\claude\C--Users-Curioud-Desktop---\1ef8cdfd-efdc-44d4-83de-bc3ab9ce5f55\scratchpad\rt.mjs
+- `Bash` Check new redaction rules on samples
+
+</details>
+
+**🤖 Claude**
+
+JSON 형태(`"…_KEY": "값"`)가 아직 걸리지 않아서 이 부분을 고칠게요.
+
+<details><summary>도구 사용 4건</summary>
+
+- `Edit` C:\Users\Curioud\Desktop\온답\ondap-mvp\scripts\handoff-export.mjs
+- `Bash` Regenerate history and review new redactions
+- `Edit` C:\Users\Curioud\Desktop\온답\ondap-mvp\scripts\handoff-export.mjs
+- `Bash` Verify rules, regenerate, commit and push
 
 </details>
 
