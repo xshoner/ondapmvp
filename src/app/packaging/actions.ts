@@ -3,14 +3,22 @@
 // 고객 포장 디자인 저장 → 디자인 코드 발급 (A안: 고객이 카페24 주문서 추가항목에 코드를 적는다)
 // 로그인 없이 누구나 부르므로 상품명·스타일 이름 같은 값은 클라이언트를 믿지 않고 저장소에서 다시 읽는다.
 
+import { headers } from 'next/headers';
 import { getCatalog } from '@/data/repository.ts';
 import { createDesign, getPackagingAssets } from '@/data/packaging-repository.ts';
 import type { EventType } from '@/engine/types.ts';
+import { clientIp, createRateLimiter } from '@/lib/rate-limit.ts';
 import { MAX_PRINT_BYTES, generateDesignCode, pngSize, printPixels, sanitizeDraft, sanitizeSticker } from '@/packaging/rules.ts';
+
+// 같은 접속 주소에서 10분에 20번까지 (보통 고객은 한두 번 저장한다)
+const allowSave = createRateLimiter({ limit: 20, windowMs: 10 * 60 * 1000 });
 
 export type SaveDesignResult = { ok: true; code: string } | { ok: false; message: string };
 
 export async function saveDesignAction(form: FormData): Promise<SaveDesignResult> {
+  if (!allowSave(clientIp(await headers()))) {
+    return { ok: false, message: '저장을 너무 자주 했어요. 잠시 후 다시 시도해 주세요.' };
+  }
   try {
     const metaText = String(form.get('meta') ?? '');
     if (metaText.length > 100_000) return { ok: false, message: '디자인 정보가 너무 큽니다.' };

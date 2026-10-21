@@ -3,7 +3,7 @@ import { getPackagingAssets } from '@/data/packaging-repository.ts';
 import type { EventType } from '@/engine/types.ts';
 import { CATEGORY_ORDER, categoryName } from '@/packaging/rules.ts';
 import type { PackagingAssets } from '@/packaging/types.ts';
-import { stickerFontFamilies } from '../fonts.ts';
+import { stickerFontFamilies } from './fonts.ts';
 import { PackagingEditor } from './packaging-editor.tsx';
 
 export const dynamic = 'force-dynamic';

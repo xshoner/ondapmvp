@@ -62,7 +62,7 @@ const designFromRow = (r: Row): Design => ({
   styleId: r.style_id ?? '',
   styleName: r.style_name,
   sticker: r.sticker,
-  draft: r.draft,
+  draft: r.draft ?? null,
   hasPrintFile: Boolean(r.print_path),
   status: r.status,
   orderNo: r.order_no,
@@ -203,13 +203,16 @@ export async function createDesign(design: NewDesign, printPng: Uint8Array | nul
   return 'ok';
 }
 
+// 목록에는 편집 내용(draft, 건당 최대 64KB)이 필요 없으므로 빼고 읽는다 (draft는 null)
+const LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, event, style_id, style_name, sticker, print_path, status, order_no, memo';
+
 export async function listDesigns(opts: { limit?: number; code?: string | null } = {}): Promise<Design[]> {
   const limit = opts.limit ?? 200;
   if (dataSource() === 'local') {
-    return readLocalDesigns().filter((d) => !opts.code || d.code === opts.code).slice(0, limit);
+    return readLocalDesigns().filter((d) => !opts.code || d.code === opts.code).slice(0, limit).map((d) => ({ ...d, draft: null }));
   }
   const db = await createClient();
-  let q = db.from('designs').select('*').order('created_at', { ascending: false }).limit(limit);
+  let q = db.from('designs').select(LIST_COLUMNS).order('created_at', { ascending: false }).limit(limit);
   if (opts.code) q = q.eq('code', opts.code);
   const { data, error } = await q;
   if (error) fail('디자인 목록 읽기', error);

@@ -75,7 +75,7 @@ export default async function ResultPage({ searchParams }: { searchParams: Searc
         <section style={{ marginTop: 28 }}>
           <h2 style={{ textAlign: 'center', fontSize: 17 }}>다른 격식 단계도 함께 비교해보세요</h2>
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(${others.length}, 1fr)`, gap: 10, marginTop: 14 }}>
-            {others.map((x) => <OtherPick key={x.product.productNo} item={x} />)}
+            {others.map((x) => <OtherPick key={x.product.productNo} item={x} packagingHref={packagingHref(x.product.productNo)} />)}
           </div>
         </section>
       )}
@@ -148,19 +148,25 @@ function MainPick({ item, quantity, packagingHref }: { item: ScoredProduct; quan
   );
 }
 
-function OtherPick({ item }: { item: ScoredProduct }) {
+// 카드 전체는 상품 링크, 아래 줄은 포장 꾸미기 (링크 안에 링크를 넣을 수 없어 나눈다)
+function OtherPick({ item, packagingHref }: { item: ScoredProduct; packagingHref: string }) {
   const { product } = item;
   return (
-    <a className="card" href={product.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', overflow: 'hidden', display: 'block' }}>
-      <div style={{ background: 'var(--gold-weak)', color: '#7a5b17', fontSize: 11, fontWeight: 700, textAlign: 'center', padding: '4px 0' }}>
-        {item.tier}
-      </div>
-      {product.image && <img src={product.image} alt={product.name} style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />}
-      <div style={{ padding: 10 }}>
-        <div className="small" style={{ fontWeight: 600, lineHeight: 1.35 }}>{product.name}</div>
-        <div className="small muted" style={{ marginTop: 4 }}>{won(product.price)}</div>
-        <div className="small" style={{ marginTop: 2, color: 'var(--green)' }}>격식지수 {Math.round(item.matchScore)}점</div>
-      </div>
-    </a>
+    <div className="card" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <a href={product.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', display: 'block', flex: 1 }}>
+        <div style={{ background: 'var(--gold-weak)', color: '#7a5b17', fontSize: 11, fontWeight: 700, textAlign: 'center', padding: '4px 0' }}>
+          {item.tier}
+        </div>
+        {product.image && <img src={product.image} alt={product.name} style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />}
+        <div style={{ padding: 10 }}>
+          <div className="small" style={{ fontWeight: 600, lineHeight: 1.35 }}>{product.name}</div>
+          <div className="small muted" style={{ marginTop: 4 }}>{won(product.price)}</div>
+          <div className="small" style={{ marginTop: 2, color: 'var(--green)' }}>격식지수 {Math.round(item.matchScore)}점</div>
+        </div>
+      </a>
+      <a href={packagingHref} className="small" style={{ display: 'block', textAlign: 'center', padding: '8px 4px', borderTop: '1px solid var(--line)', color: 'var(--green)', fontWeight: 600, textDecoration: 'none' }}>
+        🎀 포장 꾸미기
+      </a>
+    </div>
   );
 }

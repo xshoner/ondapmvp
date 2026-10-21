@@ -4,6 +4,7 @@
 // 단계를 줄이려고 한 화면에 모두 두고, 행사에 맞는 추천 이미지를 처음부터 깔아 둔다 (바로 저장해도 된다).
 
 import dynamic from 'next/dynamic';
+import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FONTS, MIN_PRINT_DPI, PLACEHOLDER_BLANK, STICKER_SIZES, effectiveDpi, fillPlaceholders, printPixels, type FontId,
@@ -277,7 +278,7 @@ export function PackagingEditor(props: Props) {
   return (
     <>
       <section className="card" style={{ display: 'flex', gap: 12, padding: 12, marginTop: 8, alignItems: 'center' }}>
-        {product.image && <img src={product.image} alt="" style={{ width: 64, height: 64, borderRadius: 10, objectFit: 'cover' }} />}
+        {product.image && <Image src={product.image} alt="" width={64} height={64} style={{ borderRadius: 10, objectFit: 'cover' }} />}
         <div style={{ minWidth: 0 }}>
           <div className="small" style={{ fontWeight: 600, lineHeight: 1.35 }}>{product.name}</div>
           <div className="small muted">{won(product.price)} × {quantity}개{eventName ? ` · ${eventName}` : ''}</div>
@@ -290,7 +291,8 @@ export function PackagingEditor(props: Props) {
         <div className="style-grid">
           {styles.map((s) => (
             <button key={s.id} type="button" className="thumb" aria-pressed={s.id === styleId} onClick={() => setStyleId(s.id)}>
-              <img src={s.imageUrl} alt="" />
+              {/* 화면에는 썸네일만 필요: 원본(최대 1200px) 대신 줄인 그림을 받는다 */}
+              <Image src={s.imageUrl} alt="" width={240} height={240} sizes="(max-width: 480px) 30vw, 150px" priority />
               <span>{s.name}</span>
             </button>
           ))}
@@ -390,7 +392,7 @@ export function PackagingEditor(props: Props) {
                 {images.map((img) => (
                   <button key={img.id} type="button" className="thumb" onClick={() => void pickImage(img)}
                     aria-pressed={layers[0]?.type === 'image' && layers[0].src === img.imageUrl}>
-                    <img src={img.imageUrl} alt={img.name} />
+                    <Image src={img.imageUrl} alt={img.name} width={200} height={200} sizes="(max-width: 480px) 22vw, 110px" />
                     <span>{categoryNames[img.category] ?? ''}</span>
                   </button>
                 ))}
