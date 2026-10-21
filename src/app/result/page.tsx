@@ -32,6 +32,11 @@ export default async function ResultPage({ searchParams }: { searchParams: Searc
   await logRecommendation(result, config.modelVersion);
   const [main, ...others] = result.results;
   const eventName = config.events[event].name;
+  const packagingHref = (productNo: number) => {
+    const q = new URLSearchParams({ product: String(productNo), qty: String(quantity), event, relation });
+    if (budgetMax) q.set('budget', String(budgetMax));
+    return `/packaging?${q}`;
+  };
   const bannedCount = result.excluded.filter((x) => x.reason.startsWith(`${eventName} 제외`)).length;
 
   return (
@@ -64,7 +69,7 @@ export default async function ResultPage({ searchParams }: { searchParams: Searc
         {result.notice && <p className="small" style={{ margin: '8px 0 0', color: 'var(--red)' }}>{result.notice}</p>}
       </section>
 
-      {main ? <MainPick item={main} quantity={quantity} /> : <p style={{ marginTop: 24 }}>추천할 상품이 없습니다. 조건을 바꿔 보세요.</p>}
+      {main ? <MainPick item={main} quantity={quantity} packagingHref={packagingHref(main.product.productNo)} /> : <p style={{ marginTop: 24 }}>추천할 상품이 없습니다. 조건을 바꿔 보세요.</p>}
 
       {others.length > 0 && (
         <section style={{ marginTop: 28 }}>
@@ -82,7 +87,7 @@ export default async function ResultPage({ searchParams }: { searchParams: Searc
   );
 }
 
-function MainPick({ item, quantity }: { item: ScoredProduct; quantity: number }) {
+function MainPick({ item, quantity, packagingHref }: { item: ScoredProduct; quantity: number; packagingHref: string }) {
   const { product, attributes } = item;
   return (
     <section className="card" style={{ marginTop: 20, overflow: 'hidden' }}>
@@ -134,6 +139,9 @@ function MainPick({ item, quantity }: { item: ScoredProduct; quantity: number })
 
         <a className="btn block" style={{ marginTop: 16 }} href={product.url} target="_blank" rel="noreferrer">
           이 상품 보러 가기
+        </a>
+        <a className="btn ghost block" style={{ marginTop: 8 }} href={packagingHref}>
+          🎀 이 상품으로 포장 꾸미기 <span className="small" style={{ fontWeight: 500 }}>(스티커 무료)</span>
         </a>
       </div>
     </section>

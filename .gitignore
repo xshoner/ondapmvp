@@ -4,3 +4,8 @@ node_modules/
 .next/
 next-env.d.ts
 *.tsbuildinfo
+
+# 포장 디자인 로컬 모드 산출물
+/data/designs.json
+/data/design-files/
+/public/packaging/uploads/

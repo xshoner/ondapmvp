@@ -7,6 +7,7 @@ import type { Cafe24Product, EngineConfig, EventType, ProductAttributes, Relatio
 import { saveAttributesAction, suggestScoresAction, syncCafe24Action } from './actions.ts';
 import { applySuggestion, type AiSuggestion } from '@/ai/suggest.ts';
 import { AiSuggestionPanel } from './ai-suggestion-panel.tsx';
+import { kstLabel } from '@/lib/kst.ts';
 
 type Props = {
   products: Cafe24Product[];
@@ -17,12 +18,6 @@ type Props = {
 };
 
 const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
-
-// 서버와 브라우저의 로캘 차이로 hydration이 어긋나지 않도록 직접 포맷 (한국 시간)
-function kstLabel(iso: string): string {
-  const d = new Date(new Date(iso).getTime() + 9 * 3600 * 1000);
-  return d.toISOString().slice(0, 16).replace('T', ' ');
-}
 
 function emptyAttributes(config: EngineConfig, productNo: number): ProductAttributes {
   return {

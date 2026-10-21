@@ -10,9 +10,11 @@
 | --- | --- |
 | `/` | 고객: 행사·관계·예산·수량 입력 |
 | `/result` | 고객: 추천 3개, 격식지수, ONDAP'S PICK, 점수 내역 |
+| `/packaging` | 고객: 포장 스타일 고르기 + 무료 스티커 꾸미기 → 디자인 코드 (카페24 주문서에 적음) |
 | `/admin` | 관리자: 상품별 지표 입력, 카페24 상품 다시 가져오기 |
 | `/admin/weights` | 관리자: 행사·관계별 가중치, 보너스 편집 + 실시간 미리보기 |
 | `/admin/verify` | 관리자: 32개 시나리오 결과, 전체 순위, 기대 정답 지정 |
+| `/admin/packaging` | 관리자: 디자인 접수(인쇄 파일 받기·주문번호), 포장 스타일, 추천 이미지·문구 |
 
 관리자는 로컬 전용(로그인 없음)이며 저장하면 `data/`의 JSON이 바뀝니다.
 
@@ -59,7 +61,7 @@ Node 24 이상이 필요합니다(TypeScript를 그대로 실행).
 
 데이터 저장소는 `.env.local`의 `ONDAP_DATA_SOURCE`로 고른다. `local`이면 `data/` JSON, `supabase`이면 Supabase DB.
 
-1. Supabase 대시보드 → SQL Editor에서 `supabase/migrations/20261020000000_init.sql` 실행 (테이블·RLS)
+1. Supabase 대시보드 → SQL Editor에서 `supabase/migrations/20261020000000_init.sql` 실행 (테이블·RLS), 이어서 `20261021000000_packaging.sql` (포장 디자인 표·저장소)
 2. 같은 곳에서 `supabase/seed.sql` 실행 (현재 로컬 데이터 40개 상품·지표·설정). 다시 만들려면 `npm run db:seed-sql`
 3. Authentication → Users → Add user로 관리자 계정 생성 후, SQL Editor에서
    `insert into public.admins (user_id) select id from auth.users where email = '관리자 이메일';`

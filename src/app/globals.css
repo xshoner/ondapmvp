@@ -111,3 +111,49 @@ table.data td:first-child, table.data th:first-child { white-space: nowrap; }
 @media (max-width: 900px) {
   .grid-2 { grid-template-columns: 1fr; }
 }
+
+/* ---------- 포장 꾸미기 ---------- */
+.chip:disabled { opacity: 0.45; cursor: not-allowed; }
+.style-grid, .sticker-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.sticker-grid { grid-template-columns: repeat(4, 1fr); }
+.thumb {
+  border: 2px solid transparent; background: var(--surface); border-radius: 12px; padding: 4px; cursor: pointer;
+  display: grid; gap: 4px; text-align: center; font-size: 12px; box-shadow: var(--shadow);
+}
+.thumb img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; display: block; }
+.thumb[aria-pressed='true'] { border-color: var(--green); font-weight: 700; color: var(--green); }
+.stage-wrap { display: flex; justify-content: center; min-height: 200px; touch-action: manipulation; }
+.stage-loading { display: grid; place-items: center; width: 100%; min-height: 300px; color: var(--muted); font-size: 13px; }
+.layer-bar { display: flex; align-items: center; gap: 6px; margin-top: 10px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.tabs { display: grid; grid-template-columns: 1fr 1fr; background: #ebe6da; border-radius: 999px; padding: 4px; }
+.tabs button { border: 0; background: transparent; border-radius: 999px; padding: 8px; cursor: pointer; font-weight: 600; color: var(--muted); }
+.tabs button[aria-selected='true'] { background: var(--surface); color: var(--green); box-shadow: var(--shadow); }
+.tab-body { padding-top: 14px; }
+.swatch { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); cursor: pointer; padding: 0; }
+.swatch.small { width: 22px; height: 22px; }
+.swatch[aria-pressed='true'] { outline: 2px solid var(--green); outline-offset: 2px; }
+.name-fields { display: grid; gap: 8px; background: var(--gold-weak); border-radius: 12px; padding: 12px; }
+.name-fields label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+.name-fields .num-input { padding: 9px 12px; font-weight: 400; }
+.text-controls { display: grid; gap: 10px; margin-top: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.text-controls textarea { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; resize: vertical; }
+.text-list { display: grid; gap: 6px; margin-top: 8px; }
+.text-choice { text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 10px 12px; cursor: pointer; font-size: 14px; line-height: 1.45; }
+.text-choice:hover { border-color: var(--green); }
+.modal-back { position: fixed; inset: 0; background: rgba(31, 42, 38, 0.45); display: grid; place-items: center; padding: 16px; z-index: 50; }
+.modal { width: 100%; max-width: 380px; padding: 20px; max-height: calc(100vh - 32px); overflow: auto; }
+.design-code { font-family: ui-monospace, Consolas, monospace; font-size: 26px; font-weight: 700; letter-spacing: 0.06em; text-align: center; margin-top: 12px; color: var(--green); user-select: all; }
+
+/* ---------- 관리자: 포장 디자인 ---------- */
+.admin-tabs { display: inline-grid; grid-auto-flow: column; grid-template-columns: none; }
+.admin-tabs a { text-decoration: none; border-radius: 999px; padding: 8px 18px; font-weight: 600; color: var(--muted); font-size: 14px; }
+.admin-tabs a[aria-selected='true'] { background: var(--surface); color: var(--green); box-shadow: var(--shadow); }
+.asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+.asset-list { display: grid; gap: 10px; }
+.asset-card { display: flex; gap: 12px; padding: 12px; align-items: flex-start; }
+.asset-card img { width: 96px; height: 96px; object-fit: cover; border-radius: 10px; flex: none; }
+.asset-card input[type='text'], .asset-card textarea, .asset-card select, .admin-body table.data input[type='text'], .admin-body table.data select, .admin-body .field input[type='file'] {
+  border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: #fff;
+}
+.asset-card textarea { width: 100%; resize: vertical; }
+table.data.designs-table th { position: static; }
