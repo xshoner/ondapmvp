@@ -45,6 +45,7 @@
     })();
   }
 
+  // 화면 위쪽에 띄운다 (모바일 스킨은 아래쪽에 구매 버튼이 고정돼 있어 가리지 않도록)
   function banner(html, actions) {
     var old = document.getElementById('ondap-banner');
     if (old) old.remove();
@@ -52,7 +53,7 @@
     bar.id = 'ondap-banner';
     bar.setAttribute('role', 'status');
     bar.style.cssText = [
-      'position:fixed', 'left:12px', 'right:12px', 'bottom:12px', 'z-index:2147483000', 'max-width:720px', 'margin:0 auto',
+      'position:fixed', 'left:12px', 'right:12px', 'top:12px', 'z-index:2147483000', 'max-width:720px', 'margin:0 auto',
       'background:linear-gradient(135deg,#4a7d6b,#2f5a4b 55%,#1f3f34)', 'color:#fff', 'border-radius:14px',
       'box-shadow:0 8px 24px rgba(0,0,0,.25)', 'padding:14px 44px 14px 16px', 'font-size:14px', 'line-height:1.5',
       "font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif", 'text-align:left',
