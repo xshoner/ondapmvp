@@ -79,7 +79,7 @@ Node 24 이상이 필요합니다(TypeScript를 그대로 실행).
 
 ## 배포 (5단계)
 
-- 운영 주소: https://ondapmvp-iota.vercel.app (Vercel 프로젝트 `ondapmvp`, 서울 리전 icn1)
+- 운영 주소: https://ondapmvp.vercel.app (Vercel 프로젝트 `ondapmvp`, 서울 리전 icn1)
 - `main` 브랜치에 푸시하면 자동 배포된다.
 - `*-xshoner-3375s-projects.vercel.app` 주소는 Vercel 로그인 보호가 걸려 있어 일반 방문자는 열 수 없다. 외부에 공유할 때는 운영 주소를 쓴다.
 - Vercel 환경변수: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `ONDAP_DATA_SOURCE=supabase`, `CAFE24_MALL_ID`, `CAFE24_CLIENT_ID`, (선택) `CAFE24_FRONT_API_KEY`를 Sensitive로 등록
