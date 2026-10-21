@@ -18,7 +18,7 @@
 | 카페24 쇼핑몰 버튼 (PC·모바일) | 적용됨 | 메인 배너 바로 아래 |
 | AI 점수 제안 (Gemini) | 운영 동작 확인(10/21). 기본 모델이 503(혼잡)이면 대체 모델 `gemini-flash-latest`가 응답 | 관리자 상품 편집 화면 |
 | 포장 디자인 (포장 스타일 + 무료 스티커 편집 → 디자인 코드) | 코드 완료, **SQL 실행·카페24 주문서 항목 추가 필요** (단계 15) | `/packaging`, `/admin/packaging` |
-| 테스트 | 95개 통과 | `npm test` |
+| 테스트 | 96개 통과 | `npm test` |
 | 상품 지표 | **가안 40개, 검토 0/40** | 관리자에서 검토 필요 |
 
 **주소**
@@ -306,6 +306,16 @@
 4. 🤖 운영 확인 중 발견·수정: 기본 모델 503 뒤 대체 모델 응답이 오지 않아 3분 넘게 멈춤 → 호출마다 40초 제한(`CALL_TIMEOUT_MS`)
 5. 👤 SQL Editor에서 `supabase/migrations/20261023000000_design_lookup.sql` 실행 → 🤖 운영 확인(10/21): 접수 코드는 요약 조회, 취소·없는 코드는 빈 결과, designs 표 직접 읽기는 0행, `/packaging/mine?code=` 화면 조회·주문하러 가기 정상
 
+### 단계 20. 신뢰감 마감 (2026-10-21)
+1. 🤖 공유 미리보기: 기본 그림 `src/app/opengraph-image.tsx`, 결과별 그림 `/og/result?event=&relation=&budget=&qty=`(1순위 상품 사진·이름·격식지수 도장). 결과 화면 `generateMetadata`가 제목·설명·그림을 넣음. `metadataBase`는 `VERCEL_PROJECT_PRODUCTION_URL`(운영 ondapmvp.vercel.app)
+   - 그림 속 한글: `src/og/font.ts`가 들어갈 글자만 Google Fonts에서 woff로 받음(그림 엔진은 woff2 불가). 단어 중간 줄바꿈은 줄을 직접 나누거나 `wordBreak: 'keep-all'`
+   - 카카오톡은 미리보기를 오래 기억한다. 바뀐 그림이 안 보이면 카카오 개발자 도구의 '공유 디버거'에서 주소 캐시를 지운다
+2. 🤖 `/formality` 격식지수 소개(관리자 설정을 그대로 읽음). 결과 도장·계산 보기·메인에서 연결
+3. 🤖 기다림 화면(`loading.tsx`: 결과·포장·상품 고르기·내 디자인), `not-found.tsx`
+4. 🤖 메인 "이번 달 n번 답례를 골라 드렸습니다"(10번 이상일 때만). 👤 SQL Editor에서 `supabase/migrations/20261024000000_usage_count.sql` 실행 필요(실행 전에는 숨김)
+5. 🤖 아이콘: `src/app/icon.svg`(인주 마름모 표지), `apple-icon.png`, `public/icons/*`, `manifest.ts`(홈 화면 추가), 테마색
+6. 🤖 운영 DB(jsonb)는 설정 키 순서를 바꾼다 → `engine/labels.ts`의 `eventIds`·`relationIds`로 화면 순서 고정
+
 ---
 
 ## 3. 코드 지도
@@ -346,7 +356,7 @@
 4. **Supabase** (단계 10과 동일)
    - 새 프로젝트 → SQL Editor: `supabase/migrations/20261020000000_init.sql` 실행
    - `npm run db:seed-sql` → `supabase/seed.sql` 실행
-   - 포장 디자인: `supabase/migrations/20261021000000_packaging.sql` → `20261022000000_packaging_hardening.sql` → `20261023000000_design_lookup.sql` 순서로 실행
+   - 포장 디자인: `supabase/migrations/20261021000000_packaging.sql` → `20261022000000_packaging_hardening.sql` → `20261023000000_design_lookup.sql` → `20261024000000_usage_count.sql` 순서로 실행
    - 관리자: Add user(Auto Confirm) → `insert into public.admins (user_id) select id from auth.users where lower(email)=lower('…') returning user_id;`
    - Allow new users to sign up 끄기
    - `.env.local`: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `ONDAP_DATA_SOURCE=supabase`
