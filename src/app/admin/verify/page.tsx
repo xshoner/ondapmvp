@@ -37,6 +37,10 @@ export default async function VerifyPage({ searchParams }: { searchParams: Searc
 
   return (
     <div style={{ display: 'grid', gap: 20 }}>
+      <header className="page-head" style={{ marginBottom: 0 }}>
+        <h1>알고리즘 검증</h1>
+        <p>행사 8가지와 관계 4가지를 모두 조합해 추천이 자리마다 알맞게 달라지는지 확인합니다.</p>
+      </header>
       <section className="panel">
         <div className="spread">
           <div>

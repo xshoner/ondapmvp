@@ -9,6 +9,16 @@ const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
+function TopBar() {
+  return (
+    <header className="topbar">
+      <a className="back" href="/">‹ 조건 바꾸기</a>
+      <a className="brand" href="/" style={{ fontSize: 18 }}><span className="brand-mark" aria-hidden />온답</a>
+      <span style={{ width: 72 }} />
+    </header>
+  );
+}
+
 export default async function ResultPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
   const catalog = await getCatalog();
@@ -19,9 +29,10 @@ export default async function ResultPage({ searchParams }: { searchParams: Searc
   if (!config.events[event] || !config.relations[relation]) {
     return (
       <main className="mobile">
-        <header className="topbar"><a className="brand" href="/">ONDAP<small>온답</small></a></header>
-        <p>행사와 관계를 다시 선택해 주세요.</p>
-        <a className="btn" href="/">처음으로</a>
+        <TopBar />
+        <h1 style={{ fontSize: 24, marginTop: 24 }}>자리와 받는 분을 다시 골라 주세요</h1>
+        <p className="lead">주소에 행사나 관계 정보가 빠져 있습니다.</p>
+        <a className="btn block" style={{ marginTop: 24 }} href="/">처음으로</a>
       </main>
     );
   }
@@ -41,132 +52,116 @@ export default async function ResultPage({ searchParams }: { searchParams: Searc
 
   return (
     <main className="mobile">
-      <header className="topbar">
-        <a className="small muted" href="/" style={{ textDecoration: 'none' }}>‹ 다시 고르기</a>
-        <span className="serif" style={{ fontSize: 15 }}>AI 답례 큐레이션 결과</span>
-        <span style={{ width: 60 }} />
-      </header>
+      <TopBar />
 
-      <section style={{ textAlign: 'center', marginTop: 16 }}>
-        <div style={{ fontSize: 40 }} aria-hidden>🎁</div>
-        <h1 style={{ marginTop: 8 }}>준비하신 상황에<br />딱 맞는 선물을 골랐어요</h1>
-        <div style={{ marginTop: 12 }}>
-          <span className="pill">
-            {eventName} / {config.relations[relation].name}
-            {budgetMax ? ` / 1개 ${won(budgetMax)} 이하` : ''}
-          </span>
+      <section className="result-head">
+        <h1 style={{ fontSize: 26 }}>{eventName} 자리에 맞춘<br />답례품을 골랐습니다</h1>
+        <div className="meta">
+          <span>{config.relations[relation].name}</span>
+          <span>{budgetMax ? `1개 ${won(budgetMax)} 이하` : '예산 상관없음'}</span>
+          <span>{quantity.toLocaleString('ko-KR')}개</span>
         </div>
-      </section>
-
-      <section className="card" style={{ padding: 16, marginTop: 20, textAlign: 'center' }}>
-        <b>상품 {catalog.products.length}개를 검토했어요</b>
-        <p className="small muted" style={{ margin: '6px 0 0' }}>
-          {bannedCount > 0
-            ? `${eventName} 자리에 맞지 않는 ${bannedCount}개 상품은 미리 제외했습니다.`
-            : '조건에 맞지 않는 상품은 미리 제외했습니다.'}
-          {' '}이제 마음 놓고 골라보세요.
+        <p className="result-note">
+          상품 {catalog.products.length}개를 격식지수로 비교했습니다.
+          {bannedCount > 0 && ` ${eventName} 자리에 어울리지 않는 ${bannedCount}개는 미리 뺐습니다.`}
+          {result.notice && <><br /><span style={{ color: 'var(--danger)' }}>{result.notice}</span></>}
         </p>
-        {result.notice && <p className="small" style={{ margin: '8px 0 0', color: 'var(--red)' }}>{result.notice}</p>}
       </section>
 
-      {main ? <MainPick item={main} quantity={quantity} packagingHref={packagingHref(main.product.productNo)} /> : <p style={{ marginTop: 24 }}>추천할 상품이 없습니다. 조건을 바꿔 보세요.</p>}
+      {main ? (
+        <MainPick item={main} quantity={quantity} packagingHref={packagingHref(main.product.productNo)} />
+      ) : (
+        <section className="card" style={{ padding: 22, marginTop: 24 }}>
+          <h2 style={{ fontSize: 18 }}>조건에 맞는 상품이 없습니다</h2>
+          <p className="small muted" style={{ margin: '6px 0 16px' }}>예산을 넓히거나 관계를 바꿔 다시 찾아보세요.</p>
+          <a className="btn ghost block" href="/">조건 바꾸기</a>
+        </section>
+      )}
 
       {others.length > 0 && (
-        <section style={{ marginTop: 28 }}>
-          <h2 style={{ textAlign: 'center', fontSize: 17 }}>다른 격식 단계도 함께 비교해보세요</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${others.length}, 1fr)`, gap: 10, marginTop: 14 }}>
+        <section>
+          <h2 className="alt-title">다른 격식 단계의 선택</h2>
+          <p className="small muted" style={{ margin: 0 }}>같은 자리에서 조금 더 실속 있게, 또는 가볍게 고를 수 있는 상품입니다.</p>
+          <div className="alt-list">
             {others.map((x) => <OtherPick key={x.product.productNo} item={x} packagingHref={packagingHref(x.product.productNo)} />)}
           </div>
         </section>
       )}
 
-      <p className="small muted" style={{ textAlign: 'center', marginTop: 32 }}>
-        온답 격식지수 가안 {config.modelVersion} · 개발용 화면
-      </p>
+      <p className="foot-note">온답 격식지수 가안 {config.modelVersion}</p>
     </main>
   );
 }
 
 function MainPick({ item, quantity, packagingHref }: { item: ScoredProduct; quantity: number; packagingHref: string }) {
   const { product, attributes } = item;
+  const image = product.detailImage ?? product.image;
   return (
-    <section className="card" style={{ marginTop: 20, overflow: 'hidden' }}>
-      <div style={{ position: 'relative', background: '#efe9dc' }}>
-        {product.detailImage || product.image ? (
-          <img src={product.detailImage ?? product.image ?? ''} alt={product.name} style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', display: 'block' }} />
-        ) : (
-          <div style={{ aspectRatio: '4 / 3' }} />
-        )}
-        <div style={{
-          position: 'absolute', left: 14, top: 14, width: 84, height: 84, borderRadius: '50%',
-          background: 'var(--gold)', color: '#fff', display: 'grid', placeItems: 'center', textAlign: 'center',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.2)', lineHeight: 1.1,
-        }}>
+    <article className="pick">
+      <div className="pick-media">
+        {image ? <img src={image} alt={product.name} /> : <div style={{ aspectRatio: '4 / 3' }} />}
+        <div className="seal" role="img" aria-label={`격식지수 ${Math.round(item.matchScore)}점`}>
           <div>
-            <div style={{ fontSize: 10 }}>온답<br />격식지수</div>
-            <div style={{ fontSize: 24, fontWeight: 700 }}>{Math.round(item.matchScore)}<span style={{ fontSize: 11 }}>점</span></div>
+            <div className="seal-label">격식지수</div>
+            <div className="seal-score num">{Math.round(item.matchScore)}</div>
           </div>
         </div>
       </div>
 
-      <div style={{ padding: 18 }}>
-        <span className="pill gold">{item.tier}</span>
-        <h2 style={{ marginTop: 8 }}>
+      <div className="pick-body">
+        <div className="tier">{item.tier}</div>
+        <h2 className="pick-name">
           {attributes.region !== '국내' && !product.name.includes(attributes.region) && `[${attributes.region}] `}
           {product.name}
         </h2>
-        {attributes.story && <p className="small muted" style={{ margin: '4px 0 0' }}>{attributes.story}</p>}
+        {attributes.story && attributes.story !== product.name && <p className="pick-story">{attributes.story}</p>}
 
-        <div className="spread" style={{ marginTop: 14 }}>
-          <span className="muted small">1개</span>
-          <b>{won(product.price)}</b>
-        </div>
-        <div className="spread" style={{ marginTop: 4 }}>
-          <span className="small">총 {quantity}개</span>
-          <b style={{ fontSize: 20 }}>{won(product.price * quantity)}</b>
+        <div className="price-table num">
+          <span className="muted">1개</span>
+          <span>{won(product.price)}</span>
+          <span className="muted" style={{ alignSelf: 'center' }}>{quantity.toLocaleString('ko-KR')}개 합계</span>
+          <span className="total">{won(product.price * quantity)}</span>
         </div>
 
-        <div style={{ background: '#f4f7f5', borderRadius: 12, padding: 14, marginTop: 16 }}>
-          <div className="small" style={{ fontWeight: 700, color: 'var(--green)' }}>ONDAP&apos;S PICK!</div>
-          <p className="small" style={{ margin: '6px 0 8px' }}>{item.reason}</p>
-          <div className="tags">{attributes.tags.map((t) => <span key={t} className="tag">#{t}</span>)}</div>
+        <div className="reason">
+          <div className="label">고른 이유</div>
+          <p>{item.reason}</p>
+          {attributes.tags.length > 0 && <div className="tags">{attributes.tags.map((t) => <span key={t} className="tag">#{t}</span>)}</div>}
         </div>
 
-        <details style={{ marginTop: 14 }}>
-          <summary className="small muted" style={{ cursor: 'pointer' }}>격식지수는 이렇게 계산됐어요</summary>
-          <div style={{ marginTop: 10 }}><ScoreBreakdown item={item} /></div>
+        <details className="disclosure">
+          <summary>격식지수 계산 보기</summary>
+          <div style={{ marginTop: 12 }}><ScoreBreakdown item={item} /></div>
         </details>
 
-        <a className="btn block" style={{ marginTop: 16 }} href={product.url} target="_blank" rel="noreferrer">
-          이 상품 보러 가기
-        </a>
-        <a className="btn ghost block" style={{ marginTop: 8 }} href={packagingHref}>
-          🎀 이 상품으로 포장 꾸미기 <span className="small" style={{ fontWeight: 500 }}>(스티커 무료)</span>
-        </a>
+        <div className="pick-actions">
+          <a className="btn block" href={product.url} target="_blank" rel="noreferrer">이 상품 보러 가기</a>
+          <a className="btn ghost block" href={packagingHref}>포장·스티커 꾸미기 <span className="small" style={{ fontWeight: 500, color: 'var(--muted)' }}>무료</span></a>
+        </div>
       </div>
-    </section>
+    </article>
   );
 }
 
-// 카드 전체는 상품 링크, 아래 줄은 포장 꾸미기 (링크 안에 링크를 넣을 수 없어 나눈다)
 function OtherPick({ item, packagingHref }: { item: ScoredProduct; packagingHref: string }) {
   const { product } = item;
   return (
-    <div className="card" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      <a href={product.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', display: 'block', flex: 1 }}>
-        <div style={{ background: 'var(--gold-weak)', color: '#7a5b17', fontSize: 11, fontWeight: 700, textAlign: 'center', padding: '4px 0' }}>
-          {item.tier}
-        </div>
-        {product.image && <img src={product.image} alt={product.name} style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />}
-        <div style={{ padding: 10 }}>
-          <div className="small" style={{ fontWeight: 600, lineHeight: 1.35 }}>{product.name}</div>
-          <div className="small muted" style={{ marginTop: 4 }}>{won(product.price)}</div>
-          <div className="small" style={{ marginTop: 2, color: 'var(--green)' }}>격식지수 {Math.round(item.matchScore)}점</div>
-        </div>
+    <article className="alt">
+      <a href={product.url} target="_blank" rel="noreferrer" aria-label={`${product.name} 보러 가기`}>
+        {product.image ? <img src={product.image} alt="" /> : <span className="ph" />}
       </a>
-      <a href={packagingHref} className="small" style={{ display: 'block', textAlign: 'center', padding: '8px 4px', borderTop: '1px solid var(--line)', color: 'var(--green)', fontWeight: 600, textDecoration: 'none' }}>
-        🎀 포장 꾸미기
-      </a>
-    </div>
+      <div style={{ minWidth: 0 }}>
+        <div className="tier" style={{ fontSize: 12 }}>{item.tier}</div>
+        <a className="alt-name" href={product.url} target="_blank" rel="noreferrer">{product.name}</a>
+        <div className="alt-meta num">
+          <span>{won(product.price)}</span>
+          <span className="score">격식지수 {Math.round(item.matchScore)}</span>
+        </div>
+        <div className="alt-actions">
+          <a className="btn ghost small" href={product.url} target="_blank" rel="noreferrer">상품 보기</a>
+          <a className="btn ghost small" href={packagingHref}>포장 꾸미기</a>
+        </div>
+      </div>
+    </article>
   );
 }

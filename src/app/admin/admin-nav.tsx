@@ -13,19 +13,20 @@ const LINKS = [
 export function AdminNav({ email }: { email: string | null }) {
   const path = usePathname();
   return (
-    <nav className="admin-nav">
-      <a className="brand" href="/admin">ONDAP 관리자</a>
+    <nav className="admin-nav" aria-label="관리자 메뉴">
+      <a className="brand" href="/admin"><span className="brand-mark" aria-hidden />온답<small>관리</small></a>
       {LINKS.map((l) => (
-        <a key={l.href} href={l.href} aria-current={path === l.href ? 'page' : undefined}>{l.label}</a>
+        <a key={l.href} className="nav-link" href={l.href} aria-current={path === l.href ? 'page' : undefined}>{l.label}</a>
       ))}
-      <span style={{ flex: 1 }} />
-      <a href="/" target="_blank" rel="noreferrer">고객 화면 열기 ↗</a>
-      {email && (
-        <form action={signOutAction} className="row" style={{ gap: 8 }}>
-          <span className="small" style={{ opacity: 0.75 }}>{email}</span>
-          <button type="submit" className="btn ghost small" style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.5)' }}>로그아웃</button>
-        </form>
-      )}
+      <div className="nav-side">
+        <a href="/" target="_blank" rel="noreferrer" style={{ color: 'var(--ink-soft)' }}>고객 화면 열기</a>
+        {email && (
+          <form action={signOutAction} className="row" style={{ gap: 10 }}>
+            <span>{email}</span>
+            <button type="submit" className="btn ghost small">로그아웃</button>
+          </form>
+        )}
+      </div>
     </nav>
   );
 }

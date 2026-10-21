@@ -29,14 +29,14 @@ export default async function PickProductPage({ searchParams }: { searchParams: 
   return (
     <main className="mobile" style={{ paddingBottom: 24 }}>
       <header className="topbar">
-        <a className="small muted" href="/" style={{ textDecoration: 'none' }}>‹ 처음으로</a>
-        <span className="serif" style={{ fontSize: 15 }}>포장만 꾸미기</span>
-        <span style={{ width: 60 }} />
+        <a className="back" href="/">‹ 처음으로</a>
+        <span className="title">포장만 꾸미기</span>
+        <span style={{ width: 72 }} />
       </header>
 
       <section style={{ marginTop: 8 }}>
-        <h1 style={{ fontSize: 22 }}>포장할 상품을 골라 주세요</h1>
-        <p className="small muted" style={{ marginTop: 6 }}>포장과 스티커는 무료예요. 고른 뒤 바로 꾸밀 수 있어요.</p>
+        <h1 style={{ fontSize: 26 }}>포장할 상품을<br />골라 주세요</h1>
+        <p className="lead">고른 상품을 원하는 포장지와 스티커로 꾸밀 수 있습니다. 포장과 스티커는 무료입니다.</p>
       </section>
 
       <form method="get" action="/packaging/pick" className="row" style={{ marginTop: 14, gap: 8, flexWrap: 'nowrap' }}>
@@ -67,8 +67,8 @@ export default async function PickProductPage({ searchParams }: { searchParams: 
               )}
               <div style={{ padding: '8px 10px 10px' }}>
                 <div className="small" style={{ fontWeight: 600, lineHeight: 1.35 }}>{p.name}</div>
-                <div className="small muted" style={{ marginTop: 2 }}>{won(p.price)}</div>
-                <div className="small" style={{ marginTop: 4, color: 'var(--green)', fontWeight: 600 }}>🎀 포장 꾸미기</div>
+                <div className="small muted num" style={{ marginTop: 2 }}>{won(p.price)}</div>
+                <div className="small" style={{ marginTop: 6, color: 'var(--pine)', fontWeight: 600 }}>포장 꾸미기</div>
               </div>
             </a>
           ))}

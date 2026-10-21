@@ -204,7 +204,7 @@ export function ProductEditor({ products, attributes, config, mallId, syncedAt }
               상품명·가격·스토리를 바탕으로 AI가 지표 점수와 어울리는 상황을 제안합니다. 스토리를 먼저 채우면 더 정확합니다.
             </span>
             <button type="button" className="btn small" onClick={askAi} disabled={aiPending}>
-              {aiPending ? 'AI가 검토하는 중…' : '✦ AI 점수 제안'}
+              {aiPending ? 'AI가 검토하는 중…' : 'AI 점수 제안'}
             </button>
           </div>
           {aiError && <p className="small" style={{ color: 'var(--red)', marginTop: 0 }}>{aiError}</p>}

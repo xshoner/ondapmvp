@@ -19,9 +19,9 @@ export function AiSuggestionPanel({ config, draft, suggestion: s, onApplyScore, 
   const meanings = Object.entries(s.meanings);
 
   return (
-    <section style={{ border: '1px solid #cfe0d6', background: '#f4f9f6', borderRadius: 12, padding: 16, margin: '0 0 18px' }}>
+    <section style={{ border: '1px solid var(--line)', borderLeft: '3px solid var(--pine)', background: '#f8faf8', borderRadius: 'var(--radius-sm)', padding: 16, margin: '0 0 18px' }}>
       <div className="spread">
-        <b style={{ color: 'var(--green)' }}>✦ AI 점수 제안</b>
+        <b style={{ color: 'var(--pine)' }}>AI 점수 제안</b>
         <span className="small muted">{s.model} · 확인 후 적용하고 저장해야 반영됩니다</span>
       </div>
       {s.summary && <p className="small" style={{ margin: '6px 0 10px' }}>{s.summary}</p>}

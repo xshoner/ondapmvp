@@ -66,7 +66,7 @@
     bar.setAttribute('role', 'status');
     bar.style.cssText = [
       'position:fixed', 'left:12px', 'right:12px', 'top:12px', 'z-index:2147483000', 'max-width:720px', 'margin:0 auto',
-      'background:linear-gradient(135deg,#4a7d6b,#2f5a4b 55%,#1f3f34)', 'color:#fff', 'border-radius:14px',
+      'background:#1f4436', 'border-left:4px solid #b08a4a', 'color:#fff', 'border-radius:10px',
       'box-shadow:0 8px 24px rgba(0,0,0,.25)', 'padding:14px 44px 14px 16px', 'font-size:14px', 'line-height:1.5',
       "font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif", 'text-align:left',
     ].join(';');
@@ -135,7 +135,7 @@
         qtyText = ' 옵션을 고르고 수량 <b>' + state.qty + '개</b>를 선택해 주세요.';
       }
     }
-    banner('🎀 포장 디자인 ' + badge(state.code) + ' 접수 완료.' + qtyText +
+    banner('포장 디자인 ' + badge(state.code) + ' 접수 완료.' + qtyText +
       '<br>‘바로 구매’(모바일은 ‘구매하기’)를 누르면 주문서에 코드가 자동으로 들어가요.');
   }
 
@@ -157,12 +157,12 @@
     var link = document.createElement('a');
     link.id = 'ondap-pack-btn';
     link.style.cssText = [
-      'display:block', 'margin:10px 0', 'padding:12px 14px', 'border:1px solid #2f5a4b', 'border-radius:8px', 'background:#f4f7f5',
-      'color:#2f5a4b !important', 'text-align:center', 'text-decoration:none', 'line-height:1.4',
+      'display:block', 'margin:10px 0', 'padding:12px 14px', 'border:1px solid #1f4436', 'border-radius:8px', 'background:#ffffff',
+      'color:#1f4436 !important', 'text-align:center', 'text-decoration:none', 'line-height:1.4',
       "font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif",
     ].join(';');
-    link.innerHTML = '<b style="font-size:15px;color:#2f5a4b !important">🎀 ' + (again ? '포장 다시 꾸미기' : '포장·스티커 꾸미기 (무료)') + '</b>' +
-      '<br><span style="font-size:12px;color:#55665f !important">포장지를 고르고 스티커에 문구·사진을 넣을 수 있어요</span>';
+    link.innerHTML = '<b style="font-size:15px;color:#1f4436 !important">' + (again ? '포장 다시 꾸미기' : '포장·스티커 꾸미기 (무료)') + '</b>' +
+      '<br><span style="font-size:12px;color:#5e6862 !important">포장지를 고르고 스티커에 문구·사진을 넣을 수 있어요</span>';
     // 누르는 순간의 수량을 함께 넘긴다
     var go = function () {
       var q = document.querySelector('#quantity');
@@ -176,7 +176,7 @@
 
   function onLoginPage(state) {
     if (!/noMember=1/.test(location.search)) return;
-    banner('🎀 회원가입 없이 아래 <b>‘비회원 구매’</b>로도 주문할 수 있어요.<br>포장 디자인 ' + badge(state.code) + '는 주문서에 자동으로 들어가요.');
+    banner('회원가입 없이 아래 <b>‘비회원 구매’</b>로도 주문할 수 있어요.<br>포장 디자인 ' + badge(state.code) + '는 주문서에 자동으로 들어가요.');
   }
 
   // 항목 이름이 적힌 제목 칸(th·dt·label)을 찾고, 같은 줄(tr·li·dl)의 입력칸을 모은다. 스킨마다 구조가 달라 이름으로 찾는다.
@@ -210,13 +210,13 @@
             field.value = state.code;
             fire(field);
           }
-          field.style.outline = '2px solid #2f5a4b';
+          field.style.outline = '2px solid #1f4436';
         });
         // 안내 띠에는 검증된 코드만 넣는다 (입력칸 값은 고객이 바꿀 수 있으므로 HTML에 쓰지 않음)
-        banner('🎀 주문서 ‘' + LABEL + '’ 칸에 포장 디자인 코드 ' + badge(state.code) + '를 넣어 두었어요. 이대로 주문하시면 돼요.');
+        banner('주문서 ‘' + LABEL + '’ 칸에 포장 디자인 코드 ' + badge(state.code) + '를 넣어 두었어요. 이대로 주문하시면 돼요.');
       } else if (!findCodeFields()) {
         // 항목 칸 자체가 없을 때만 복사 안내 (칸은 있는데 다른 상품 주문이면 조용히 넘어감)
-        banner('🎀 포장 디자인 ' + badge(state.code) + '를 주문서 요청 칸에 적어 주세요.', [copyButton(state.code)]);
+        banner('포장 디자인 ' + badge(state.code) + '를 주문서 요청 칸에 적어 주세요.', [copyButton(state.code)]);
       }
     });
   }

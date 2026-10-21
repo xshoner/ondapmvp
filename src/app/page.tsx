@@ -11,21 +11,19 @@ export default async function Home() {
   return (
     <main className="mobile">
       <header className="topbar">
-        <a className="brand" href="/">ONDAP<small>온답</small></a>
-        <a className="small muted" href="/admin">관리자</a>
+        <a className="brand" href="/"><span className="brand-mark" aria-hidden />온답<small>답례 큐레이션</small></a>
       </header>
 
-      <section style={{ marginTop: 12 }}>
-        <h1>내 상황에 맞는<br />답례를 찾아드릴게요</h1>
-        <p className="muted" style={{ marginTop: 8 }}>
-          행사와 받는 분을 알려주시면 격식에 맞는 지역 답례품 3가지를 골라드립니다.
-        </p>
-        <a className="small" href="/packaging/pick" style={{ color: 'var(--green)', fontWeight: 600 }}>
-          🎀 추천 없이 원하는 상품의 포장만 꾸미기 →
-        </a>
+      <section style={{ marginTop: 24 }}>
+        <h1>자리에 맞는 답례,<br />온답이 골라 드립니다</h1>
+        <p className="lead">행사와 받는 분, 예산만 알려 주세요. 격식지수로 비교해 지역 답례품 세 가지를 추천합니다.</p>
       </section>
 
       <GiftFinderForm events={events} relations={relations} />
+
+      <p className="small muted" style={{ textAlign: 'center', margin: '28px 0 0' }}>
+        추천 없이 원하는 상품의 포장만 꾸미려면 <a className="text-link" href="/packaging/pick">상품 고르기</a>
+      </p>
     </main>
   );
 }

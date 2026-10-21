@@ -318,12 +318,15 @@ export function PackagingEditor(props: Props) {
 
   return (
     <>
-      <section className="card" style={{ display: 'flex', gap: 12, padding: 12, marginTop: 8, alignItems: 'center' }}>
-        {product.image && <Image src={product.image} alt="" width={64} height={64} style={{ borderRadius: 10, objectFit: 'cover' }} />}
+      <h1 style={{ fontSize: 24, marginTop: 8 }}>선물을 정성껏<br />싸 드릴게요</h1>
+      <p className="lead" style={{ marginBottom: 18 }}>포장지를 고르고, 스티커에 문구와 그림을 넣어 주세요. 포장과 스티커는 무료입니다.</p>
+
+      <section className="product-strip">
+        {product.image && <Image src={product.image} alt="" width={68} height={68} priority style={{ objectFit: 'cover' }} />}
         <div style={{ minWidth: 0 }}>
-          <div className="small" style={{ fontWeight: 600, lineHeight: 1.35 }}>{product.name}</div>
-          <div className="small muted">{won(product.price)}{eventName ? ` · ${eventName}` : ''}</div>
-          <label className="small row" style={{ gap: 6, margin: '2px 0' }}>
+          <div style={{ fontWeight: 600, fontSize: 14.5, lineHeight: 1.4 }}>{product.name}</div>
+          <div className="small muted num">{won(product.price)}{eventName ? `, ${eventName}` : ''}</div>
+          <label className="small row" style={{ gap: 6, margin: '4px 0 0' }}>
             수량
             <input
               type="number"
@@ -336,12 +339,11 @@ export function PackagingEditor(props: Props) {
             />
             개
           </label>
-          <div className="small" style={{ color: 'var(--green)', fontWeight: 600 }}>포장과 스티커는 무료예요</div>
         </div>
       </section>
 
       <section className="step">
-        <div className="step-label">1. 포장 스타일</div>
+        <h2 className="step-label"><span className="step-no">1</span>포장지</h2>
         <div className="style-grid">
           {styles.map((s) => (
             <button key={s.id} type="button" className="thumb" aria-pressed={s.id === styleId} onClick={() => setStyleId(s.id)}>
@@ -355,20 +357,20 @@ export function PackagingEditor(props: Props) {
       </section>
 
       <section className="step">
-        <div className="step-label">2. 함께 넣을 인쇄물</div>
+        <h2 className="step-label"><span className="step-no">2</span>함께 넣을 인쇄물</h2>
         <div className="chips">
-          <button type="button" className="chip" aria-pressed={withSticker} onClick={() => setWithSticker(true)}>스티커 · 무료</button>
-          <button type="button" className="chip" disabled title="준비 중">엽서 · 준비 중</button>
-          <button type="button" className="chip" disabled title="준비 중">띠지 · 준비 중</button>
+          <button type="button" className="chip" aria-pressed={withSticker} onClick={() => setWithSticker(true)}>스티커 (무료)</button>
+          <button type="button" className="chip" disabled title="준비 중">엽서 (준비 중)</button>
+          <button type="button" className="chip" disabled title="준비 중">띠지 (준비 중)</button>
           <button type="button" className="chip" aria-pressed={!withSticker} onClick={() => setWithSticker(false)}>인쇄물 없이</button>
         </div>
       </section>
 
       {withSticker && (
         <section className="step">
-          <div className="step-label">3. 스티커 꾸미기</div>
-          <div className="small" style={{ fontWeight: 600, marginBottom: 6 }}>
-            어떤 자리인가요? <span className="muted" style={{ fontWeight: 400 }}>고르면 어울리는 이미지·문구가 먼저 나와요</span>
+          <h2 className="step-label"><span className="step-no">3</span>스티커 꾸미기</h2>
+          <div className="small" style={{ fontWeight: 600, marginBottom: 8, color: 'var(--ink-soft)' }}>
+            어떤 자리인가요? <span className="muted" style={{ fontWeight: 400 }}>고르면 어울리는 그림과 문구가 먼저 나와요</span>
           </div>
           <div className="chips event-chips">
             {events.map((e) => (
@@ -403,8 +405,9 @@ export function PackagingEditor(props: Props) {
               />
             )}
           </div>
-          <p className="small muted" style={{ textAlign: 'center', margin: '6px 0 0' }}>
-            <span style={{ color: '#c0392b' }}>- - 자르는 선</span> · <span>안쪽 점선 안에 글자를 두면 안전해요</span>
+          <p className="guide-note">
+            <span className="cut">빨간 점선: 자르는 선</span>
+            <span>회색 점선 안에 글자를 두면 안전해요</span>
           </p>
           {lowRes && (
             <p className="small" style={{ color: 'var(--red)', margin: '6px 0 0', textAlign: 'center' }}>
@@ -436,7 +439,7 @@ export function PackagingEditor(props: Props) {
                   className="btn ghost small"
                   onClick={() => setNotice('AI 이미지 만들기는 곧 열릴 예정이에요. 지금은 추천 이미지나 내 사진으로 꾸며 주세요.')}
                 >
-                  ✦ AI로 이미지 만들기 <span className="pill gray" style={{ padding: '0 6px', fontSize: 11 }}>준비 중</span>
+                  AI로 그림 만들기 <span className="pill gray" style={{ padding: '0 6px', fontSize: 11 }}>준비 중</span>
                 </button>
                 <input ref={fileRef} type="file" accept="image/jpeg,image/png" hidden onChange={(e) => { void onUpload(e.target.files?.[0]); e.target.value = ''; }} />
               </div>
@@ -506,9 +509,9 @@ export function PackagingEditor(props: Props) {
       )}
 
       <div className="sticky-cta">
-        {error && <p className="small" style={{ color: 'var(--red)', textAlign: 'center', margin: '0 0 8px', background: 'var(--bg)' }}>{error}</p>}
+        {error && <p className="summary-line" style={{ color: 'var(--danger)' }} role="alert">{error}</p>}
         {withSticker && hasBlank && !error && (
-          <p className="small" style={{ color: '#6b4f12', textAlign: 'center', margin: '0 0 8px', background: 'var(--bg)' }}>
+          <p className="summary-line" style={{ color: 'var(--brass)' }}>
             {PLACEHOLDER_BLANK} 자리에 이름을 넣어 주세요. 그대로 저장하면 {PLACEHOLDER_BLANK}로 인쇄돼요.
           </p>
         )}
@@ -520,13 +523,13 @@ export function PackagingEditor(props: Props) {
       {result && (
         <div className="modal-back" role="dialog" aria-modal="true" aria-label="디자인 코드">
           <div className="modal card">
-            <div className="step-label" style={{ textAlign: 'center' }}>디자인이 접수됐어요</div>
+            <h2 style={{ fontSize: 20, textAlign: 'center' }}>디자인이 접수됐어요</h2>
             {result.preview && <img src={result.preview} alt="저장한 스티커" style={{ width: 140, height: 140, display: 'block', margin: '0 auto', objectFit: 'contain' }} />}
             <div className="design-code">{result.code}</div>
             <p className="small" style={{ textAlign: 'center', margin: '4px 0 0', color: result.copied ? 'var(--green)' : 'var(--muted)' }}>
               {result.copied ? '코드가 복사됐어요.' : '아래 버튼으로 코드를 복사해 주세요.'}
             </p>
-            <ol className="small" style={{ margin: '14px 0 0', paddingLeft: 20 }}>
+            <ol className="steps-list">
               <li>‘주문하러 가기’를 누르면 상품 페이지가 열리고 수량이 <b>{quantity}개</b>로 맞춰져 있어요.</li>
               <li>‘바로 구매’를 눌러요. 로그인 화면이 나오면 <b>‘비회원 구매’</b>로도 주문할 수 있어요.</li>
               <li>주문서의 <b>‘온답 포장 디자인 코드’</b> 칸에 코드가 자동으로 들어가요. 비어 있으면 붙여 넣어 주세요.</li>
@@ -535,7 +538,8 @@ export function PackagingEditor(props: Props) {
               {/* 카페24에서 온 고객은 같은 창으로 돌려보내고, 온답 화면에서 온 고객은 새 창으로 연다 */}
               <a className="btn block" href={orderUrl(product.url, result.code, quantity)} target={from === 'cafe24' ? '_self' : '_blank'} rel="noreferrer">주문하러 가기</a>
               <button type="button" className="btn ghost block" onClick={() => void copyAgain()}>코드 복사</button>
-              <button type="button" className="btn ghost block" style={{ border: 'none' }} onClick={() => setResult(null)}>디자인 더 고치기 (다시 저장하면 새 코드)</button>
+              <button type="button" className="btn ghost block" style={{ border: 'none', background: 'transparent' }} onClick={() => setResult(null)}>디자인 더 고치기</button>
+              <p className="small muted" style={{ margin: 0, textAlign: 'center' }}>고친 뒤 다시 저장하면 새 코드가 나옵니다.</p>
             </div>
           </div>
         </div>

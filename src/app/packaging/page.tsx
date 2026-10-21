@@ -40,9 +40,9 @@ export default async function PackagingPage({ searchParams }: { searchParams: Se
 
   const back = (
     <header className="topbar">
-      <a className="small muted" href={backHref} style={{ textDecoration: 'none' }}>{backLabel}</a>
-      <span className="serif" style={{ fontSize: 15 }}>포장 꾸미기</span>
-      <span style={{ width: 60 }} />
+      <a className="back" href={backHref}>{backLabel}</a>
+      <span className="title">포장 꾸미기</span>
+      <span style={{ width: 72 }} />
     </header>
   );
 

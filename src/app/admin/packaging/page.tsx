@@ -39,14 +39,12 @@ export default async function PackagingAdminPage({ searchParams }: { searchParam
 
   return (
     <>
-      <div style={{ marginBottom: 16 }}>
-        <h1 style={{ fontSize: 22 }}>포장 디자인</h1>
-        <p className="small muted" style={{ margin: '4px 0 0' }}>
-          고객은 포장 스타일을 고르고 무료 스티커를 꾸민 뒤 디자인 코드를 받아, 카페24 주문서의 ‘온답 포장 디자인 코드’ 칸에 적습니다.
-        </p>
-      </div>
+      <header className="page-head">
+        <h1>포장 디자인</h1>
+        <p>고객이 포장지를 고르고 스티커를 꾸미면 디자인 코드가 나오고, 그 코드가 카페24 주문서에 함께 들어옵니다.</p>
+      </header>
 
-      <nav className="tabs admin-tabs" style={{ marginBottom: 20 }}>
+      <nav className="admin-tabs" style={{ marginBottom: 20 }} aria-label="포장 디자인 메뉴">
         {TABS.map((t) => (
           <a key={t.id} href={`/admin/packaging?tab=${t.id}`} aria-selected={tab === t.id}>{t.label}</a>
         ))}
