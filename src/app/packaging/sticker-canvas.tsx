@@ -39,8 +39,9 @@ function useHtmlImage(src: string): HTMLImageElement | null {
     // 다른 도메인(Supabase 저장소) 이미지가 캔버스를 오염시켜 내보내기가 막히지 않도록
     if (/^https?:/.test(src)) el.crossOrigin = 'anonymous';
     el.onload = () => setImg(el);
+    el.onerror = () => console.warn('[포장 디자인] 이미지를 불러오지 못함:', src);
     el.src = src;
-    return () => { el.onload = null; };
+    return () => { el.onload = null; el.onerror = null; };
   }, [src]);
   return img;
 }
@@ -149,6 +150,10 @@ export default function StickerCanvas(props: Props) {
         await new Promise((r) => setTimeout(r, 60)); // 글꼴 도착 후 문구 노드가 다시 그려질 시간
         const stage = stageRef.current;
         if (!stage) throw new Error('편집기가 아직 준비되지 않았습니다.');
+        // 이미지가 아직 안 그려졌으면(느린 망) 최대 8초 기다린다. 끝내 못 그리면 빈 스티커로 접수되지 않게 막는다
+        const want = layers.filter((l) => l.type === 'image').length;
+        for (let i = 0; i < 40 && stage.find('Image').length < want; i++) await new Promise((r) => setTimeout(r, 200));
+        if (stage.find('Image').length < want) throw new Error('이미지를 아직 불러오지 못했어요. 잠시 후 다시 저장해 주세요.');
         trRef.current?.visible(false);
         guidesRef.current?.visible(false);
         try {

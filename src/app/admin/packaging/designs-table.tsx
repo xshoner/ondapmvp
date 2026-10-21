@@ -4,7 +4,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { kstLabel } from '@/lib/kst.ts';
-import { sheetLayout, type Paper } from '@/packaging/sheet.ts';
+import { MAX_SHEETS, sheetLayout, sheetsNeeded, type Paper } from '@/packaging/sheet.ts';
 import type { Design, DesignStatus } from '@/packaging/types.ts';
 import { updateDesignAction } from './actions.ts';
 
@@ -148,7 +148,7 @@ function DesignRow({ design: d, eventNames, options, selected, onToggle }: {
   const dirty = status !== d.status || orderNo !== (d.orderNo ?? '') || memo !== d.memo;
   const file = fileUrl(d.code);
   const printable = d.hasPrintFile && d.sticker;
-  const sheets = d.sticker ? Math.ceil(d.quantity / sheetLayout(d.sticker, options.paper).perSheet) : 0;
+  const sheets = d.sticker ? sheetsNeeded(sheetLayout(d.sticker, options.paper), d.quantity) : 0;
 
   const save = () => start(async () => {
     setMessage(null);
@@ -174,7 +174,11 @@ function DesignRow({ design: d, eventNames, options, selected, onToggle }: {
         <div className="small muted">{kstLabel(d.createdAt)}</div>
         {printable && (
           <div className="row" style={{ gap: 6, marginTop: 6 }}>
-            <a className="btn small" href={sheetUrl(d.code, options)} title={`${options.paper} ${sheets}장`}>인쇄 PDF {options.paper}·{sheets}장</a>
+            {sheets > MAX_SHEETS ? (
+              <span className="small" style={{ color: 'var(--red)' }}>{sheets}장 필요 · 한 번에 {MAX_SHEETS}장까지</span>
+            ) : (
+              <a className="btn small" href={sheetUrl(d.code, options)} title={`${options.paper} ${sheets}장`}>인쇄 PDF {options.paper}·{sheets}장</a>
+            )}
             <a className="btn ghost small" href={file}>PNG</a>
           </div>
         )}

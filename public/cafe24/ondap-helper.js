@@ -9,7 +9,7 @@
  * 2) 상품 상세: 수량을 맞추고 안내 띠를 보여 준다
  * 3) 로그인 화면: 비회원 구매도 된다고 알려 준다
  * 4) 주문서: '온답 포장 디자인 코드' 칸에 코드를 자동으로 넣는다 (칸이 없으면 복사 버튼)
- * 5) 주문 완료: 기억한 코드를 지운다
+ * 5) 주문 완료(스크립트가 있을 때): 기억한 코드를 지운다. 없어도 주문서에 넣은 뒤 1시간이면 잊는다
  */
 (function () {
   'use strict';
@@ -18,11 +18,16 @@
   var LABEL = '온답 포장 디자인 코드';
   var CODE = /^OD-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/;
   var TTL = 24 * 3600 * 1000;
+  // 주문서에 넣은 뒤로는 1시간만 기억 (주문 완료 화면에 스크립트가 없어도 다음 주문에 남지 않게)
+  var AFTER_FILL_TTL = 3600 * 1000;
 
   function load() {
     try {
       var v = JSON.parse(localStorage.getItem(KEY) || 'null');
-      if (v && CODE.test(v.code) && Date.now() - v.at < TTL) return v;
+      if (v && CODE.test(v.code) && Date.now() - v.at < TTL && !(v.filledAt && Date.now() - v.filledAt > AFTER_FILL_TTL)) {
+        v.qty = Math.min(100000, Math.max(1, Number(v.qty) || 1)); // 화면 문구에 들어가므로 숫자로 고정
+        return v;
+      }
     } catch (e) { /* 저장소를 못 쓰는 브라우저 */ }
     return null;
   }
@@ -159,6 +164,7 @@
   function onOrderForm(state) {
     waitFor(function () { return forProduct(findCodeFields(), state.productNo); }, function (fields) {
       if (fields) {
+        if (!state.filledAt) save(Object.assign({}, state, { filledAt: Date.now() }));
         fields.forEach(function (field) {
           if (!field.value.trim()) {
             field.value = state.code;

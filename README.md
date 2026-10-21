@@ -61,7 +61,7 @@ Node 24 이상이 필요합니다(TypeScript를 그대로 실행).
 
 데이터 저장소는 `.env.local`의 `ONDAP_DATA_SOURCE`로 고른다. `local`이면 `data/` JSON, `supabase`이면 Supabase DB.
 
-1. Supabase 대시보드 → SQL Editor에서 `supabase/migrations/20261020000000_init.sql` 실행 (테이블·RLS), 이어서 `20261021000000_packaging.sql` (포장 디자인 표·저장소)
+1. Supabase 대시보드 → SQL Editor에서 `supabase/migrations/20261020000000_init.sql` 실행 (테이블·RLS), 이어서 `20261021000000_packaging.sql`, `20261022000000_packaging_hardening.sql` (포장 디자인 표·저장소·보강)
 2. 같은 곳에서 `supabase/seed.sql` 실행 (현재 로컬 데이터 40개 상품·지표·설정). 다시 만들려면 `npm run db:seed-sql`
 3. Authentication → Users → Add user로 관리자 계정 생성 후, SQL Editor에서
    `insert into public.admins (user_id) select id from auth.users where email = '관리자 이메일';`

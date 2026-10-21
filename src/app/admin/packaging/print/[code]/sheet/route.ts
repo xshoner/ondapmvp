@@ -4,7 +4,7 @@
 import { listDesigns, readPrintFile } from '@/data/packaging-repository.ts';
 import { getAdminStatus } from '@/lib/admin-guard.ts';
 import { buildPrintPdf } from '@/packaging/print-pdf.ts';
-import { normalizeDesignCode } from '@/packaging/rules.ts';
+import { normalizeDesignCode, pngSize, printPixels, sanitizeSticker } from '@/packaging/rules.ts';
 import { isPaper } from '@/packaging/sheet.ts';
 
 export async function GET(request: Request, { params }: { params: Promise<{ code: string }> }) {
@@ -17,25 +17,35 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
   const paper = isPaper(q.get('paper')) ? (q.get('paper') as 'A4' | 'A3') : 'A4';
 
   const [design] = await listDesigns({ code, limit: 1 });
-  if (!design?.sticker) return new Response('스티커가 없는 접수입니다.', { status: 404 });
+  // 접수는 공개 키로 들어오므로 DB 값을 그대로 믿지 않고 다시 확인한다
+  const sticker = sanitizeSticker(design?.sticker);
+  if (!design || !sticker) return new Response('스티커가 없는 접수입니다.', { status: 404 });
   const png = await readPrintFile(code);
-  if (!png) return new Response('인쇄 파일이 없습니다.', { status: 404 });
+  const size = png && pngSize(png);
+  const want = printPixels(sticker.sizeCm);
+  if (!png || !size) return new Response('인쇄 파일이 없습니다.', { status: 404 });
+  if (Math.abs(size.width - want) > 2 || Math.abs(size.height - want) > 2) {
+    return new Response(`인쇄 파일 크기가 규격(${want}px)과 다릅니다.`, { status: 422 });
+  }
 
   const count = Math.min(100000, Math.max(1, Math.round(Number(q.get('count')) || design.quantity)));
-  const { pdf } = await buildPrintPdf({
-    png,
-    sticker: design.sticker,
-    paper,
-    count,
-    fill: q.get('fill') === '1',
-    label: { code, orderNo: design.orderNo, productNo: design.productNo, quantity: count },
-  });
-
-  return new Response(pdf as BodyInit, {
-    headers: {
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${code}-${paper}.pdf"`,
-      'Cache-Control': 'private, no-store',
-    },
-  });
+  try {
+    const { pdf } = await buildPrintPdf({
+      png,
+      sticker,
+      paper,
+      count,
+      fill: q.get('fill') === '1',
+      label: { code, orderNo: design.orderNo, productNo: design.productNo, quantity: count },
+    });
+    return new Response(pdf as BodyInit, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${code}-${paper}.pdf"`,
+        'Cache-Control': 'private, no-store',
+      },
+    });
+  } catch (e) {
+    return new Response(`PDF를 만들지 못했습니다: ${e instanceof Error ? e.message : String(e)}`, { status: 422 });
+  }
 }

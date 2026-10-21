@@ -18,7 +18,7 @@
 | 카페24 쇼핑몰 버튼 (PC·모바일) | 적용됨 | 메인 배너 바로 아래 |
 | AI 점수 제안 (Gemini) | 운영 동작 확인(10/21). 기본 모델이 503(혼잡)이면 대체 모델 `gemini-flash-latest`가 응답 | 관리자 상품 편집 화면 |
 | 포장 디자인 (포장 스타일 + 무료 스티커 편집 → 디자인 코드) | 코드 완료, **SQL 실행·카페24 주문서 항목 추가 필요** (단계 15) | `/packaging`, `/admin/packaging` |
-| 테스트 | 84개 통과 | `npm test` |
+| 테스트 | 90개 통과 | `npm test` |
 | 상품 지표 | **가안 40개, 검토 0/40** | 관리자에서 검토 필요 |
 
 **주소**
@@ -248,6 +248,28 @@
 - 스크립트를 고치면 Vercel 배포만으로 쇼핑몰에 반영된다(스킨 재수정 불필요). 운영 주소가 바뀌면 이 한 줄도 바꿀 것
 - 주의: 카페24에서 '바로 구매'를 누르면 로그인 화면이 먼저 나오는 게 정상(아래 '비회원 구매' 버튼). 관리자로 로그인한 브라우저에서는 상단·우측에 관리자 도구가 보이는데 고객에게는 안 보인다
 
+### 단계 16. 인쇄 PDF·묶어 받기·최적화·안정성 점검 (2026-10-21)
+1. 👤 결정: 인쇄용 판걸이는 A4·A3 둘 다, 여러 건 묶어 받기, 다른 추천 상품에도 포장 버튼, 이어서 최적화·안정성 점검
+2. 🤖 인쇄 PDF (`src/packaging/sheet.ts`, `print-pdf.ts`, `/admin/packaging/print/[code]/sheet?paper=A4|A3&fill=1`)
+   - 실제 크기 mm, 칸 = 스티커 + 재단 여백 2mm, 용지 여백 6mm. 장당 6cm A4 12·A3 24, 4cm A4 24·A3 54
+   - 마젠타 0.25pt 칼선, 네 모서리 재단 표시, 위쪽에 코드·주문번호·장 번호, 아래쪽에 "100% 크기로 인쇄" 안내 (기본 글꼴이라 영문만)
+   - 이미지는 PDF에 한 번만 넣고 재사용 → 장 수가 늘어도 1MB 안팎. 한 번에 200장까지, 넘으면 잘라 내지 않고 거절
+3. 🤖 묶어 받기: 접수 목록에서 선택 → 브라우저가 한 건씩 받아 ZIP(PNG+PDF)으로 묶음 (Vercel 응답 4.5MB 한도 때문에 서버에서 묶지 않음)
+4. 🤖 추천 결과의 다른 두 상품 카드에 "🎀 포장 꾸미기"
+5. 🤖 최적화
+   - 한글 글꼴을 가변 글꼴로, 포장 전용 글꼴(바탕·손글씨)은 `src/app/packaging/fonts.ts`로 → 모든 페이지 CSS 477KB→160KB(gzip 160→53KB)
+   - 포장 화면 썸네일을 `next/image`로 (첫 화면 이미지 약 1.6MB→0.27MB). Supabase 공개 저장소를 `remotePatterns`에 등록
+   - 관리자 목록 미리보기를 160px webp 썸네일(sharp)로, 목록 조회에서 draft 제외
+6. 🤖 안정성
+   - 고객 저장 요청 횟수 제한(접속 주소당 10분 20회, 인스턴스 메모리 기준), 전체 오류 안내 화면(`src/app/error.tsx`, Next 16.3은 `retry` prop), 보안 헤더(X-Frame-Options 등)
+   - 코드 검토 에이전트 지적 8건 반영: DB 제약·접수 폭주 제한(`20261022000000_packaging_hardening.sql`), PDF·썸네일 경로에서 DB 값 재검사(규격·크기), 주문번호 형식(숫자·영문·하이픈), 내보내기 전 이미지 로딩 대기, 관리자 액션 권한 오류를 화면 오류 대신 메시지로, 자산 이미지 주소를 우리 저장소로 제한, 도우미 스크립트는 주문서에 넣은 뒤 1시간이면 코드를 잊음
+7. 👤 **할 일:** SQL Editor에서 `supabase/migrations/20261022000000_packaging_hardening.sql` 실행
+
+**주의사항**
+- 공개 키로 고객이 저장하는 구조라, 서버를 거치지 않는 직접 호출은 DB 제약·폭주 제한으로만 막는다. 완전히 막으려면 Supabase 서비스 키(서버 전용 비밀값)를 Vercel에 넣고 서버에서만 쓰게 바꾼다(운영 전 검토)
+- Vercel Hobby는 이미지 최적화 횟수 한도가 있다. 실제 운영(Pro 이전) 때 사용량 확인
+- 인쇄 색은 RGB 그대로. 심이사 인쇄 거래처가 정해지면 CMYK·칼선 별도 파일 등 규격에 맞춘다
+
 ---
 
 ## 3. 코드 지도
@@ -288,7 +310,7 @@
 4. **Supabase** (단계 10과 동일)
    - 새 프로젝트 → SQL Editor: `supabase/migrations/20261020000000_init.sql` 실행
    - `npm run db:seed-sql` → `supabase/seed.sql` 실행
-   - 포장 디자인: `supabase/migrations/20261021000000_packaging.sql` 실행(표·저장소·예시 데이터)
+   - 포장 디자인: `supabase/migrations/20261021000000_packaging.sql` → `20261022000000_packaging_hardening.sql` 순서로 실행
    - 관리자: Add user(Auto Confirm) → `insert into public.admins (user_id) select id from auth.users where lower(email)=lower('…') returning user_id;`
    - Allow new users to sign up 끄기
    - `.env.local`: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `ONDAP_DATA_SOURCE=supabase`
@@ -350,7 +372,8 @@
 | --- | --- |
 | 급함 | 심이사에게 **PRD 초안 + 시연 링크 + 요청 자료 목록** 발송 |
 | 정리 | 카페24 PC·모바일 메인 버튼 링크를 `https://ondapmvp.vercel.app/`으로 (스킨 index.html에서 `ondapmvp-iota.vercel.app` 교체). 지금은 307로 넘어가 동작은 함 |
-| 다음 기능 | 포장: 엽서·띠지, AI 이미지 생성(지금은 준비 중 버튼), 다른 격식 단계 상품에서도 포장 꾸미기 진입, 고객 저장 횟수 제한 |
+| 급함 | SQL Editor에서 `20261022000000_packaging_hardening.sql` 실행 (단계 16) |
+| 다음 기능 | 포장: 엽서·띠지, AI 이미지 생성(지금은 준비 중 버튼), 카페24 주문 자동 연결(관리자 API), 접수 알림, 서비스 키로 저장 경로 잠그기, 결과보고용 실적 화면 |
 | 정리 | 상품 40개 지표 가안 검토(현재 0/40), 어색한 시나리오 가중치 조정 |
 | 선택 | 로컬 `.env.local`에 `ondap_ai` 추가(터미널 시험용) |
 | 선택 | 모바일 메인 배너 등록 |

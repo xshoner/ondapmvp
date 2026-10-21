@@ -11,6 +11,8 @@ const PT_PER_MM = 72 / 25.4;
 const mm = (v: number) => v * PT_PER_MM;
 const CUT = rgb(1, 0, 1); // 칼선: 마젠타 0.25pt (인쇄소 대부분이 별도 색 선으로 받는다)
 const INK = rgb(0.25, 0.25, 0.25);
+// 기본 글꼴(WinAnsi)에 없는 글자(한글 등)는 ?로 바꾼다. 그대로 쓰면 PDF 생성이 실패한다
+const ascii = (v: string) => v.replace(/[^\x20-\x7E]/g, '?');
 
 export interface PrintSheetInput {
   png: Uint8Array;
@@ -54,7 +56,7 @@ export async function buildPrintPdf(input: PrintSheetInput): Promise<{ pdf: Uint
 
     const { code, orderNo, productNo, quantity } = input.label;
     const head = `ONDAP ${code}${orderNo ? `  order ${orderNo}` : ''}  product #${productNo}  qty ${quantity}  |  ${sticker.shape} ${sticker.sizeCm}cm  ${paper}  sheet ${sheetIndex + 1}/${plan.length}  (${onSheet} pcs)`;
-    page.drawText(head, { x: mm(6), y: y(4.5), size: 7, font, color: INK });
+    page.drawText(ascii(head), { x: mm(6), y: y(4.5), size: 7, font, color: INK });
     page.drawText('Print at 100% (actual size). Magenta line = cut line (not printed). Colors are RGB; slight shift after CMYK conversion.', {
       x: mm(6), y: mm(2.5), size: 6, font, color: INK,
     });

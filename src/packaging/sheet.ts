@@ -10,7 +10,7 @@ export const PAPERS: Record<Paper, { width: number; height: number }> = {
   A3: { width: 297, height: 420 },
 };
 export const SHEET_MARGIN_MM = 6; // 용지 가장자리 여백 (프린터가 못 찍는 부분 + 안내 문구)
-export const MAX_SHEETS = 50; // 한 번에 만드는 최대 장 수 (응답 크기·시간 보호)
+export const MAX_SHEETS = 200; // 한 번에 만드는 최대 장 수. 넘으면 잘라 내지 않고 거절한다 (이미지는 한 번만 들어가 200장도 1MB 안팎)
 
 export interface SheetLayout {
   paper: Paper;
@@ -43,11 +43,16 @@ export function sheetLayout(sticker: StickerSpec, paper: Paper): SheetLayout {
   };
 }
 
-// 필요한 장 수와 장별 개수. fill이면 마지막 장의 남는 칸도 채운다(여분)
+export function sheetsNeeded(layout: SheetLayout, count: number): number {
+  return Math.ceil(Math.max(1, Math.floor(count)) / layout.perSheet);
+}
+
+// 필요한 장 수와 장별 개수. fill이면 마지막 장의 남는 칸도 채운다(여분). MAX_SHEETS를 넘으면 오류
 export function sheetPlan(layout: SheetLayout, count: number, fill: boolean): number[] {
   const n = Math.max(1, Math.floor(count));
-  const sheets = Math.min(MAX_SHEETS, Math.ceil(n / layout.perSheet));
+  const sheets = sheetsNeeded(layout, n);
+  if (sheets > MAX_SHEETS) throw new Error(`한 번에 ${MAX_SHEETS}장까지 만들 수 있습니다 (필요 ${sheets}장). 개수를 나눠 받으세요.`);
   return Array.from({ length: sheets }, (_, i) =>
-    fill || i < sheets - 1 ? layout.perSheet : Math.min(layout.perSheet, n - layout.perSheet * (sheets - 1)),
+    fill || i < sheets - 1 ? layout.perSheet : n - layout.perSheet * (sheets - 1),
   );
 }

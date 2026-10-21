@@ -68,7 +68,8 @@ export function AssetManager({ kind, assets, categoryNames }: Props) {
         <p className="small muted">아직 없습니다.</p>
       ) : (
         <div className={kind === 'texts' ? 'asset-list' : 'asset-grid'}>
-          {items.map((item) => <AssetCard key={item.id} kind={kind} item={item} categoryNames={categoryNames} />)}
+          {/* 서버가 값을 다듬어 돌려주면(공백·순서) 카드를 새로 그려 편집 상태를 맞춘다 */}
+          {items.map((item) => <AssetCard key={`${item.id}:${JSON.stringify(item)}`} kind={kind} item={item} categoryNames={categoryNames} />)}
         </div>
       )}
     </div>

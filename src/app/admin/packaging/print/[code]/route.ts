@@ -4,13 +4,16 @@
 
 import { readPrintFile } from '@/data/packaging-repository.ts';
 import { getAdminStatus } from '@/lib/admin-guard.ts';
-import { normalizeDesignCode } from '@/packaging/rules.ts';
+import { normalizeDesignCode, pngSize } from '@/packaging/rules.ts';
 
 // 인쇄 파일은 저장 뒤 바뀌지 않으므로 썸네일은 브라우저에 하루 둔다(관리자 본인 브라우저만)
+// 공개 키로 올라온 파일이라 아주 큰 그림(압축 폭탄)일 수 있다 → 규격(최대 756px) 근처만 처리
 async function thumbnail(png: Uint8Array): Promise<Response | null> {
+  const size = pngSize(png);
+  if (!size || size.width > 1000 || size.height > 1000) return new Response('규격을 벗어난 인쇄 파일입니다.', { status: 422 });
   try {
     const sharp = (await import('sharp')).default;
-    const webp = await sharp(png).resize(160, 160, { fit: 'inside' }).webp({ quality: 75 }).toBuffer();
+    const webp = await sharp(png, { limitInputPixels: 1000 * 1000 }).resize(160, 160, { fit: 'inside' }).webp({ quality: 75 }).toBuffer();
     return new Response(new Uint8Array(webp), { headers: { 'Content-Type': 'image/webp', 'Cache-Control': 'private, max-age=86400' } });
   } catch (e) {
     console.warn('[포장 디자인] 썸네일 생성 실패, 원본으로 대신함:', e instanceof Error ? e.message : e);

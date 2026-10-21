@@ -22,8 +22,9 @@ test('장 수: 30개는 A4 3장(12·12·6), 남는 칸 채우기면 마지막 �
   assert.deepEqual(sheetPlan(l, 30, true), [12, 12, 12]);
   assert.deepEqual(sheetPlan(l, 12, false), [12]);
   assert.deepEqual(sheetPlan(l, 0, false), [1]);
-  assert.equal(sheetPlan(l, 100000, false).length, MAX_SHEETS);
-  assert.ok(sheetPlan(l, 100000, false).every((n) => n <= l.perSheet));
+  // 상한을 넘으면 말없이 잘라 내지 않고 거절한다 (모자란 인쇄 방지)
+  assert.equal(sheetPlan(l, MAX_SHEETS * l.perSheet, false).length, MAX_SHEETS);
+  assert.throws(() => sheetPlan(l, MAX_SHEETS * l.perSheet + 1, false), /장까지/);
 });
 
 // 1×1 투명 PNG
@@ -44,4 +45,10 @@ test('PDF: 실제 mm 크기 페이지, 장 수만큼 페이지, 이미지는 한
   assert.equal(a3.stickers, 54);
   // 3장짜리 A4와 1장짜리 A3의 크기 차이가 작다 = 이미지를 칸마다 다시 넣지 않는다
   assert.ok(a4.pdf.length < 20000, `A4 PDF ${a4.pdf.length}바이트`);
+});
+
+test('PDF: 주문번호에 한글이 있어도 실패하지 않는다 (기본 글꼴에 없는 글자는 ?로)', async () => {
+  const r = await buildPrintPdf({ png: PNG, sticker: { shape: 'circle', sizeCm: 4 }, paper: 'A4', count: 5, fill: false,
+    label: { code: 'OD-ABCD-EF23', orderNo: '확인중', productNo: 1, quantity: 5 } });
+  assert.equal(r.sheets, 1);
 });
