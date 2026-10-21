@@ -34,6 +34,18 @@ const BACKGROUNDS = ['#ffffff', '#f6edd8', '#e3ede7', '#f7e6e1', '#1f3f34'];
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
+
+// 카페24 상품 주소에 코드·수량을 붙인다. 쇼핑몰 스킨의 public/cafe24/ondap-helper.js가 읽어 수량을 맞추고 주문서에 코드를 넣는다
+function orderUrl(productUrl: string, code: string, quantity: number): string {
+  try {
+    const u = new URL(productUrl);
+    u.searchParams.set('ondap_code', code);
+    u.searchParams.set('ondap_qty', String(quantity));
+    return u.toString();
+  } catch {
+    return productUrl;
+  }
+}
 const newId = () => 'l' + Math.random().toString(36).slice(2, 9);
 
 function loadNatural(src: string): Promise<{ w: number; h: number }> {
@@ -449,11 +461,12 @@ export function PackagingEditor(props: Props) {
               {result.copied ? '코드가 복사됐어요.' : '아래 버튼으로 코드를 복사해 주세요.'}
             </p>
             <ol className="small" style={{ margin: '14px 0 0', paddingLeft: 20 }}>
-              <li>상품 페이지에서 수량({quantity}개)을 고르고 주문하기를 눌러요.</li>
-              <li>주문서의 <b>‘온답 포장 디자인 코드’</b> 칸에 코드를 붙여 넣어요.</li>
+              <li>‘주문하러 가기’를 누르면 상품 페이지가 열리고 수량이 <b>{quantity}개</b>로 맞춰져 있어요.</li>
+              <li>‘바로 구매’를 눌러요. 로그인 화면이 나오면 <b>‘비회원 구매’</b>로도 주문할 수 있어요.</li>
+              <li>주문서의 <b>‘온답 포장 디자인 코드’</b> 칸에 코드가 자동으로 들어가요. 비어 있으면 붙여 넣어 주세요.</li>
             </ol>
             <div style={{ display: 'grid', gap: 8, marginTop: 16 }}>
-              <a className="btn block" href={product.url} target="_blank" rel="noreferrer">주문하러 가기</a>
+              <a className="btn block" href={orderUrl(product.url, result.code, quantity)} target="_blank" rel="noreferrer">주문하러 가기</a>
               <button type="button" className="btn ghost block" onClick={() => void copyAgain()}>코드 복사</button>
               <button type="button" className="btn ghost block" style={{ border: 'none' }} onClick={() => setResult(null)}>디자인 더 고치기 (다시 저장하면 새 코드)</button>
             </div>
