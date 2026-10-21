@@ -11,41 +11,53 @@
     </ul>
 </div>
 
-<!-- 온답 AI 답례 추천 버튼 -->
+<!-- 온답 답례 추천 버튼 (PC·모바일 메인 공통). 예전 '온답 AI 답례 추천 버튼' 블록을 통째로 이것으로 바꾼다 -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;600&display=swap&text=%EC%98%A8%EB%8B%B5%20%EB%8B%B5%EB%A1%80%20%ED%81%90%EB%A0%88%EC%9D%B4%EC%85%98%EC%9E%90%EB%A6%AC%EC%97%90%20%EB%A7%9E%EB%8A%94%20%EB%8B%B5%EB%A1%80%2C%20%EC%98%A8%EB%8B%B5%EC%9D%B4%20%EA%B3%A8%EB%9D%BC%20%EB%93%9C%EB%A6%BD%EB%8B%88%EB%8B%A4">
 <style>
-  .ondap-cta-wrap { max-width:1200px; margin:24px auto; padding:0 16px; box-sizing:border-box; }
+  .ondap-cta-wrap { max-width:1200px; margin:28px auto; padding:0 16px; box-sizing:border-box; }
   .ondap-cta {
-    display:flex !important; align-items:center; justify-content:space-between; gap:16px;
-    padding:24px 28px; border-radius:18px; text-decoration:none !important;
-    background:linear-gradient(135deg,#4a7d6b 0%,#2f5a4b 50%,#1f3f34 100%) !important;
-    border:1px solid rgba(255,255,255,.12);
-    box-shadow:0 12px 28px rgba(31,63,52,.35), 0 3px 8px rgba(31,63,52,.2), inset 0 1px 0 rgba(255,255,255,.22);
-    transition:transform .18s ease, box-shadow .18s ease;
+    position:relative; display:flex !important; align-items:center; justify-content:space-between; gap:24px;
+    padding:30px 36px; border-radius:14px; text-decoration:none !important; box-sizing:border-box;
+    background:#1f4436 !important; box-shadow:0 18px 36px -20px rgba(22,51,40,.7);
+    font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif; word-break:keep-all;
   }
-  .ondap-cta:hover { transform:translateY(-2px); box-shadow:0 16px 34px rgba(31,63,52,.42), 0 4px 10px rgba(31,63,52,.22), inset 0 1px 0 rgba(255,255,255,.22); }
-  .ondap-cta, .ondap-cta * { color:#ffffff !important; }
-  .ondap-cta-sub { display:block; font-size:13px !important; opacity:.85; letter-spacing:.02em; }
-  .ondap-cta-title { display:block; font-size:21px !important; font-weight:700 !important; margin-top:6px; line-height:1.35; text-shadow:0 1px 2px rgba(0,0,0,.25); }
+  /* 경조사 봉투의 테두리처럼 안쪽에 가는 놋쇠색 선 */
+  .ondap-cta::before { content:''; position:absolute; inset:7px; border:1px solid rgba(214,190,140,.45); border-radius:9px; pointer-events:none; }
+  .ondap-cta, .ondap-cta * { color:#ffffff !important; box-sizing:border-box; }
+  .ondap-cta-text { position:relative; min-width:0; }
+  .ondap-cta-brand { display:flex; align-items:center; gap:8px; font-size:13px !important; letter-spacing:.01em; opacity:.85; }
+  .ondap-cta-brand i { display:inline-block; width:8px; height:8px; background:#c4493b; transform:rotate(45deg); border-radius:1px; }
+  .ondap-cta-title { display:block; margin-top:10px; font-family:'Hahmlet','Nanum Myeongjo','AppleMyungjo','Batang',serif !important; font-size:26px !important; font-weight:600 !important; line-height:1.35; letter-spacing:-.025em; }
+  .ondap-cta-sub { display:block; margin-top:8px; font-size:14px !important; line-height:1.6; opacity:.8; }
+  .ondap-cta-marks { display:block; margin-top:14px; font-family:'Nanum Myeongjo','AppleMyungjo','Batang',serif !important; font-size:15px !important; letter-spacing:.55em; color:#d6be8c !important; opacity:.85; }
   .ondap-cta-btn {
-    flex-shrink:0; padding:11px 20px; border-radius:999px; font-size:14px !important; font-weight:700 !important;
-    background:#ffffff !important; color:#2f5a4b !important;
-    box-shadow:0 4px 10px rgba(0,0,0,.18);
+    position:relative; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center;
+    min-height:52px; padding:0 28px; border-radius:10px; font-size:15px !important; font-weight:700 !important;
+    background:#ffffff !important; color:#1f4436 !important; transition:background .15s ease;
   }
+  .ondap-cta:hover .ondap-cta-btn { background:#f2ede2 !important; }
+  .ondap-br { display:none; }
+  .ondap-cta:focus-visible { outline:2px solid #1f4436; outline-offset:3px; }
   @media (max-width:600px) {
-    .ondap-cta { flex-direction:column; align-items:flex-start; padding:20px; }
-    .ondap-cta-title { font-size:18px !important; }
-    .ondap-cta-btn { align-self:stretch; text-align:center; }
+    .ondap-cta { flex-direction:column; align-items:stretch; gap:20px; padding:26px 22px 22px; }
+    .ondap-cta-title { font-size:22px !important; }
+    .ondap-br { display:inline; }
+    .ondap-cta-marks { letter-spacing:.42em; font-size:14px !important; }
+    .ondap-cta-btn { width:100%; }
   }
 </style>
 <div class="ondap-cta-wrap">
   <a class="ondap-cta" href="https://ondapmvp.vercel.app/">
-    <span>
-      <span class="ondap-cta-sub">행사 · 받는 분 · 예산만 알려주세요</span>
-      <span class="ondap-cta-title">✦ 내 상황에 맞는 AI 추천 선물 찾기</span>
+    <span class="ondap-cta-text">
+      <span class="ondap-cta-brand"><i aria-hidden="true"></i>온답 답례 큐레이션</span>
+      <span class="ondap-cta-title">자리에 맞는 답례,<br class="ondap-br"> 온답이 골라 드립니다</span>
+      <span class="ondap-cta-sub">행사와 받는 분, 예산만 알려 주시면 격식지수로 비교해 세 가지를 추천합니다.</span>
+      <span class="ondap-cta-marks" aria-hidden="true">弔婚壽誕榮開謝生</span>
     </span>
-    <span class="ondap-cta-btn">시작하기 →</span>
+    <span class="ondap-cta-btn">답례품 추천받기</span>
   </a>
 </div>
+<!-- // 온답 답례 추천 버튼 -->
 
 <div moduel="layout_logincheck">
     <!--
