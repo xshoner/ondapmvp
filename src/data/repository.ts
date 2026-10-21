@@ -114,3 +114,20 @@ export async function logRecommendation(result: RecommendResult, modelVersion: s
     console.warn('[추천 기록] 저장 실패:', e instanceof Error ? e.message : e);
   }
 }
+
+// 실적 대시보드용 추천 기록 (관리자만 읽기 가능). 한 번에 1,000건씩 나눠 최대 20,000건
+export async function getRecommendationLogs(range: { gte: string | null; lt: string | null }): Promise<{ createdAt: string; event: string; relation: string; resultProductNos: number[] }[]> {
+  if (dataSource() === 'local') return []; // 로컬 모드는 추천 기록을 남기지 않는다
+  const db = await createClient();
+  const out: { createdAt: string; event: string; relation: string; resultProductNos: number[] }[] = [];
+  for (let page = 0; page < 20; page++) {
+    let q = db.from('recommendation_logs').select('created_at, event, relation, result_product_nos').order('created_at', { ascending: true }).range(page * 1000, page * 1000 + 999);
+    if (range.gte) q = q.gte('created_at', range.gte);
+    if (range.lt) q = q.lt('created_at', range.lt);
+    const { data, error } = await q;
+    if (error) fail('추천 기록 읽기', error);
+    for (const r of data ?? []) out.push({ createdAt: r.created_at as string, event: r.event as string, relation: r.relation as string, resultProductNos: (r.result_product_nos as number[]) ?? [] });
+    if (!data || data.length < 1000) break;
+  }
+  return out;
+}

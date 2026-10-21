@@ -5,18 +5,12 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { kstLabel } from '@/lib/kst.ts';
 import { MAX_SHEETS, sheetLayout, sheetsNeeded, type Paper } from '@/packaging/sheet.ts';
+import { STATUS_LABEL, filterQuery, type DesignFilter } from '@/packaging/design-filter.ts';
 import type { Design, DesignStatus } from '@/packaging/types.ts';
 import { updateDesignAction } from './actions.ts';
 
-const STATUS_LABEL: Record<DesignStatus, string> = {
-  received: '접수',
-  order_confirmed: '주문 확인',
-  printed: '인쇄 완료',
-  canceled: '취소',
-};
-
 type PrintOptions = { paper: Paper; fill: boolean };
-type Props = { designs: Design[]; eventNames: Record<string, string>; code: string; codeInvalid: boolean };
+type Props = { designs: Design[]; eventNames: Record<string, string>; filter: DesignFilter & { rawCode: string; codeInvalid: boolean } };
 
 const fileUrl = (code: string) => `/admin/packaging/print/${code}`;
 const sheetUrl = (code: string, o: PrintOptions) => `${fileUrl(code)}/sheet?paper=${o.paper}${o.fill ? '&fill=1' : ''}`;
@@ -30,7 +24,9 @@ function saveBlob(blob: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-export function DesignsTable({ designs, eventNames, code, codeInvalid }: Props) {
+export function DesignsTable({ designs, eventNames, filter }: Props) {
+  const filtered = Boolean(filter.rawCode || filter.status || filter.from || filter.to);
+  const exportQuery = filterQuery(filter);
   const [options, setOptions] = useState<PrintOptions>({ paper: 'A4', fill: false });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [zipping, setZipping] = useState<string | null>(null);
@@ -70,17 +66,37 @@ export function DesignsTable({ designs, eventNames, code, codeInvalid }: Props) 
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
-      <form className="row" method="get" action="/admin/packaging">
+      <form className="panel filter-bar" method="get" action="/admin/packaging">
         <input type="hidden" name="tab" value="designs" />
-        <div className="field" style={{ margin: 0 }}>
-          <input type="text" name="code" defaultValue={code} placeholder="디자인 코드 (OD-XXXX-XXXX)" style={{ width: 240 }} />
+        <label className="field" style={{ margin: 0 }}>
+          <span className="field-label">디자인 코드</span>
+          <input type="text" name="code" defaultValue={filter.rawCode} placeholder="OD-XXXX-XXXX" style={{ width: 170 }} />
+        </label>
+        <label className="field" style={{ margin: 0 }}>
+          <span className="field-label">상태</span>
+          <select name="status" defaultValue={filter.status ?? ''}>
+            <option value="">전체</option>
+            {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </label>
+        <label className="field" style={{ margin: 0 }}>
+          <span className="field-label">접수일 (부터)</span>
+          <input type="date" name="from" defaultValue={filter.from ?? ''} />
+        </label>
+        <label className="field" style={{ margin: 0 }}>
+          <span className="field-label">접수일 (까지)</span>
+          <input type="date" name="to" defaultValue={filter.to ?? ''} />
+        </label>
+        <div className="row" style={{ gap: 8, alignSelf: 'end' }}>
+          <button type="submit" className="btn small">거르기</button>
+          {filtered && <a className="btn ghost small" href="/admin/packaging?tab=designs">조건 지우기</a>}
+          <a className="btn ghost small" href={`/admin/packaging/export${exportQuery ? `?${exportQuery}` : ''}`}>CSV 내려받기</a>
         </div>
-        <button type="submit" className="btn small">찾기</button>
-        {code && <a className="small" href="/admin/packaging?tab=designs">전체 보기</a>}
-        <span style={{ flex: 1 }} />
-        <span className="small muted">카페24 주문 상세의 추가항목 코드로 찾은 뒤 주문번호를 적고 ‘주문 확인’으로 바꾸세요.</span>
+        <span className="small muted" style={{ flexBasis: '100%' }}>
+          {designs.length}건{designs.length >= 200 ? ' (최근 200건까지 표시, CSV는 최대 5,000건)' : ''}. 카페24 주문 상세의 추가 항목 코드로 찾은 뒤 주문번호를 적고 ‘주문 확인’으로 바꾸세요.
+        </span>
       </form>
-      {codeInvalid && <p className="small" style={{ color: 'var(--red)', margin: 0 }}>코드 형식이 맞지 않습니다. 예: OD-7QDF-3P6M</p>}
+      {filter.codeInvalid && <p className="small" style={{ color: 'var(--danger)', margin: 0 }}>코드 형식이 맞지 않습니다. 예: OD-7QDF-3P6M</p>}
 
       <div className="panel print-bar">
         <b className="small">인쇄 PDF</b>
@@ -103,7 +119,7 @@ export function DesignsTable({ designs, eventNames, code, codeInvalid }: Props) 
       </div>
 
       {designs.length === 0 ? (
-        <p className="small muted">{code ? '해당 코드의 디자인이 없습니다.' : '아직 접수된 디자인이 없습니다.'}</p>
+        <p className="small muted">{filtered ? '조건에 맞는 접수가 없습니다.' : '아직 접수된 디자인이 없습니다.'}</p>
       ) : (
         <div className="panel" style={{ padding: 0, overflowX: 'auto' }}>
           <table className="data designs-table">

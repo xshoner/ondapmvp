@@ -9,6 +9,7 @@ import { dataDir, projectRoot } from '../lib/paths.ts';
 import { dataSource } from '../lib/supabase/env.ts';
 import { createClient } from '../lib/supabase/server.ts';
 import type { EventType } from '../engine/types.ts';
+import { kstRange } from '../packaging/design-filter.ts';
 import type { Design, DesignDraft, DesignImage, DesignStatus, DesignText, PackagingAssets, PackagingStyle, StickerSpec } from '../packaging/types.ts';
 
 export type AssetKind = 'styles' | 'images' | 'texts';
@@ -206,14 +207,21 @@ export async function createDesign(design: NewDesign, printPng: Uint8Array | nul
 // 목록에는 편집 내용(draft, 건당 최대 64KB)이 필요 없으므로 빼고 읽는다 (draft는 null)
 const LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, event, style_id, style_name, sticker, print_path, status, order_no, memo';
 
-export async function listDesigns(opts: { limit?: number; code?: string | null } = {}): Promise<Design[]> {
+export async function listDesigns(opts: { limit?: number; code?: string | null; status?: DesignStatus | null; from?: string | null; to?: string | null } = {}): Promise<Design[]> {
   const limit = opts.limit ?? 200;
+  const { gte, lt } = kstRange({ from: opts.from ?? null, to: opts.to ?? null });
   if (dataSource() === 'local') {
-    return readLocalDesigns().filter((d) => !opts.code || d.code === opts.code).slice(0, limit).map((d) => ({ ...d, draft: null }));
+    return readLocalDesigns()
+      .filter((d) => (!opts.code || d.code === opts.code) && (!opts.status || d.status === opts.status)
+        && (!gte || d.createdAt >= gte) && (!lt || d.createdAt < lt))
+      .slice(0, limit).map((d) => ({ ...d, draft: null }));
   }
   const db = await createClient();
   let q = db.from('designs').select(LIST_COLUMNS).order('created_at', { ascending: false }).limit(limit);
   if (opts.code) q = q.eq('code', opts.code);
+  if (opts.status) q = q.eq('status', opts.status);
+  if (gte) q = q.gte('created_at', gte);
+  if (lt) q = q.lt('created_at', lt);
   const { data, error } = await q;
   if (error) fail('디자인 목록 읽기', error);
   return data.map(designFromRow);
@@ -248,3 +256,27 @@ export async function readPrintFile(code: string): Promise<Uint8Array | null> {
   return new Uint8Array(await data.arrayBuffer());
 }
 
+
+// 고객 '내 디자인 다시 보기': 코드가 정확히 맞는 한 건의 요약 (취소된 접수 제외, 편집 내용·주문번호는 주지 않음)
+export interface DesignSummary {
+  code: string;
+  createdAt: string;
+  productNo: number;
+  productName: string;
+  quantity: number;
+  styleName: string;
+  sticker: StickerSpec | null;
+  status: DesignStatus;
+}
+
+export async function lookupDesign(code: string): Promise<DesignSummary | null> {
+  if (dataSource() === 'local') {
+    const d = readLocalDesigns().find((x) => x.code === code && x.status !== 'canceled');
+    return d ? { code: d.code, createdAt: d.createdAt, productNo: d.productNo, productName: d.productName, quantity: d.quantity, styleName: d.styleName, sticker: d.sticker, status: d.status } : null;
+  }
+  const db = await createClient();
+  const { data, error } = await db.rpc('lookup_design', { p_code: code });
+  if (error) fail('디자인 조회', error);
+  const r = (data as Row[] | null)?.[0];
+  return r ? { code: r.code, createdAt: r.created_at, productNo: r.product_no, productName: r.product_name, quantity: r.quantity, styleName: r.style_name, sticker: r.sticker, status: r.status } : null;
+}

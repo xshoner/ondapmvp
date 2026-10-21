@@ -24,6 +24,9 @@ export default async function Home() {
       <p className="small muted" style={{ textAlign: 'center', margin: '28px 0 0' }}>
         추천 없이 원하는 상품의 포장만 꾸미려면 <a className="text-link" href="/packaging/pick">상품 고르기</a>
       </p>
+      <p className="small muted" style={{ textAlign: 'center', margin: '8px 0 0' }}>
+        저장한 포장 디자인은 <a className="text-link" href="/packaging/mine">내 디자인</a>에서 다시 볼 수 있습니다
+      </p>
     </main>
   );
 }

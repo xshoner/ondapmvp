@@ -2,6 +2,7 @@ import { getCatalog, logRecommendation } from '@/data/repository.ts';
 import { recommend } from '@/engine/recommend.ts';
 import type { EventType, Relation, ScoredProduct } from '@/engine/types.ts';
 import { ScoreBreakdown } from '../components/score-breakdown.tsx';
+import { ShareButton } from './share-button.tsx';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,6 +62,7 @@ export default async function ResultPage({ searchParams }: { searchParams: Searc
           <span>{budgetMax ? `1개 ${won(budgetMax)} 이하` : '예산 상관없음'}</span>
           <span>{quantity.toLocaleString('ko-KR')}개</span>
         </div>
+        <div style={{ marginTop: 12 }}><ShareButton title={`${eventName} 답례품`} /></div>
         <p className="result-note">
           상품 {catalog.products.length}개를 격식지수로 비교했습니다.
           {bannedCount > 0 && ` ${eventName} 자리에 어울리지 않는 ${bannedCount}개는 미리 뺐습니다.`}

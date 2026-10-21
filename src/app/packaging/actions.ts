@@ -5,13 +5,49 @@
 
 import { headers } from 'next/headers';
 import { getCatalog } from '@/data/repository.ts';
-import { createDesign, getPackagingAssets } from '@/data/packaging-repository.ts';
+import { createDesign, getPackagingAssets, lookupDesign } from '@/data/packaging-repository.ts';
 import type { EventType } from '@/engine/types.ts';
 import { clientIp, createRateLimiter } from '@/lib/rate-limit.ts';
-import { MAX_PRINT_BYTES, generateDesignCode, pngSize, printPixels, sanitizeDraft, sanitizeSticker } from '@/packaging/rules.ts';
+import { MAX_PRINT_BYTES, generateDesignCode, normalizeDesignCode, pngSize, printPixels, sanitizeDraft, sanitizeSticker } from '@/packaging/rules.ts';
 
 // 같은 접속 주소에서 10분에 20번까지 (보통 고객은 한두 번 저장한다)
 const allowSave = createRateLimiter({ limit: 20, windowMs: 10 * 60 * 1000 });
+
+// 코드 조회는 추측 시도를 막으려고 접속 주소당 10분에 30번까지
+const allowLookup = createRateLimiter({ limit: 30, windowMs: 10 * 60 * 1000 });
+
+export type LookupResult =
+  | { ok: true; design: { code: string; createdAt: string; productName: string; productUrl: string | null; quantity: number; styleName: string; sticker: string; status: string } }
+  | { ok: false; message: string };
+
+const STATUS_TEXT: Record<string, string> = { received: '접수됨', order_confirmed: '주문 확인됨', printed: '인쇄 완료' };
+
+export async function lookupDesignAction(raw: string): Promise<LookupResult> {
+  if (!allowLookup(clientIp(await headers()))) return { ok: false, message: '조회를 너무 자주 했어요. 잠시 후 다시 시도해 주세요.' };
+  const code = normalizeDesignCode(String(raw ?? ''));
+  if (!code) return { ok: false, message: '코드 형식이 맞지 않아요. 예: OD-7QDF-3P6M' };
+  try {
+    const d = await lookupDesign(code);
+    if (!d) return { ok: false, message: '해당 코드의 디자인을 찾지 못했어요. 코드를 다시 확인해 주세요.' };
+    const product = (await getCatalog()).products.find((p) => p.productNo === d.productNo);
+    return {
+      ok: true,
+      design: {
+        code: d.code,
+        createdAt: d.createdAt,
+        productName: d.productName,
+        productUrl: product?.url ?? null,
+        quantity: d.quantity,
+        styleName: d.styleName,
+        sticker: d.sticker ? `${d.sticker.shape === 'circle' ? '원형' : '사각'} ${d.sticker.sizeCm}cm 스티커` : '인쇄물 없음',
+        status: STATUS_TEXT[d.status] ?? d.status,
+      },
+    };
+  } catch (e) {
+    console.error('[포장 디자인] 조회 실패:', e instanceof Error ? e.message : e);
+    return { ok: false, message: '지금은 조회할 수 없어요. 잠시 후 다시 시도해 주세요.' };
+  }
+}
 
 export type SaveDesignResult = { ok: true; code: string } | { ok: false; message: string };
 

@@ -11,6 +11,7 @@ import {
 } from '@/packaging/rules.ts';
 import type { EventType } from '@/engine/types.ts';
 import type { DesignCategory, DesignDraft, DesignImage, DesignText, PackagingStyle, StickerShape, StickerSizeCm, TextLayer } from '@/packaging/types.ts';
+import { makeThumb, orderUrl, rememberDesign } from '@/packaging/client.ts';
 import { saveDesignAction } from './actions.ts';
 import type { CanvasApi, EditorImageLayer, EditorLayer } from './editor-types.ts';
 
@@ -41,19 +42,6 @@ const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
 
-// 카페24 상품 주소에 코드·수량을 붙인다. 쇼핑몰 스킨의 public/cafe24/ondap-helper.js가 읽어 수량을 맞추고 주문서에 코드를 넣는다.
-// 휴대폰은 처음부터 모바일 쇼핑몰(/m/) 주소로 보낸다: PC 주소로 가면 카페24가 /m/으로 넘기면서 붙인 값을 버린다
-function orderUrl(productUrl: string, code: string, quantity: number): string {
-  try {
-    const u = new URL(productUrl);
-    if (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) && !u.pathname.startsWith('/m/')) u.pathname = `/m${u.pathname}`;
-    u.searchParams.set('ondap_code', code);
-    u.searchParams.set('ondap_qty', String(quantity));
-    return u.toString();
-  } catch {
-    return productUrl;
-  }
-}
 const newId = () => 'l' + Math.random().toString(36).slice(2, 9);
 
 function loadNatural(src: string): Promise<{ w: number; h: number }> {
@@ -117,6 +105,48 @@ export function PackagingEditor(props: Props) {
   const [displaySize, setDisplaySize] = useState(0);
 
   // 처음 화면: 행사 추천 이미지가 있으면 깔아 두고, 없으면 추천 문구 한 줄
+  // 되돌리기: 바뀌기 직전 상태를 쌓아 둔다. 짧은 시간(0.6초) 안의 연속 변경(글자 입력 등)은 한 번으로 친다.
+  // 올린 사진의 blob 주소는 되돌리기로 다시 쓸 수 있으므로 지우지 않는다
+  const history = useRef<{ layers: EditorLayer[]; background: string }[]>([]);
+  const prevSnap = useRef<{ layers: EditorLayer[]; background: string }>({ layers: [], background: '#ffffff' });
+  const lastPush = useRef(0);
+  const restoring = useRef(false);
+  const [canUndo, setCanUndo] = useState(false);
+  useEffect(() => {
+    const prev = prevSnap.current;
+    prevSnap.current = { layers, background };
+    if (restoring.current) {
+      restoring.current = false;
+      return;
+    }
+    if (prev.layers === layers && prev.background === background) return;
+    if (prev.layers.length === 0 && history.current.length === 0) return; // 처음 자동으로 깐 것은 되돌리기 대상이 아니다
+    const now = Date.now();
+    if (now - lastPush.current > 600) {
+      history.current.push(prev);
+      if (history.current.length > 40) history.current.shift();
+    }
+    lastPush.current = now;
+    setCanUndo(history.current.length > 0);
+  }, [layers, background]);
+
+  const undo = () => {
+    const snap = history.current.pop();
+    if (!snap) return;
+    restoring.current = true;
+    setLayers(snap.layers);
+    setBackground(snap.background);
+    setSelectedId(null);
+    setCanUndo(history.current.length > 0);
+    lastPush.current = 0;
+  };
+
+  const clearAll = () => {
+    setLayers([]);
+    setBackground('#ffffff');
+    setSelectedId(null);
+  };
+
   const started = useRef(false);
   useEffect(() => {
     if (started.current) return; // 개발 모드(StrictMode)에서 두 번 돌아도 한 번만 깐다
@@ -166,7 +196,6 @@ export function PackagingEditor(props: Props) {
   const setBaseImage = (layer: EditorImageLayer) => {
     setLayers((ls) => {
       const old = ls[0]?.type === 'image' ? (ls[0] as EditorImageLayer) : null;
-      if (old?.uploaded && old.src !== layer.src) URL.revokeObjectURL(old.src);
       return [layer, ...(old ? ls.slice(1) : ls)];
     });
     setSelectedId(null);
@@ -238,7 +267,6 @@ export function PackagingEditor(props: Props) {
 
   const removeSelected = () => {
     if (!selected) return;
-    if (selected.type === 'image' && selected.uploaded) URL.revokeObjectURL(selected.src);
     setLayers((ls) => ls.filter((l) => l.id !== selected.id));
     setSelectedId(null);
   };
@@ -297,6 +325,12 @@ export function PackagingEditor(props: Props) {
         // 브라우저가 자동 복사를 막으면 복사 버튼으로 안내
       }
       setResult({ code: res.code, copied, preview });
+      // 이 기기의 '내 디자인'에 남긴다 (코드를 잃어버려도 다시 찾을 수 있게)
+      const thumbBlob = preview ? await fetch(preview).then((r) => r.blob()).catch(() => null) : null;
+      rememberDesign({
+        code: res.code, productName: product.name, productUrl: product.url, quantity,
+        savedAt: new Date().toISOString(), thumb: thumbBlob ? await makeThumb(thumbBlob) : null,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -404,6 +438,10 @@ export function PackagingEditor(props: Props) {
                 apiRef={apiRef}
               />
             )}
+          </div>
+          <div className="row" style={{ justifyContent: 'center', gap: 8, marginTop: 10 }}>
+            <button type="button" className="btn ghost small" disabled={!canUndo} onClick={undo}>되돌리기</button>
+            <button type="button" className="btn ghost small" disabled={layers.length === 0} onClick={clearAll}>모두 지우기</button>
           </div>
           <p className="guide-note">
             <span className="cut">빨간 점선: 자르는 선</span>
@@ -539,7 +577,9 @@ export function PackagingEditor(props: Props) {
               <a className="btn block" href={orderUrl(product.url, result.code, quantity)} target={from === 'cafe24' ? '_self' : '_blank'} rel="noreferrer">주문하러 가기</a>
               <button type="button" className="btn ghost block" onClick={() => void copyAgain()}>코드 복사</button>
               <button type="button" className="btn ghost block" style={{ border: 'none', background: 'transparent' }} onClick={() => setResult(null)}>디자인 더 고치기</button>
-              <p className="small muted" style={{ margin: 0, textAlign: 'center' }}>고친 뒤 다시 저장하면 새 코드가 나옵니다.</p>
+              <p className="small muted" style={{ margin: 0, textAlign: 'center' }}>
+                고친 뒤 다시 저장하면 새 코드가 나옵니다. 저장한 디자인은 <a className="text-link" href="/packaging/mine">내 디자인</a>에서 다시 볼 수 있어요.
+              </p>
             </div>
           </div>
         </div>

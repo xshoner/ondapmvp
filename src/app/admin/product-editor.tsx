@@ -15,6 +15,7 @@ type Props = {
   config: EngineConfig;
   mallId: string;
   syncedAt: string | null;
+  initialProduct?: number | null; // AI 일괄 제안 등에서 특정 상품을 열 때 (/admin?product=27)
 };
 
 const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
@@ -35,12 +36,13 @@ function emptyAttributes(config: EngineConfig, productNo: number): ProductAttrib
   };
 }
 
-export function ProductEditor({ products, attributes, config, mallId, syncedAt }: Props) {
+export function ProductEditor({ products, attributes, config, mallId, syncedAt, initialProduct }: Props) {
   const router = useRouter();
   const attrMap = useMemo(() => new Map(attributes.map((a) => [a.productNo, a])), [attributes]);
-  const [selected, setSelected] = useState<number>(products[0]?.productNo ?? 0);
+  const first = products.find((p) => p.productNo === initialProduct) ?? products[0];
+  const [selected, setSelected] = useState<number>(first?.productNo ?? 0);
   const [draft, setDraft] = useState<ProductAttributes | null>(() =>
-    products[0] ? structuredClone(attrMap.get(products[0].productNo) ?? emptyAttributes(config, products[0].productNo)) : null,
+    first ? structuredClone(attrMap.get(first.productNo) ?? emptyAttributes(config, first.productNo)) : null,
   );
   const [dirty, setDirty] = useState(false);
   const [query, setQuery] = useState('');

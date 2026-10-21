@@ -8,6 +8,7 @@ const LINKS = [
   { href: '/admin/weights', label: '가중치 설정' },
   { href: '/admin/verify', label: '알고리즘 검증' },
   { href: '/admin/packaging', label: '포장 디자인' },
+  { href: '/admin/stats', label: '실적' },
 ];
 
 export function AdminNav({ email }: { email: string | null }) {

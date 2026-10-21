@@ -1,6 +1,7 @@
 import { getCatalog } from '@/data/repository.ts';
 import { getPackagingAssets, listDesigns } from '@/data/packaging-repository.ts';
-import { CATEGORY_ORDER, categoryName, normalizeDesignCode } from '@/packaging/rules.ts';
+import { CATEGORY_ORDER, categoryName } from '@/packaging/rules.ts';
+import { parseDesignFilter } from '@/packaging/design-filter.ts';
 import type { Design, PackagingAssets } from '@/packaging/types.ts';
 import { AssetManager } from './asset-manager.tsx';
 import { DesignsTable } from './designs-table.tsx';
@@ -20,8 +21,7 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 export default async function PackagingAdminPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
   const tab: Tab = TABS.some((t) => t.id === sp.tab) ? (sp.tab as Tab) : 'designs';
-  const rawCode = typeof sp.code === 'string' ? sp.code : '';
-  const code = rawCode ? normalizeDesignCode(rawCode) : null;
+  const filter = parseDesignFilter(sp);
 
   const { config } = await getCatalog();
   const eventNames = Object.fromEntries(Object.entries(config.events).map(([k, v]) => [k, v.name]));
@@ -32,7 +32,7 @@ export default async function PackagingAdminPage({ searchParams }: { searchParam
   let error: string | null = null;
   try {
     assets = await getPackagingAssets({ includeInactive: true });
-    if (tab === 'designs' && !(rawCode && !code)) designs = await listDesigns({ code });
+    if (tab === 'designs' && !filter.codeInvalid) designs = await listDesigns(filter);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
@@ -56,7 +56,7 @@ export default async function PackagingAdminPage({ searchParams }: { searchParam
           <br />Supabase를 쓴다면 SQL Editor에서 <code>supabase/migrations/20261021000000_packaging.sql</code>을 실행했는지 확인하세요.
         </div>
       ) : assets && tab === 'designs' ? (
-        <DesignsTable designs={designs} eventNames={eventNames} code={rawCode} codeInvalid={Boolean(rawCode && !code)} />
+        <DesignsTable designs={designs} eventNames={eventNames} filter={filter} />
       ) : assets ? (
         <AssetManager key={tab} kind={tab as 'styles' | 'images' | 'texts'} assets={assets} categoryNames={categoryNames} />
       ) : null}

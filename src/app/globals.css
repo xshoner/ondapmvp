@@ -322,3 +322,37 @@ table.data.designs-table th { position: static; }
 /* ---------- 로그인 ---------- */
 .auth { max-width: 400px; margin: 0 auto; min-height: 100vh; padding: 72px 20px 40px; }
 .auth .panel { margin-top: 28px; padding: 26px 24px; }
+.filter-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; padding: 16px 18px; }
+.filter-bar input[type="date"], .filter-bar select { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px 10px; background: #fff; }
+
+/* ---------- 관리자: 실적 ---------- */
+:root { --chart: #23805f; --chart-grid: #e6e8e3; } /* 차트 막대: 검사 도구 통과(밝기·채도·대비) */
+.kpi-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.kpi { display: grid; gap: 2px; padding: 18px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.kpi-label { font-size: 13px; color: var(--muted); font-weight: 600; }
+.kpi-value { font-family: var(--font-serif), serif; font-size: 34px; font-weight: 600; line-height: 1.2; color: var(--ink); }
+.kpi-note { font-size: 12.5px; color: var(--muted); }
+.stats-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.panel-title { font-family: var(--font-sans), sans-serif; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 14px; }
+.chart { margin: 0; }
+.chart-plot { position: relative; height: 180px; margin-left: 34px; }
+.chart-grid span { position: absolute; left: 0; right: 0; border-top: 1px solid var(--chart-grid); }
+.chart-grid i { position: absolute; left: -34px; top: -8px; width: 28px; text-align: right; font-style: normal; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.chart-cols { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 2px; }
+.chart-col { flex: 1; height: 100%; display: flex; align-items: flex-end; padding: 0; border: 0; background: transparent; cursor: default; min-width: 0; }
+.chart-col .bar { display: block; width: 100%; max-width: 28px; margin: 0 auto; min-height: 0; background: var(--chart); border-radius: 4px 4px 0 0; }
+.chart-col[data-active] .bar { background: var(--pine); }
+.chart-col:focus-visible { outline-offset: 0; }
+.chart-tip { position: absolute; top: -6px; transform: translate(-50%, -100%); background: var(--ink); color: #fff; font-size: 12px; padding: 4px 8px; border-radius: 6px; white-space: nowrap; pointer-events: none; }
+.chart-x { display: flex; gap: 2px; margin: 6px 0 0 34px; }
+.chart-x span { flex: 1; min-width: 0; text-align: center; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: visible; }
+.rank-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rank-bars li { display: grid; grid-template-columns: 84px 1fr 44px; align-items: center; gap: 10px; font-size: 13px; }
+.rank-label { color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rank-track { height: 10px; background: #f0f2ee; border-radius: 0 4px 4px 0; }
+.rank-track .bar { display: block; height: 100%; background: var(--chart); border-radius: 0 4px 4px 0; }
+.rank-value { text-align: right; color: var(--ink); }
+@media (max-width: 1000px) {
+  .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stats-grid { grid-template-columns: 1fr; }
+}
