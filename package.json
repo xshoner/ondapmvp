@@ -18,7 +18,10 @@
     "typecheck": "tsc --noEmit",
     "db:seed-sql": "node scripts/db-seed-sql.ts",
     "db:pull": "node scripts/db-pull.ts",
-    "ai:suggest": "node scripts/ai-suggest.ts"
+    "db:setup-sql": "node scripts/db-setup-sql.ts",
+    "ai:suggest": "node scripts/ai-suggest.ts",
+    "doctor": "node scripts/doctor.ts",
+    "cafe24:snippets": "node scripts/cafe24-snippets.ts"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

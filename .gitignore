@@ -9,3 +9,9 @@ next-env.d.ts
 /data/designs.json
 /data/design-files/
 /public/packaging/uploads/
+
+# 카페24 붙이기 코드 생성물 (npm run cafe24:snippets)
+/cafe24/out/
+
+# 로컬 도구 상태
+/.bkit/

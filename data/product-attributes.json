@@ -1,17 +1,17 @@
 {
-  "_note": "온답 격식지수 가안 v0.1. 상품명에 드러난 정보만 근거로 개발 측이 매긴 값(reviewed=false). 관리자 화면에서 검토·수정한다.",
+  "_note": "Supabase에서 내려받은 사본 (npm run db:pull)",
   "products": [
     {
       "productNo": 11,
       "region": "국내",
       "category": "정육/축산",
       "scores": {
-        "rarity": 5,
-        "craftsmanship": 3,
-        "regional": 4,
         "trust": 6,
+        "rarity": 5,
+        "regional": 4,
+        "formality": 6,
         "practicality": 5,
-        "formality": 6
+        "craftsmanship": 3
       },
       "events": [
         "thanks",
@@ -42,12 +42,12 @@
       "region": "국내",
       "category": "정육/축산",
       "scores": {
-        "rarity": 8,
-        "craftsmanship": 5,
-        "regional": 4,
         "trust": 8,
+        "rarity": 8,
+        "regional": 4,
+        "formality": 10,
         "practicality": 4,
-        "formality": 10
+        "craftsmanship": 5
       },
       "events": [
         "promotion",
@@ -80,12 +80,12 @@
       "region": "국내",
       "category": "정육/축산",
       "scores": {
-        "rarity": 6,
-        "craftsmanship": 7,
-        "regional": 4,
         "trust": 6,
+        "rarity": 6,
+        "regional": 4,
+        "formality": 7,
         "practicality": 6,
-        "formality": 7
+        "craftsmanship": 7
       },
       "events": [
         "longevity",
@@ -117,12 +117,12 @@
       "region": "지리산",
       "category": "정육/축산",
       "scores": {
-        "rarity": 7,
-        "craftsmanship": 4,
-        "regional": 6,
         "trust": 7,
+        "rarity": 7,
+        "regional": 6,
+        "formality": 8,
         "practicality": 4,
-        "formality": 8
+        "craftsmanship": 4
       },
       "events": [
         "promotion",
@@ -154,12 +154,12 @@
       "region": "국내",
       "category": "정육/축산",
       "scores": {
-        "rarity": 2,
-        "craftsmanship": 2,
-        "regional": 2,
         "trust": 7,
+        "rarity": 2,
+        "regional": 2,
+        "formality": 2,
         "practicality": 6,
-        "formality": 2
+        "craftsmanship": 2
       },
       "events": [
         "birthday"
@@ -187,12 +187,12 @@
       "region": "국내",
       "category": "정육/축산",
       "scores": {
-        "rarity": 2,
-        "craftsmanship": 2,
-        "regional": 2,
         "trust": 5,
+        "rarity": 2,
+        "regional": 2,
+        "formality": 3,
         "practicality": 6,
-        "formality": 3
+        "craftsmanship": 2
       },
       "events": [
         "birthday",
@@ -221,12 +221,12 @@
       "region": "국내",
       "category": "정육/축산",
       "scores": {
-        "rarity": 3,
-        "craftsmanship": 6,
-        "regional": 2,
         "trust": 4,
+        "rarity": 3,
+        "regional": 2,
+        "formality": 2,
         "practicality": 6,
-        "formality": 2
+        "craftsmanship": 6
       },
       "events": [
         "birthday",
@@ -255,12 +255,12 @@
       "region": "국내",
       "category": "정육/축산",
       "scores": {
-        "rarity": 8,
-        "craftsmanship": 5,
-        "regional": 4,
         "trust": 8,
+        "rarity": 8,
+        "regional": 4,
+        "formality": 8,
         "practicality": 4,
-        "formality": 8
+        "craftsmanship": 5
       },
       "events": [
         "promotion",
@@ -291,12 +291,12 @@
       "region": "제주",
       "category": "정육/축산",
       "scores": {
-        "rarity": 5,
-        "craftsmanship": 3,
-        "regional": 7,
         "trust": 5,
+        "rarity": 5,
+        "regional": 7,
+        "formality": 4,
         "practicality": 5,
-        "formality": 4
+        "craftsmanship": 3
       },
       "events": [
         "birthday",
@@ -324,12 +324,12 @@
       "region": "완도",
       "category": "수산/해산물",
       "scores": {
-        "rarity": 7,
-        "craftsmanship": 4,
-        "regional": 8,
         "trust": 6,
+        "rarity": 7,
+        "regional": 8,
+        "formality": 7,
         "practicality": 4,
-        "formality": 7
+        "craftsmanship": 4
       },
       "events": [
         "longevity",
@@ -364,12 +364,12 @@
       "region": "국내",
       "category": "수산/해산물",
       "scores": {
-        "rarity": 3,
-        "craftsmanship": 2,
-        "regional": 4,
         "trust": 5,
+        "rarity": 3,
+        "regional": 4,
+        "formality": 3,
         "practicality": 5,
-        "formality": 3
+        "craftsmanship": 2
       },
       "events": [
         "thanks"
@@ -397,12 +397,12 @@
       "region": "국내",
       "category": "정육/축산",
       "scores": {
-        "rarity": 3,
-        "craftsmanship": 2,
-        "regional": 2,
         "trust": 8,
+        "rarity": 3,
+        "regional": 2,
+        "formality": 2,
         "practicality": 7,
-        "formality": 2
+        "craftsmanship": 2
       },
       "events": [
         "birth",
@@ -433,12 +433,12 @@
       "region": "영광",
       "category": "수산/해산물",
       "scores": {
-        "rarity": 8,
-        "craftsmanship": 8,
-        "regional": 10,
         "trust": 7,
+        "rarity": 8,
+        "regional": 10,
+        "formality": 10,
         "practicality": 6,
-        "formality": 10
+        "craftsmanship": 8
       },
       "events": [
         "longevity",
@@ -453,8 +453,8 @@
       ],
       "excludedEvents": [],
       "meanings": {
-        "promotion": "'굴하지 않는다'는 뜻을 담은 굴비로 새 자리에서의 기개를 응원하는 마음",
-        "longevity": "임금님께 올리던 진상품으로 귀한 어른께 드리는 예"
+        "longevity": "임금님께 올리던 진상품으로 귀한 어른께 드리는 예",
+        "promotion": "'굴하지 않는다'는 뜻을 담은 굴비로 새 자리에서의 기개를 응원하는 마음"
       },
       "tags": [
         "법성포",
@@ -468,12 +468,12 @@
       "region": "국내",
       "category": "정육/축산",
       "scores": {
-        "rarity": 5,
-        "craftsmanship": 3,
-        "regional": 4,
         "trust": 6,
+        "rarity": 5,
+        "regional": 4,
+        "formality": 3,
         "practicality": 5,
-        "formality": 3
+        "craftsmanship": 3
       },
       "events": [
         "birth",
@@ -505,12 +505,12 @@
       "region": "지리산",
       "category": "정육/축산",
       "scores": {
-        "rarity": 6,
-        "craftsmanship": 5,
-        "regional": 6,
         "trust": 6,
+        "rarity": 6,
+        "regional": 6,
+        "formality": 4,
         "practicality": 5,
-        "formality": 4
+        "craftsmanship": 5
       },
       "events": [
         "thanks",
@@ -539,12 +539,12 @@
       "region": "제주",
       "category": "수산/해산물",
       "scores": {
-        "rarity": 7,
-        "craftsmanship": 3,
-        "regional": 7,
         "trust": 6,
+        "rarity": 7,
+        "regional": 7,
+        "formality": 7,
         "practicality": 5,
-        "formality": 7
+        "craftsmanship": 3
       },
       "events": [
         "thanks",
@@ -575,12 +575,12 @@
       "region": "남해",
       "category": "수산/해산물",
       "scores": {
-        "rarity": 8,
-        "craftsmanship": 8,
-        "regional": 9,
         "trust": 7,
+        "rarity": 8,
+        "regional": 9,
+        "formality": 7,
         "practicality": 8,
-        "formality": 7
+        "craftsmanship": 8
       },
       "events": [
         "funeral",
@@ -607,12 +607,12 @@
       "region": "동해",
       "category": "수산/해산물",
       "scores": {
-        "rarity": 8,
-        "craftsmanship": 3,
-        "regional": 7,
         "trust": 6,
+        "rarity": 8,
+        "regional": 7,
+        "formality": 7,
         "practicality": 3,
-        "formality": 7
+        "craftsmanship": 3
       },
       "events": [
         "promotion",
@@ -644,12 +644,12 @@
       "region": "독도",
       "category": "수산/해산물",
       "scores": {
-        "rarity": 9,
-        "craftsmanship": 3,
-        "regional": 9,
         "trust": 6,
+        "rarity": 9,
+        "regional": 9,
+        "formality": 5,
         "practicality": 3,
-        "formality": 5
+        "craftsmanship": 3
       },
       "events": [
         "birthday",
@@ -678,12 +678,12 @@
       "region": "울릉도",
       "category": "수산/해산물",
       "scores": {
-        "rarity": 7,
-        "craftsmanship": 4,
-        "regional": 8,
         "trust": 6,
+        "rarity": 7,
+        "regional": 8,
+        "formality": 4,
         "practicality": 6,
-        "formality": 4
+        "craftsmanship": 4
       },
       "events": [
         "thanks",
@@ -712,12 +712,12 @@
       "region": "제주",
       "category": "과일/과채",
       "scores": {
-        "rarity": 6,
-        "craftsmanship": 3,
-        "regional": 7,
         "trust": 6,
+        "rarity": 6,
+        "regional": 7,
+        "formality": 6,
         "practicality": 6,
-        "formality": 6
+        "craftsmanship": 3
       },
       "events": [
         "thanks",
@@ -743,12 +743,12 @@
       "region": "완도",
       "category": "수산/해산물",
       "scores": {
-        "rarity": 5,
-        "craftsmanship": 5,
-        "regional": 7,
         "trust": 7,
+        "rarity": 5,
+        "regional": 7,
+        "formality": 6,
         "practicality": 9,
-        "formality": 6
+        "craftsmanship": 5
       },
       "events": [
         "birth",
@@ -777,12 +777,12 @@
       "region": "청송",
       "category": "과일/과채",
       "scores": {
-        "rarity": 6,
-        "craftsmanship": 4,
-        "regional": 8,
         "trust": 7,
+        "rarity": 6,
+        "regional": 8,
+        "formality": 7,
         "practicality": 6,
-        "formality": 7
+        "craftsmanship": 4
       },
       "events": [
         "thanks",
@@ -812,32 +812,38 @@
       "region": "나주",
       "category": "과일/과채",
       "scores": {
-        "rarity": 6,
-        "craftsmanship": 4,
-        "regional": 8,
-        "trust": 7,
+        "trust": 5,
+        "rarity": 5,
+        "regional": 9,
+        "formality": 8,
         "practicality": 6,
-        "formality": 8
+        "craftsmanship": 5
       },
       "events": [
-        "longevity",
         "thanks",
-        "wedding",
-        "funeral",
-        "promotion"
+        "longevity",
+        "opening",
+        "promotion",
+        "birthday"
       ],
       "relations": [
         "senior",
         "business",
         "family"
       ],
-      "excludedEvents": [],
+      "excludedEvents": [
+        {
+          "event": "funeral",
+          "reason": "신선 과일 특성상 상온 보관 및 대량 발송이 필요한 장례 답례로 부적합"
+        }
+      ],
       "meanings": {},
       "tags": [
-        "나주",
-        "명품배"
+        "나주배",
+        "명품배",
+        "전통명품"
       ],
-      "story": "나주 전통 명품 배 세트",
+      "story": "나주 전통 명품 배 세트로 많은 고객이 명절에 차례에 많이 올린다.",
       "reviewed": false
     },
     {
@@ -845,12 +851,12 @@
       "region": "음성·이천",
       "category": "과일/과채",
       "scores": {
-        "rarity": 6,
-        "craftsmanship": 3,
-        "regional": 7,
         "trust": 6,
+        "rarity": 6,
+        "regional": 7,
+        "formality": 5,
         "practicality": 4,
-        "formality": 5
+        "craftsmanship": 3
       },
       "events": [
         "thanks",
@@ -878,12 +884,12 @@
       "region": "국내",
       "category": "과일/과채",
       "scores": {
-        "rarity": 5,
-        "craftsmanship": 3,
-        "regional": 3,
         "trust": 6,
+        "rarity": 5,
+        "regional": 3,
+        "formality": 6,
         "practicality": 6,
-        "formality": 6
+        "craftsmanship": 3
       },
       "events": [
         "birthday",
@@ -909,12 +915,12 @@
       "region": "국내",
       "category": "쌀/잡곡",
       "scores": {
-        "rarity": 5,
-        "craftsmanship": 5,
-        "regional": 4,
         "trust": 9,
+        "rarity": 5,
+        "regional": 4,
+        "formality": 6,
         "practicality": 9,
-        "formality": 6
+        "craftsmanship": 5
       },
       "events": [
         "funeral",
@@ -929,8 +935,8 @@
       ],
       "excludedEvents": [],
       "meanings": {
-        "funeral": "쌀은 정성과 감사를 담는 가장 기본의 답례",
-        "birth": "유기농 쌀로 산모와 아기의 건강을 바라는 마음"
+        "birth": "유기농 쌀로 산모와 아기의 건강을 바라는 마음",
+        "funeral": "쌀은 정성과 감사를 담는 가장 기본의 답례"
       },
       "tags": [
         "유기농",
@@ -944,12 +950,12 @@
       "region": "철원",
       "category": "쌀/잡곡",
       "scores": {
-        "rarity": 6,
-        "craftsmanship": 4,
-        "regional": 7,
         "trust": 7,
+        "rarity": 6,
+        "regional": 7,
+        "formality": 6,
         "practicality": 9,
-        "formality": 6
+        "craftsmanship": 4
       },
       "events": [
         "funeral",
@@ -981,12 +987,12 @@
       "region": "상주",
       "category": "전통다과/한과",
       "scores": {
-        "rarity": 6,
-        "craftsmanship": 7,
-        "regional": 8,
         "trust": 7,
+        "rarity": 6,
+        "regional": 8,
+        "formality": 7,
         "practicality": 7,
-        "formality": 7
+        "craftsmanship": 7
       },
       "events": [
         "longevity",
@@ -1014,12 +1020,12 @@
       "region": "공주",
       "category": "과일/과채",
       "scores": {
-        "rarity": 5,
-        "craftsmanship": 3,
-        "regional": 7,
         "trust": 6,
+        "rarity": 5,
+        "regional": 7,
+        "formality": 5,
         "practicality": 6,
-        "formality": 5
+        "craftsmanship": 3
       },
       "events": [
         "thanks",
@@ -1048,12 +1054,12 @@
       "region": "국내",
       "category": "쌀/잡곡",
       "scores": {
-        "rarity": 6,
-        "craftsmanship": 4,
-        "regional": 5,
         "trust": 6,
+        "rarity": 6,
+        "regional": 5,
+        "formality": 6,
         "practicality": 9,
-        "formality": 6
+        "craftsmanship": 4
       },
       "events": [
         "funeral",
@@ -1085,12 +1091,12 @@
       "region": "국내",
       "category": "과일/과채",
       "scores": {
-        "rarity": 5,
-        "craftsmanship": 3,
-        "regional": 3,
         "trust": 6,
+        "rarity": 5,
+        "regional": 3,
+        "formality": 5,
         "practicality": 5,
-        "formality": 5
+        "craftsmanship": 3
       },
       "events": [
         "birthday",
@@ -1114,12 +1120,12 @@
       "region": "국내",
       "category": "쌀/잡곡",
       "scores": {
-        "rarity": 3,
-        "craftsmanship": 3,
-        "regional": 3,
         "trust": 7,
+        "rarity": 3,
+        "regional": 3,
+        "formality": 4,
         "practicality": 9,
-        "formality": 4
+        "craftsmanship": 3
       },
       "events": [
         "funeral",
@@ -1144,12 +1150,12 @@
       "region": "국내",
       "category": "쌀/잡곡",
       "scores": {
-        "rarity": 3,
-        "craftsmanship": 5,
-        "regional": 3,
         "trust": 6,
+        "rarity": 3,
+        "regional": 3,
+        "formality": 3,
         "practicality": 8,
-        "formality": 3
+        "craftsmanship": 5
       },
       "events": [
         "thanks",
@@ -1173,12 +1179,12 @@
       "region": "순창",
       "category": "전통장/발효식품",
       "scores": {
-        "rarity": 5,
-        "craftsmanship": 8,
-        "regional": 9,
         "trust": 7,
+        "rarity": 5,
+        "regional": 9,
+        "formality": 6,
         "practicality": 9,
-        "formality": 6
+        "craftsmanship": 8
       },
       "events": [
         "funeral",
@@ -1206,12 +1212,12 @@
       "region": "신안",
       "category": "오일/조미료",
       "scores": {
-        "rarity": 7,
-        "craftsmanship": 6,
-        "regional": 8,
         "trust": 7,
+        "rarity": 7,
+        "regional": 8,
+        "formality": 5,
         "practicality": 9,
-        "formality": 5
+        "craftsmanship": 6
       },
       "events": [
         "funeral",
@@ -1239,12 +1245,12 @@
       "region": "국내",
       "category": "오일/조미료",
       "scores": {
-        "rarity": 5,
-        "craftsmanship": 7,
-        "regional": 5,
         "trust": 7,
+        "rarity": 5,
+        "regional": 5,
+        "formality": 7,
         "practicality": 9,
-        "formality": 7
+        "craftsmanship": 7
       },
       "events": [
         "funeral",
@@ -1275,35 +1281,32 @@
       "region": "하동",
       "category": "다도/천연꿀",
       "scores": {
-        "rarity": 8,
-        "craftsmanship": 8,
-        "regional": 9,
-        "trust": 7,
-        "practicality": 6,
-        "formality": 8
+        "trust": 5,
+        "rarity": 7,
+        "regional": 8,
+        "formality": 7,
+        "practicality": 7,
+        "craftsmanship": 7
       },
       "events": [
-        "funeral",
         "thanks",
         "promotion",
         "longevity",
-        "opening"
+        "birthday"
       ],
       "relations": [
         "senior",
         "business",
-        "peer",
-        "family"
+        "family",
+        "peer"
       ],
       "excludedEvents": [],
-      "meanings": {
-        "funeral": "차 한 잔에 담은 차분한 위로와 마음의 평안",
-        "promotion": "맑은 정신으로 새 자리에서의 건승을 기원하는 마음"
-      },
+      "meanings": {},
       "tags": [
         "하동",
-        "우전",
-        "수제"
+        "우전녹차",
+        "수제",
+        "전통차밭"
       ],
       "story": "하동 전통 차밭에서 딴 수제 우전 녹차",
       "reviewed": false
@@ -1313,12 +1316,12 @@
       "region": "지리산",
       "category": "다도/천연꿀",
       "scores": {
-        "rarity": 7,
-        "craftsmanship": 6,
-        "regional": 8,
         "trust": 7,
+        "rarity": 7,
+        "regional": 8,
+        "formality": 8,
         "practicality": 8,
-        "formality": 8
+        "craftsmanship": 6
       },
       "events": [
         "longevity",
@@ -1351,12 +1354,12 @@
       "region": "국내",
       "category": "전통장/발효식품",
       "scores": {
-        "rarity": 6,
-        "craftsmanship": 9,
-        "regional": 6,
         "trust": 7,
+        "rarity": 6,
+        "regional": 6,
+        "formality": 6,
         "practicality": 9,
-        "formality": 6
+        "craftsmanship": 9
       },
       "events": [
         "funeral",

@@ -2,7 +2,8 @@
 
 행사 정보(행사 유형·관계·예산)를 넣으면 격식지수로 답례품 3개를 추천하는 엔진입니다. 상품은 카페24 쇼핑몰에서 가져옵니다.
 
-> 구축 기록, 복제 방법, 심이사 자료 도착 시 할 일: **[docs/RUNBOOK.md](docs/RUNBOOK.md)**
+> 새 환경에 같은 서비스를 복제: **[docs/CLONE.md](docs/CLONE.md)** (코드 → DB `supabase/setup.sql` 한 번 → Vercel → 카페24, `npm run doctor`로 점검)
+> 구축 기록, 심이사 자료 도착 시 할 일: **[docs/RUNBOOK.md](docs/RUNBOOK.md)** · 작업 규칙: [CLAUDE.md](CLAUDE.md)
 
 ## 화면 (`npm run dev` → http://127.0.0.1:3000, localhost가 아닌 127.0.0.1로 접속)
 
@@ -12,12 +13,17 @@
 | `/result` | 고객: 추천 3개, 격식지수, ONDAP'S PICK, 점수 내역 |
 | `/packaging` | 고객: 포장 스타일 고르기 + 무료 스티커 꾸미기 → 디자인 코드 (카페24 주문서에 적음) |
 | `/packaging/pick` | 고객: 추천 없이 상품을 직접 골라 포장만 꾸미기 |
+| `/packaging/mine` | 고객: 이 기기에서 만든 디자인 코드 다시 보기 |
+| `/formality` | 고객: 격식지수 소개 (관리자 설정을 그대로 읽음) |
+| `/login` | 관리자 로그인 (Supabase 모드) |
 | `/admin` | 관리자: 상품별 지표 입력, 카페24 상품 다시 가져오기 |
 | `/admin/weights` | 관리자: 행사·관계별 가중치, 보너스 편집 + 실시간 미리보기 |
 | `/admin/verify` | 관리자: 32개 시나리오 결과, 전체 순위, 기대 정답 지정 |
-| `/admin/packaging` | 관리자: 디자인 접수(인쇄 파일 받기·주문번호), 포장 스타일, 추천 이미지·문구 |
+| `/admin/ai-batch` | 관리자: AI 지표 일괄 제안 → 비교 후 저장 |
+| `/admin/packaging` | 관리자: 디자인 접수(필터·CSV·인쇄 PDF A4/A3·ZIP·주문번호), 포장 스타일, 추천 이미지·문구 |
+| `/admin/stats` | 관리자: 실적(추천 수·행사별·많이 추천된 상품·디자인 접수) |
 
-관리자는 로컬 전용(로그인 없음)이며 저장하면 `data/`의 JSON이 바뀝니다.
+`ONDAP_DATA_SOURCE=local`이면 관리자는 개발 서버에서 로그인 없이 열리고 저장하면 `data/`의 JSON이 바뀝니다. `supabase`면 `/login`으로 로그인한 관리자만 열립니다.
 
 ## 명령어
 
@@ -29,6 +35,9 @@
 | `npm run report -- 60000` | 32개 시나리오(행사 8 × 관계 4) 결과표 → `reports/scenario-report.md` |
 | `npm test` | 엔진 단위 테스트 + 시나리오 불변 조건 검사 |
 | `npm run typecheck` | 타입 검사 |
+| `npm run doctor [-- https://주소]` | 설정·DB·카페24·배포 점검 |
+| `npm run db:setup-sql` | 마이그레이션 + seed → `supabase/setup.sql` |
+| `npm run cafe24:snippets -- https://주소` | 카페24에 붙일 코드 생성 |
 
 Node 24 이상이 필요합니다(TypeScript를 그대로 실행).
 
@@ -62,8 +71,9 @@ Node 24 이상이 필요합니다(TypeScript를 그대로 실행).
 
 데이터 저장소는 `.env.local`의 `ONDAP_DATA_SOURCE`로 고른다. `local`이면 `data/` JSON, `supabase`이면 Supabase DB.
 
-1. Supabase 대시보드 → SQL Editor에서 `supabase/migrations/20261020000000_init.sql` 실행 (테이블·RLS), 이어서 `20261021000000_packaging.sql`, `20261022000000_packaging_hardening.sql` (포장 디자인 표·저장소·보강)
-2. 같은 곳에서 `supabase/seed.sql` 실행 (현재 로컬 데이터 40개 상품·지표·설정). 다시 만들려면 `npm run db:seed-sql`
+1. 새 프로젝트: Supabase 대시보드 → SQL Editor에서 `supabase/setup.sql` 한 번 실행 (마이그레이션 전부 + 초기 데이터 40개 상품·지표·설정·포장 예시)
+   - 이미 운영 중인 DB에는 `supabase/migrations/`의 새 파일만 실행한다
+2. 초기 데이터를 다시 만들려면 `npm run db:seed-sql` → `npm run db:setup-sql`
 3. Authentication → Users → Add user로 관리자 계정 생성 후, SQL Editor에서
    `insert into public.admins (user_id) select id from auth.users where email = '관리자 이메일';`
 4. Authentication → Sign In / Providers에서 새 가입 허용(Allow new users to sign up)을 끈다 (관리자만 로그인)

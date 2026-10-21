@@ -1,6 +1,6 @@
 # 온답 추천 엔진 — 구축 기록과 복제·전환 플레이북
 
-작성 2026-10-20. 이 문서 하나로 ① 오늘 무엇을 어떤 순서로 했는지, ② 다른 환경에 그대로 복제하는 방법, ③ 심이사 자료(카페24 계정, 알고리즘 산식, 상품)가 오면 바로 할 일을 확인할 수 있다.
+작성 2026-10-20, 갱신 2026-10-21. **새 환경에 빨리 복제하려면 [CLONE.md](CLONE.md)부터.** 이 문서 하나로 ① 오늘 무엇을 어떤 순서로 했는지, ② 다른 환경에 그대로 복제하는 방법, ③ 심이사 자료(카페24 계정, 알고리즘 산식, 상품)가 오면 바로 할 일을 확인할 수 있다.
 
 > **비밀값은 이 문서와 저장소에 넣지 않는다.** 키·비밀번호는 각 서비스 대시보드와 로컬 `.env.local`(git 제외)에만 둔다. 계정 이메일 같은 식별 정보도 저장소에는 적지 않는다.
 
@@ -17,8 +17,9 @@
 | 카페24 연동 (Front API 상품 조회) | 동작 | 테스트몰 `axopenlab`, 앱 "온답 추천엔진 DEV" |
 | 카페24 쇼핑몰 버튼 (PC·모바일) | 적용됨 | 메인 배너 바로 아래 |
 | AI 점수 제안 (Gemini) | 운영 동작 확인(10/21). 기본 모델이 503(혼잡)이면 대체 모델 `gemini-flash-latest`가 응답 | 관리자 상품 편집 화면 |
-| 포장 디자인 (포장 스타일 + 무료 스티커 편집 → 디자인 코드) | 코드 완료, **SQL 실행·카페24 주문서 항목 추가 필요** (단계 15) | `/packaging`, `/admin/packaging` |
-| 테스트 | 96개 통과 | `npm test` |
+| 포장 디자인 (포장 스타일 + 무료 스티커 편집 → 디자인 코드 → 카페24 주문서 자동 입력 → 인쇄 PDF) | 운영 동작 확인(10/21). 실제 주문 시험은 심이사 몰에서 | `/packaging`, `/admin/packaging` |
+| 테스트 | 98개 통과 | `npm test` |
+| 복제 도구 | `supabase/setup.sql`(DB 한 번에), `npm run doctor`(설정 점검), `npm run cafe24:snippets`(쇼핑몰 코드) | [CLONE.md](CLONE.md) |
 | 상품 지표 | **가안 40개, 검토 0/40** | 관리자에서 검토 필요 |
 
 **주소**
@@ -316,6 +317,13 @@
 5. 🤖 아이콘: `src/app/icon.svg`(인주 마름모 표지), `apple-icon.png`, `public/icons/*`, `manifest.ts`(홈 화면 추가), 테마색
 6. 🤖 운영 DB(jsonb)는 설정 키 순서를 바꾼다 → `engine/labels.ts`의 `eventIds`·`relationIds`로 화면 순서 고정
 
+### 단계 21. 복제 도구 정리 (2026-10-21)
+1. 🤖 운영 DB를 로컬로 내려받아(`npm run db:pull`) 비교: 엔진 설정은 같고(키 순서만 다름) 상품 지표 2개(34번 나주배, 48번 우전녹차)가 관리자에서 고쳐져 있었음 → `data/product-attributes.json`·`supabase/seed.sql`을 운영 기준으로 갱신
+2. 🤖 `npm run db:setup-sql` → `supabase/setup.sql`: 마이그레이션 5개 + seed를 한 파일로. 새 프로젝트 SQL Editor에서 한 번 Run. 빠진 파일은 테스트(`test/setup-sql.test.ts`)가 잡음
+3. 🤖 `npm run doctor [-- https://주소]`: Node·패키지·.env 값 유무·Supabase 표/함수/RLS·카페24 조회·배포 화면·도우미 스크립트·관리자 보호를 한 번에 점검(비밀값 출력 안 함). 운영 기준 모두 통과
+4. 🤖 `npm run cafe24:snippets -- https://주소`: 메인 버튼 블록의 링크를 새 주소로 바꾸고 붙이는 곳 안내를 `cafe24/out/`(git 제외)에 만듦
+5. 🤖 `docs/CLONE.md`(수 분 복제 순서), 저장소 `CLAUDE.md`(작업 규칙), `.claude/launch.json`(미리보기 서버)
+
 ---
 
 ## 3. 코드 지도
@@ -338,7 +346,7 @@
 | `src/lib/admin-guard.ts`, `safe-next.ts`, `supabase/` | 관리자 권한, 리다이렉트 검사, Supabase 클라이언트 |
 | `src/proxy.ts` | 관리자 경로 세션 갱신 |
 | `supabase/` | 마이그레이션(테이블·RLS), seed |
-| `scripts/` | 동기화, 리포트, 추천 CLI, seed 생성, DB 내려받기, 카페24 테스트·설치 주소, AI 시험 |
+| `scripts/` | 동기화, 리포트, 추천 CLI, seed·setup SQL 생성, DB 내려받기, 설정 점검(`doctor.ts`), 카페24 테스트·설치 주소·붙일 코드, AI 시험 |
 | `cafe24/mobile-index.html` | 카페24 모바일 메인 완성본 |
 | `test/` | 단위·시나리오 테스트 |
 
@@ -346,24 +354,7 @@
 
 ## 4. 처음부터 복제하기 (새 PC 또는 새 계정)
 
-1. **코드**: Node 24 설치 → `git clone https://github.com/xshoner/ondapmvp.git` → `npm ci` → `cp .env.example .env.local`
-2. **카페24** (단계 4와 동일)
-   - 개발자센터 앱 생성(Web) → App URL·Redirect URI(https 도메인) → 상품 읽기 권한 → Front API 사용 → 저장
-   - `.env.local`에 `CAFE24_MALL_ID`, `CAFE24_CLIENT_ID`, `CAFE24_FRONT_API_KEY`, `CAFE24_REDIRECT_URI`
-   - `node scripts/cafe24-install-url.mjs` → 운영자 계정으로 열어 동의(빈 화면 + `code=`면 성공)
-   - `node scripts/cafe24-product-test.mjs`로 200 확인 → `npm run sync`
-3. **로컬로 먼저 확인**: `ONDAP_DATA_SOURCE=local` → `npm test` → `npm run dev` → http://127.0.0.1:3000
-4. **Supabase** (단계 10과 동일)
-   - 새 프로젝트 → SQL Editor: `supabase/migrations/20261020000000_init.sql` 실행
-   - `npm run db:seed-sql` → `supabase/seed.sql` 실행
-   - 포장 디자인: `supabase/migrations/20261021000000_packaging.sql` → `20261022000000_packaging_hardening.sql` → `20261023000000_design_lookup.sql` → `20261024000000_usage_count.sql` 순서로 실행
-   - 관리자: Add user(Auto Confirm) → `insert into public.admins (user_id) select id from auth.users where lower(email)=lower('…') returning user_id;`
-   - Allow new users to sign up 끄기
-   - `.env.local`: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `ONDAP_DATA_SOURCE=supabase`
-5. **Vercel** (단계 11과 동일)
-   - GitHub Import → 환경변수(1장 표) 등록 → 재배포 → 운영 주소(로그인 보호 없는 주소) 확인
-6. **카페24 버튼** (단계 12와 동일): PC `index.html` 메인 배너 아래, 모바일은 진열 번호 확인 후 `cafe24/mobile-index.html` 기준으로
-7. **AI**: Gemini 키 → Vercel `ondap_ai`(Sensitive) + 로컬 `.env.local` → 관리자에서 AI 점수 제안 시험
+**[CLONE.md](CLONE.md)로 옮겼다.** 요약: `git clone` → `npm ci` → `.env.local` → Supabase SQL Editor에 `supabase/setup.sql` 한 번 → 관리자 등록·가입 끄기 → Vercel Import·환경변수 → 카페24 앱 설치·`npm run cafe24:snippets` 붙이기·주문서 항목 → `npm run doctor -- https://주소`.
 
 ---
 
@@ -378,7 +369,7 @@
    - **확인 필요:** 제작중(미심사) 앱을 다른 몰에 설치할 수 있는지. 안 되면 심이사 계정으로 개발자센터 가입 후 같은 설정으로 앱 생성
    - 앱의 App URL·Redirect URI는 Vercel 운영 주소로(`https://ondapmvp.vercel.app`, `…/api/cafe24/callback`)
 4. **데이터 분리(중요):** 상품번호는 쇼핑몰마다 겹친다. 테스트몰 상품·지표와 섞이지 않게
-   - 권장: **심이사 명의 Supabase 새 프로젝트**로 시작(4장 4번), 또는 기존 `products`·`product_attributes`·`scenario_expectations`·`recommendation_logs` 비우기
+   - 권장: **심이사 명의 Supabase 새 프로젝트**로 시작([CLONE.md](CLONE.md) 3장, `setup.sql` 한 번), 또는 기존 `products`·`product_attributes`·`scenario_expectations`·`recommendation_logs` 비우기
 5. 환경변수 교체(로컬·Vercel): `CAFE24_MALL_ID`, `CAFE24_CLIENT_ID`, `CAFE24_FRONT_API_KEY`(+ Supabase 값) → 재배포
 6. 관리자 → "카페24 상품 다시 가져오기" → 상품마다 **AI 점수 제안 → 검토 → 저장**
 7. 심이사 쇼핑몰 PC·모바일 메인에 버튼 넣기(단계 12 주의사항 그대로)
@@ -417,7 +408,6 @@
 | 구분 | 내용 |
 | --- | --- |
 | 급함 | 심이사에게 **PRD 초안 + 시연 링크 + 요청 자료 목록** 발송 |
-| 정리 | 카페24 PC·모바일 메인 버튼을 `cafe24/ondap-cta.html` 새 디자인으로 교체 (링크도 ondapmvp.vercel.app) |
 | 다음 기능 | 포장: 엽서·띠지, AI 이미지 생성(지금은 준비 중 버튼), 카페24 주문 자동 연결(관리자 API), 접수 알림, 서비스 키로 저장 경로 잠그기, 결과보고용 실적 화면 |
 | 정리 | 상품 40개 지표 가안 검토(현재 0/40), 어색한 시나리오 가중치 조정 |
 | 선택 | 로컬 `.env.local`에 `ondap_ai` 추가(터미널 시험용) |
@@ -439,6 +429,9 @@
 | `npm run recommend -- 장례 상급자/어르신 50000` | 추천 1건 + 점수 내역 |
 | `npm run db:seed-sql` | 로컬 JSON → `supabase/seed.sql` |
 | `npm run db:pull` | Supabase → 로컬 JSON |
+| `npm run db:setup-sql` | 마이그레이션 + seed → `supabase/setup.sql` (새 프로젝트용 한 파일) |
+| `npm run doctor [-- https://주소]` | 설정·DB·카페24·배포 점검 |
+| `npm run cafe24:snippets -- https://주소` | 카페24에 붙일 메인 버튼·스크립트 줄을 주소에 맞춰 생성 |
 | `npm run ai:suggest -- 23` | AI 점수 제안 터미널 시험 (`ondap_ai` 필요) |
 | `node scripts/cafe24-install-url.mjs` | 카페24 앱 설치(동의) 주소 |
 | `node scripts/cafe24-product-test.mjs [상품번호]` | 카페24 연결 테스트 |
