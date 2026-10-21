@@ -56,3 +56,13 @@ test('빈 응답도 실패로 보고 다음 모델', async () => {
   const r = await callWithRetry(['m1', 'm2'], async (m) => (m === 'm1' ? '' : 'ok'), noSleep);
   assert.equal(r.model, 'm2');
 });
+
+test('시간 초과는 같은 모델로 다시 기다리지 않고 다음 모델로 넘어가고, 끝내 실패하면 늦다고 알린다', async () => {
+  const calls: string[] = [];
+  const timeout = () => Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
+  await assert.rejects(
+    callWithRetry(['a', 'b'], async (m) => { calls.push(m); throw timeout(); }, { sleep: async () => {}, log: () => {} }),
+    /너무 늦습니다/,
+  );
+  assert.deepEqual(calls, ['a', 'b']);
+});

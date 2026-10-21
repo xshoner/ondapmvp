@@ -8,6 +8,8 @@ import { ApiError, GoogleGenAI } from '@google/genai';
 export const DEFAULT_AI_MODEL = 'gemini-3.6-flash';
 export const DEFAULT_FALLBACK_MODEL = 'gemini-flash-latest';
 const RETRYABLE = new Set([429, 500, 503, 504]);
+// 한 번 호출의 최대 대기 시간. 넘으면 끊고 다음 모델로 (응답이 늦어 화면이 마냥 '검토 중'에 머무는 것 방지)
+export const CALL_TIMEOUT_MS = 40_000;
 
 export function aiModels(env: Record<string, string | undefined> = process.env): string[] {
   const primary = env.ONDAP_AI_MODEL || DEFAULT_AI_MODEL;
@@ -26,7 +28,10 @@ export interface RetryOptions {
 
 const statusOf = (e: unknown): number | null => (e instanceof ApiError ? e.status : typeof (e as { status?: unknown })?.status === 'number' ? (e as { status: number }).status : null);
 
-function friendly(status: number | null, model: string): string {
+const isTimeout = (e: unknown) => e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError');
+
+function friendly(status: number | null, model: string, timedOut = false): string {
+  if (timedOut) return 'AI 응답이 너무 늦습니다. 잠시 뒤 다시 시도하세요.';
   if (status === 429) return 'AI 무료 사용량 한도를 넘었습니다. 1분쯤 뒤 다시 시도하세요.';
   if (status === 503 || status === 500 || status === 504) return 'AI 서버가 지금 붐빕니다. 잠시 뒤 다시 시도하세요.';
   if (status === 404) return `모델 ${model}을 찾을 수 없습니다. 환경변수 ONDAP_AI_MODEL을 확인하세요.`;
@@ -44,7 +49,7 @@ export async function callWithRetry(
   const base = opts.baseDelayMs ?? 1000;
   const sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   const log = opts.log ?? ((m) => console.warn(m));
-  let last: { status: number | null; model: string } = { status: null, model: models[0] ?? '' };
+  let last: { status: number | null; model: string; timedOut?: boolean } = { status: null, model: models[0] ?? '' };
 
   for (const model of models) {
     for (let i = 0; i < attempts; i++) {
@@ -54,7 +59,7 @@ export async function callWithRetry(
         return { text, model };
       } catch (e) {
         const status = statusOf(e);
-        last = { status, model };
+        last = { status, model, timedOut: isTimeout(e) };
         log(`[ondap_ai] ${model} 시도 ${i + 1}/${attempts} 실패: ${status ?? '-'} ${e instanceof Error ? e.message.slice(0, 300) : String(e)}`);
         if (status === null || !RETRYABLE.has(status)) break; // 재시도해도 소용없는 오류 → 다음 모델
         if (i < attempts - 1) await sleep(base * 2 ** i);
@@ -62,7 +67,7 @@ export async function callWithRetry(
     }
   }
   const tried = models.length > 1 ? ` (시도한 모델: ${models.join(', ')})` : '';
-  throw new Error(`${friendly(last.status, last.model)}${last.status ? ` [${last.status}]` : ''}${tried}`);
+  throw new Error(`${friendly(last.status, last.model, last.timedOut)}${last.status ? ` [${last.status}]` : ''}${tried}`);
 }
 
 export async function generateJson(args: { system: string; user: string; schema: Record<string, unknown> }): Promise<{ data: unknown; model: string }> {
@@ -80,6 +85,7 @@ export async function generateJson(args: { system: string; user: string; schema:
         responseJsonSchema: args.schema,
         temperature: 0.2,
         maxOutputTokens: 4096,
+        abortSignal: AbortSignal.timeout(CALL_TIMEOUT_MS),
       },
     });
     return res.text;
