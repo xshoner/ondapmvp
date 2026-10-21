@@ -18,7 +18,7 @@
 | 카페24 쇼핑몰 버튼 (PC·모바일) | 적용됨 | 메인 배너 바로 아래 |
 | AI 점수 제안 (Gemini) | 운영 동작 확인(10/21). 기본 모델이 503(혼잡)이면 대체 모델 `gemini-flash-latest`가 응답 | 관리자 상품 편집 화면 |
 | 포장 디자인 (포장 스타일 + 무료 스티커 편집 → 디자인 코드) | 코드 완료, **SQL 실행·카페24 주문서 항목 추가 필요** (단계 15) | `/packaging`, `/admin/packaging` |
-| 테스트 | 90개 통과 | `npm test` |
+| 테스트 | 95개 통과 | `npm test` |
 | 상품 지표 | **가안 40개, 검토 0/40** | 관리자에서 검토 필요 |
 
 **주소**
@@ -293,6 +293,19 @@
 4. 🤖 카페24 메인 버튼 완성본: `cafe24/ondap-cta.html` (PC·모바일 공통 블록, 링크 ondapmvp.vercel.app). 👤 스킨 index.html의 예전 '온답 AI 답례 추천 버튼' 블록을 통째로 교체. 모바일 메인 전체본 `cafe24/mobile-index.html`도 반영됨
 5. 주의: 피해야 할 것 — 모든 곳의 이모지·화살표(→)·가운뎃점 나열, 같은 그림자 카드 반복, 강조색 여러 개. 강조는 도장 한 곳에 모은다
 
+### 단계 19. 고객·관리자 편의 기능 (2026-10-21)
+1. 👤 결정: 결과 공유, 내 디자인 다시 보기, 편집 되돌리기, 접수 필터·CSV, 실적 대시보드, AI 지표 일괄 제안. (완성 모습 미리보기·AI 문구·견적서·마감일 안내·주문 자동 연결·접수 알림은 PRD 추가 범위)
+2. 🤖 고객
+   - 추천 결과 "결과 공유": 휴대폰은 기기 공유 창(카카오톡 등), PC는 주소 복사
+   - 스티커 편집 "되돌리기"(최근 40단계, 0.6초 안의 연속 변경은 한 번)·"모두 지우기". 올린 사진 blob 주소는 되돌리기 때문에 지우지 않음
+   - `/packaging/mine` 내 디자인: 이 기기에 저장한 최근 10개(160px 미리보기, localStorage) + 코드 조회(`lookup_design` 함수, 접속 주소당 10분 30회). 메인 화면·저장 완료 창에 입구
+3. 🤖 관리자
+   - 디자인 접수: 상태·접수일(한국 날짜) 거르기, 같은 조건 CSV `/admin/packaging/export`(엑셀용 BOM, `=`로 시작하는 값은 앞에 `'`)
+   - 실적 `/admin/stats`: 추천 사용·포장 접수·주문 연결·인쇄 완료, 날짜별 막대(차트색 `--chart` #23805f, 검사 도구 통과), 행사·관계별, 많이 추천된 상품, 일별 CSV `/admin/stats/export`. 추천 기록은 1,000건씩 나눠 최대 2만 건
+   - AI 일괄 제안 `/admin/ai-batch`: 여러 상품을 차례로(호출 사이 2.5초) 제안받고 상품마다 지금/제안 비교 → 저장. "검토 완료로 표시" 선택. 상품 지표에 `?product=번호`로 바로 열기
+4. 🤖 운영 확인 중 발견·수정: 기본 모델 503 뒤 대체 모델 응답이 오지 않아 3분 넘게 멈춤 → 호출마다 40초 제한(`CALL_TIMEOUT_MS`)
+5. 👤 **할 일:** SQL Editor에서 `supabase/migrations/20261023000000_design_lookup.sql` 실행 (실행 전에는 코드 조회만 "지금은 조회할 수 없어요", 이 기기 목록은 동작)
+
 ---
 
 ## 3. 코드 지도
@@ -333,7 +346,7 @@
 4. **Supabase** (단계 10과 동일)
    - 새 프로젝트 → SQL Editor: `supabase/migrations/20261020000000_init.sql` 실행
    - `npm run db:seed-sql` → `supabase/seed.sql` 실행
-   - 포장 디자인: `supabase/migrations/20261021000000_packaging.sql` → `20261022000000_packaging_hardening.sql` 순서로 실행
+   - 포장 디자인: `supabase/migrations/20261021000000_packaging.sql` → `20261022000000_packaging_hardening.sql` → `20261023000000_design_lookup.sql` 순서로 실행
    - 관리자: Add user(Auto Confirm) → `insert into public.admins (user_id) select id from auth.users where lower(email)=lower('…') returning user_id;`
    - Allow new users to sign up 끄기
    - `.env.local`: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `ONDAP_DATA_SOURCE=supabase`
