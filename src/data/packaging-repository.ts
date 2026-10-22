@@ -9,7 +9,7 @@ import { dataDir, projectRoot } from '../lib/paths.ts';
 import { dataSource } from '../lib/supabase/env.ts';
 import { createClient } from '../lib/supabase/server.ts';
 import type { EventType } from '../engine/types.ts';
-import { kstRange } from '../packaging/design-filter.ts';
+import { isLate, kstRange, lateSince } from '../packaging/design-filter.ts';
 import type { Design, DesignDraft, DesignImage, DesignStatus, DesignText, PackagingAssets, PackagingStyle, StickerSpec } from '../packaging/types.ts';
 
 export type AssetKind = 'styles' | 'images' | 'texts';
@@ -39,8 +39,13 @@ function writeLocalAssets(value: PackagingAssets & { _note?: string }): void {
   writeFileSync(assetsFile, JSON.stringify(value, null, 2) + '\n');
 }
 
+// 예전에 만든 파일에는 상태 시각·원본 칸이 없다 → 접수 시각·없음으로 채운다
 function readLocalDesigns(): Design[] {
-  return existsSync(designsFile) ? JSON.parse(readFileSync(designsFile, 'utf8')) : [];
+  const all: Design[] = existsSync(designsFile) ? JSON.parse(readFileSync(designsFile, 'utf8')) : [];
+  return all.map((d) => {
+    const sourceCode = d.sourceCode ?? null;
+    return { ...d, sourceCode, statusChangedAt: d.statusChangedAt ?? d.createdAt, printCode: d.hasPrintFile && !sourceCode ? d.code : sourceCode };
+  });
 }
 
 function writeLocalDesigns(designs: Design[]): void {
@@ -64,8 +69,11 @@ const designFromRow = (r: Row): Design => ({
   styleName: r.style_name,
   sticker: r.sticker,
   draft: r.draft ?? null,
-  hasPrintFile: Boolean(r.print_path),
+  hasPrintFile: Boolean(r.print_path || r.source_code),
+  printCode: r.print_path ? r.code : (r.source_code ?? null),
+  sourceCode: r.source_code ?? null,
   status: r.status,
+  statusChangedAt: r.status_changed_at ?? r.created_at,
   orderNo: r.order_no,
   memo: r.memo,
 });
@@ -175,7 +183,11 @@ export async function createDesign(design: NewDesign, printPng: Uint8Array | nul
       mkdirSync(printDir, { recursive: true });
       writeFileSync(join(printDir, printPath), printPng);
     }
-    all.unshift({ ...design, createdAt: new Date().toISOString(), hasPrintFile: Boolean(printPng), status: 'received', orderNo: null, memo: '' });
+    const now = new Date().toISOString();
+    all.unshift({
+      ...design, createdAt: now, hasPrintFile: Boolean(printPng), printCode: printPng ? design.code : null, sourceCode: null,
+      status: 'received', statusChangedAt: now, orderNo: null, memo: '',
+    });
     writeLocalDesigns(all);
     return 'ok';
   }
@@ -205,26 +217,37 @@ export async function createDesign(design: NewDesign, printPng: Uint8Array | nul
 }
 
 // 목록에는 편집 내용(draft, 건당 최대 64KB)이 필요 없으므로 빼고 읽는다 (draft는 null)
-const LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, event, style_id, style_name, sticker, print_path, status, order_no, memo';
+const LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, event, style_id, style_name, sticker, print_path, source_code, status, status_changed_at, order_no, memo';
+// 20261025000000_operations.sql을 실행하기 전 DB: 새 칸(상태 시각·원본)이 없다 (42703 undefined_column)
+const OLD_LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, event, style_id, style_name, sticker, print_path, status, order_no, memo';
 
-export async function listDesigns(opts: { limit?: number; code?: string | null; status?: DesignStatus | null; from?: string | null; to?: string | null } = {}): Promise<Design[]> {
+export async function listDesigns(opts: { limit?: number; code?: string | null; status?: DesignStatus | null; from?: string | null; to?: string | null; late?: boolean } = {}): Promise<Design[]> {
   const limit = opts.limit ?? 200;
   const { gte, lt } = kstRange({ from: opts.from ?? null, to: opts.to ?? null });
+  const now = Date.now();
   if (dataSource() === 'local') {
     return readLocalDesigns()
       .filter((d) => (!opts.code || d.code === opts.code) && (!opts.status || d.status === opts.status)
-        && (!gte || d.createdAt >= gte) && (!lt || d.createdAt < lt))
+        && (!gte || d.createdAt >= gte) && (!lt || d.createdAt < lt) && (!opts.late || isLate(d, now)))
       .slice(0, limit).map((d) => ({ ...d, draft: null }));
   }
   const db = await createClient();
-  let q = db.from('designs').select(LIST_COLUMNS).order('created_at', { ascending: false }).limit(limit);
-  if (opts.code) q = q.eq('code', opts.code);
-  if (opts.status) q = q.eq('status', opts.status);
-  if (gte) q = q.gte('created_at', gte);
-  if (lt) q = q.lt('created_at', lt);
-  const { data, error } = await q;
+  const query = (columns: string, late: boolean) => {
+    let q = db.from('designs').select(columns).order('created_at', { ascending: false }).limit(limit);
+    if (opts.code) q = q.eq('code', opts.code);
+    if (opts.status) q = q.eq('status', opts.status);
+    if (gte) q = q.gte('created_at', gte);
+    if (lt) q = q.lt('created_at', lt);
+    if (late) {
+      const since = lateSince(now);
+      q = q.or(`and(status.eq.received,created_at.lt."${since.received}"),and(status.eq.order_confirmed,status_changed_at.lt."${since.confirmed}")`);
+    }
+    return q;
+  };
+  let { data, error } = await query(LIST_COLUMNS, Boolean(opts.late));
+  if (error?.code === '42703') ({ data, error } = await query(OLD_LIST_COLUMNS, false));
   if (error) fail('디자인 목록 읽기', error);
-  return data.map(designFromRow);
+  return (data as unknown as Row[]).map(designFromRow);
 }
 
 export async function updateDesign(code: string, patch: { status: DesignStatus; orderNo: string | null; memo: string }): Promise<void> {
@@ -232,6 +255,7 @@ export async function updateDesign(code: string, patch: { status: DesignStatus; 
     const all = readLocalDesigns();
     const d = all.find((x) => x.code === code);
     if (!d) throw new Error('디자인을 찾을 수 없습니다.');
+    if (d.status !== patch.status) d.statusChangedAt = new Date().toISOString();
     Object.assign(d, patch);
     return writeLocalDesigns(all);
   }
@@ -257,7 +281,7 @@ export async function readPrintFile(code: string): Promise<Uint8Array | null> {
 }
 
 
-// 고객 '내 디자인 다시 보기': 코드가 정확히 맞는 한 건의 요약 (취소된 접수 제외, 편집 내용·주문번호는 주지 않음)
+// 고객 '내 디자인 다시 보기': 코드가 정확히 맞는 한 건의 요약과 진행 단계 (편집 내용·주문번호·메모는 주지 않음)
 export interface DesignSummary {
   code: string;
   createdAt: string;
@@ -267,16 +291,95 @@ export interface DesignSummary {
   styleName: string;
   sticker: StickerSpec | null;
   status: DesignStatus;
+  statusChangedAt: string;
 }
 
 export async function lookupDesign(code: string): Promise<DesignSummary | null> {
   if (dataSource() === 'local') {
-    const d = readLocalDesigns().find((x) => x.code === code && x.status !== 'canceled');
-    return d ? { code: d.code, createdAt: d.createdAt, productNo: d.productNo, productName: d.productName, quantity: d.quantity, styleName: d.styleName, sticker: d.sticker, status: d.status } : null;
+    const d = readLocalDesigns().find((x) => x.code === code);
+    return d ? {
+      code: d.code, createdAt: d.createdAt, productNo: d.productNo, productName: d.productName, quantity: d.quantity,
+      styleName: d.styleName, sticker: d.sticker, status: d.status, statusChangedAt: d.statusChangedAt,
+    } : null;
   }
   const db = await createClient();
   const { data, error } = await db.rpc('lookup_design', { p_code: code });
   if (error) fail('디자인 조회', error);
   const r = (data as Row[] | null)?.[0];
-  return r ? { code: r.code, createdAt: r.created_at, productNo: r.product_no, productName: r.product_name, quantity: r.quantity, styleName: r.style_name, sticker: r.sticker, status: r.status } : null;
+  return r ? {
+    code: r.code, createdAt: r.created_at, productNo: r.product_no, productName: r.product_name, quantity: r.quantity,
+    styleName: r.style_name, sticker: r.sticker, status: r.status, statusChangedAt: r.status_changed_at ?? r.created_at,
+  } : null;
+}
+
+// 같은 디자인으로 다시 주문: 수량만 바꿔 새 코드로 접수 (인쇄 파일은 원본 것을 쓴다). 취소된 접수는 안 된다
+export async function reorderDesign(code: string, newCode: string, quantity: number): Promise<'ok' | 'duplicate' | 'not_found'> {
+  if (dataSource() === 'local') {
+    const all = readLocalDesigns();
+    const src = all.find((d) => d.code === code && d.status !== 'canceled');
+    if (!src) return 'not_found';
+    if (all.some((d) => d.code === newCode)) return 'duplicate';
+    const now = new Date().toISOString();
+    const sourceCode = src.hasPrintFile && !src.sourceCode ? src.code : src.sourceCode;
+    all.unshift({
+      ...src, code: newCode, quantity, createdAt: now, status: 'received', statusChangedAt: now, orderNo: null, memo: '',
+      sourceCode, printCode: sourceCode, hasPrintFile: Boolean(sourceCode),
+    });
+    writeLocalDesigns(all);
+    return 'ok';
+  }
+  const db = await createClient();
+  const { error } = await db.rpc('reorder_design', { p_code: code, p_new_code: newCode, p_quantity: quantity });
+  if (error?.code === '23505') return 'duplicate';
+  if (error?.code === 'P0002') return 'not_found';
+  if (error) fail('다시 주문', error);
+  return 'ok';
+}
+
+// 여러 건의 상태를 한 번에. 실제로 바뀐 코드 목록을 돌려준다
+export async function updateDesignsStatus(codes: string[], status: DesignStatus): Promise<string[]> {
+  if (codes.length === 0) return [];
+  if (dataSource() === 'local') {
+    const all = readLocalDesigns();
+    const now = new Date().toISOString();
+    const done: string[] = [];
+    for (const d of all) {
+      if (!codes.includes(d.code)) continue;
+      if (d.status !== status) d.statusChangedAt = now;
+      d.status = status;
+      done.push(d.code);
+    }
+    writeLocalDesigns(all);
+    return done;
+  }
+  const db = await createClient();
+  const { data, error } = await db.from('designs').update({ status, updated_at: new Date().toISOString() }).in('code', codes).select('code');
+  if (error) fail('상태 한꺼번에 바꾸기', error);
+  return (data ?? []).map((r) => r.code as string);
+}
+
+// 관리자 '오늘 할 일' 숫자: 주문 확인 대기, 인쇄 대기, 오래된 건
+export interface DesignTodo { received: number; confirmed: number; staleReceived: number; lateConfirmed: number }
+
+export async function getDesignTodo(staleBefore: { received: string; confirmed: string }): Promise<DesignTodo> {
+  if (dataSource() === 'local') {
+    const all = readLocalDesigns();
+    const count = (f: (d: Design) => boolean) => all.filter(f).length;
+    return {
+      received: count((d) => d.status === 'received'),
+      confirmed: count((d) => d.status === 'order_confirmed'),
+      staleReceived: count((d) => d.status === 'received' && d.createdAt < staleBefore.received),
+      lateConfirmed: count((d) => d.status === 'order_confirmed' && d.statusChangedAt < staleBefore.confirmed),
+    };
+  }
+  const db = await createClient();
+  const head = () => db.from('designs').select('code', { count: 'exact', head: true });
+  const [a, b, c, d] = await Promise.all([
+    head().eq('status', 'received'),
+    head().eq('status', 'order_confirmed'),
+    head().eq('status', 'received').lt('created_at', staleBefore.received),
+    head().eq('status', 'order_confirmed').lt('status_changed_at', staleBefore.confirmed),
+  ]);
+  for (const r of [a, b, c, d]) if (r.error) fail('할 일 세기', r.error);
+  return { received: a.count ?? 0, confirmed: b.count ?? 0, staleReceived: c.count ?? 0, lateConfirmed: d.count ?? 0 };
 }

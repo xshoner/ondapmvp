@@ -33,6 +33,8 @@ export interface Indicator {
   mode: 'higher' | 'target';
   // 추천 문구에 쓰는 한 줄 (이 지표가 점수를 많이 만들었을 때)
   reasonPhrase: string;
+  // 점수 기준 예시 (관리자 입력 도움말): 높은 점수(8~10)·중간(4~7)·낮은(0~3)은 어떤 상품인가
+  examples?: { high?: string; mid?: string; low?: string };
 }
 
 // 온답 관리자가 상품마다 입력하는 정보. 카페24 상품번호로 연결된다.

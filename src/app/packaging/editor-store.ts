@@ -39,11 +39,24 @@ const getPhoto = (id: string) => run<Blob>('readonly', (s) => s.get(id));
 // 저장한 디자인·자동 보관 어디에도 없는 사진은 지운다 (편집기를 열 때 한 번).
 // ponytail: 같은 기기에서 편집기 창 두 개를 동시에 쓰면 다른 창이 막 올린 사진이 지워질 수 있다. 그 창의 화면·저장에는 영향 없고 다시 꾸미기 때만 사진이 빠진다
 export async function prunePhotos(): Promise<void> {
-  const keep = new Set([...loadSavedDesigns().map((d) => d.snapshot), readAutosave()?.snap].flatMap(photoIds));
+  const saved = loadSavedDesigns();
+  const keep = new Set([...[...saved.map((d) => d.snapshot), readAutosave()?.snap].flatMap(photoIds), ...saved.map((d) => previewKey(d.code))]);
   const s = await store('readwrite').catch(() => null);
   if (!s) return;
   const req = s.getAllKeys();
   req.onsuccess = () => { for (const k of req.result) if (!keep.has(String(k))) s.delete(k); };
+}
+
+// 저장한 스티커의 화면용 그림 (480px PNG): '내 스티커 그림 받기'로 내려받거나 공유한다. 인쇄 원본은 관리자만 받는다
+const previewKey = (code: string) => `p:${code}`;
+export const PREVIEW_PX = 480;
+
+export const savePreview = (code: string, blob: Blob) => run('readwrite', (s) => s.put(blob, previewKey(code)));
+export const getPreview = (code: string) => run<Blob>('readonly', (s) => s.get(previewKey(code)));
+
+export async function previewCodes(): Promise<Set<string>> {
+  const keys = (await run('readonly', (s) => s.getAllKeys())) ?? [];
+  return new Set(keys.map(String).filter((k) => k.startsWith('p:')).map((k) => k.slice(2)));
 }
 
 function photoIds(snap: unknown): string[] {

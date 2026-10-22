@@ -151,6 +151,37 @@ export function WeightsEditor({ catalog }: { catalog: Catalog }) {
             </tbody>
           </table>
         </section>
+
+        <section className="panel">
+          <h2>점수 기준 예시</h2>
+          <p className="small muted">상품 지표를 매길 때 점수 막대 아래에 보이는 도움말입니다. 누가 매겨도 같은 기준이 되도록 점수대마다 어떤 상품인지 한 줄로 적어 주세요.</p>
+          <table className="data">
+            <thead>
+              <tr>
+                <th style={{ top: 0, width: 110 }}>지표</th>
+                {([['high', '8~10점'], ['mid', '4~7점'], ['low', '0~3점']] as const).map(([k, label]) => <th key={k} style={{ top: 0 }}>{label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {config.indicators.map((ind, i) => (
+                <tr key={ind.id}>
+                  <td>{ind.name}</td>
+                  {(['high', 'mid', 'low'] as const).map((k) => (
+                    <td key={k}>
+                      <input
+                        type="text" maxLength={120} aria-label={`${ind.name} ${k === 'high' ? '높은' : k === 'mid' ? '중간' : '낮은'} 점수 예시`}
+                        placeholder={k === 'high' ? '예: 울릉도 명이처럼 산지 한정·소량' : ''}
+                        style={{ width: '100%', border: '1px solid var(--line)', borderRadius: 6, padding: '4px 8px' }}
+                        value={ind.examples?.[k] ?? ''}
+                        onChange={(e) => edit((c) => { c.indicators[i].examples = { ...c.indicators[i].examples, [k]: e.target.value }; })}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
       </div>
 
       {/* 미리보기 */}

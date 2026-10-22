@@ -15,3 +15,6 @@ next-env.d.ts
 
 # 로컬 도구 상태
 /.bkit/
+
+# 상품 지표 변경 이력 (로컬 모드)
+/data/attribute-history.json

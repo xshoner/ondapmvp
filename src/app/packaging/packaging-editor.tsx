@@ -18,8 +18,8 @@ import type { DesignCategory, DesignDraft, DesignImage, DesignText, PackagingSty
 import { loadSavedDesigns, makeThumb, orderUrl, rememberDesign } from '@/packaging/client.ts';
 import { saveDesignAction } from './actions.ts';
 import {
-  CARD_SHORT_MM, PX_PER_MM_RANGE, autosave, clearAutosave, forgetFields, fromStored, loadAutosave, loadFields, loadPxPerMm,
-  prunePhotos, putPhoto, rememberFields, savePxPerMm, toStored, todayLabel,
+  CARD_SHORT_MM, PREVIEW_PX, PX_PER_MM_RANGE, autosave, clearAutosave, forgetFields, fromStored, loadAutosave, loadFields, loadPxPerMm,
+  prunePhotos, putPhoto, rememberFields, savePreview, savePxPerMm, toStored, todayLabel,
 } from './editor-store.ts';
 import type { CanvasApi, EditorImageLayer, EditorLayer, EditorSnapshot, TextRect } from './editor-types.ts';
 
@@ -434,6 +434,7 @@ export function PackagingEditor(props: Props) {
       rememberFields(fields);
       // 이 기기의 '내 디자인'에 남긴다 (코드를 잃어버려도 다시 찾고, 다시 꾸밀 수 있게)
       const thumbBlob = preview ? await fetch(preview).then((r) => r.blob()).catch(() => null) : null;
+      if (thumbBlob) void downscale(thumbBlob, PREVIEW_PX, shape, cut / 100).then((b) => b && savePreview(res.code, b)); // '내 스티커 그림 받기'용
       rememberDesign({
         code: res.code, productName: product.name, productUrl: product.url, quantity,
         savedAt: new Date().toISOString(), thumb: thumbBlob ? await makeThumb(thumbBlob) : null,
@@ -821,6 +822,25 @@ function RealSize({ png, sizeCm, shape, clip, onClose }: { png: string; sizeCm: 
       </div>
     </div>
   );
+}
+
+// 인쇄 파일(최대 756px)을 공유·보관용 화면 그림으로 줄인다. 재단 여백은 잘라 실제 스티커 모양만 남긴다
+async function downscale(blob: Blob, size: number, shape: StickerShape, cutRatio: number): Promise<Blob | null> {
+  try {
+    const bmp = await createImageBitmap(blob);
+    const canvas = document.createElement('canvas');
+    const s = (canvas.width = canvas.height = Math.min(size, bmp.width));
+    const ctx = canvas.getContext('2d')!;
+    const cut = s * cutRatio;
+    ctx.beginPath();
+    if (shape === 'circle') ctx.arc(s / 2, s / 2, s / 2 - cut, 0, Math.PI * 2);
+    else ctx.rect(cut, cut, s - 2 * cut, s - 2 * cut);
+    ctx.clip();
+    ctx.drawImage(bmp, 0, 0, s, s);
+    return await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  } catch {
+    return null;
+  }
 }
 
 function TextChoice({ t, fields, onPick, label }: { t: DesignText; fields: DesignDraft['fields']; onPick(t: DesignText): void; label?: string }) {

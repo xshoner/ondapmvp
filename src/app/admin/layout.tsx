@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { getAdminStatus } from '@/lib/admin-guard.ts';
 import { signOutAction } from '../login/actions.ts';
 import { AdminNav } from './admin-nav.tsx';
+import { TodayBar } from './today-bar.tsx';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +24,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div className="admin">
       <AdminNav email={status.mode === 'supabase' ? status.email : null} />
+      <TodayBar />
       <div className="admin-body">
         {status.mode === 'local' ? (
           <p className="notice" style={{ marginTop: 0 }}>

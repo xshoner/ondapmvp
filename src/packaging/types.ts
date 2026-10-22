@@ -96,7 +96,11 @@ export interface Design {
   sticker: StickerSpec | null;
   draft: DesignDraft | null;
   hasPrintFile: boolean;
+  // 인쇄 파일이 들어 있는 접수 코드: 보통 자기 코드, '같은 디자인으로 다시 주문'한 접수는 원본 코드
+  printCode: string | null;
+  sourceCode: string | null; // 다시 주문한 접수의 원본
   status: DesignStatus;
+  statusChangedAt: string;
   orderNo: string | null;
   memo: string;
 }

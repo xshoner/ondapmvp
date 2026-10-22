@@ -9,6 +9,7 @@ import { createClient } from '../lib/supabase/server.ts';
 import type { Cafe24Product, Catalog, EngineConfig, ProductAttributes, RecommendResult } from '../engine/types.ts';
 
 export type Expectations = local.Expectations;
+export type AttributeChange = local.AttributeChange;
 
 function fail(what: string, error: { message: string } | null): never {
   throw new Error(`${what} 실패: ${error?.message ?? '알 수 없는 오류'}`);
@@ -53,13 +54,39 @@ async function currentUserId(db: Awaited<ReturnType<typeof createClient>>): Prom
   return (data?.claims?.sub as string | undefined) ?? null;
 }
 
-export async function saveAttributes(attrs: ProductAttributes): Promise<void> {
-  if (dataSource() === 'local') return local.saveProductAttributes(attrs);
+// 한 상품 또는 여러 상품(엑셀 올리기)의 지표를 한 번에 저장한다
+export async function saveAttributes(...list: ProductAttributes[]): Promise<void> {
+  if (list.length === 0) return;
+  if (dataSource() === 'local') return local.saveProductAttributes(...list);
   const db = await createClient();
-  const row = { ...attributesToRow(attrs), updated_at: new Date().toISOString(), updated_by: await currentUserId(db) };
-  const { error, count } = await db.from('product_attributes').upsert(row, { count: 'exact' });
+  const meta = { updated_at: new Date().toISOString(), updated_by: await currentUserId(db) };
+  const { error, count } = await db.from('product_attributes').upsert(list.map((a) => ({ ...attributesToRow(a), ...meta })), { count: 'exact' });
   if (error) fail('지표 저장', error);
   if (count === 0) fail('지표 저장', { message: '권한이 없어 저장되지 않았습니다.' });
+}
+
+// 한 상품의 지표 변경 이력 (최근 것부터)
+export async function getAttributeHistory(productNo: number, limit = 30): Promise<AttributeChange[]> {
+  if (dataSource() === 'local') {
+    return local.loadAttributeHistory().filter((h) => h.productNo === productNo).reverse().slice(0, limit);
+  }
+  const db = await createClient();
+  const { data, error } = await db
+    .from('product_attributes_history')
+    .select('id, product_no, changed_at, changed_by_email, op, before, after')
+    .eq('product_no', productNo)
+    .order('changed_at', { ascending: false })
+    .limit(limit);
+  if (error) fail('지표 이력 읽기', error);
+  return (data ?? []).map((r) => ({
+    id: String(r.id),
+    productNo: r.product_no as number,
+    changedAt: r.changed_at as string,
+    changedBy: (r.changed_by_email as string | null) ?? null,
+    op: r.op as AttributeChange['op'],
+    before: r.before ? attributesFromRow(r.before as AttributesRow) : null,
+    after: r.after ? attributesFromRow(r.after as AttributesRow) : null,
+  }));
 }
 
 export async function saveConfig(config: EngineConfig): Promise<void> {

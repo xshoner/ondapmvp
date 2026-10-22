@@ -19,7 +19,8 @@ import type {
   ScoredProduct,
 } from './types.ts';
 
-function filterAndScore(
+// 거르기 + 점수순 전체 순위 (다양성 고르기 전). 관리자 진단 화면도 쓴다
+export function filterAndScore(
   catalog: Catalog,
   input: RecommendInput,
   budgetMax: number | undefined,

@@ -56,7 +56,7 @@ export default async function PackagingAdminPage({ searchParams }: { searchParam
           <br />Supabase를 쓴다면 SQL Editor에서 <code>supabase/migrations/20261021000000_packaging.sql</code>을 실행했는지 확인하세요.
         </div>
       ) : assets && tab === 'designs' ? (
-        <DesignsTable designs={designs} eventNames={eventNames} filter={filter} />
+        <DesignsTable designs={designs} eventNames={eventNames} filter={filter} now={Date.now()} />
       ) : assets ? (
         <AssetManager key={tab} kind={tab as 'styles' | 'images' | 'texts'} assets={assets} categoryNames={categoryNames} />
       ) : null}

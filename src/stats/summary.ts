@@ -70,3 +70,19 @@ export function summaryCsv(s: Summary): string {
   const rows = [['날짜', '추천 사용', '포장 디자인 접수'], ...s.days.map((d) => [d.date, d.recommendations, d.designs])];
   return '﻿' + rows.map((r) => r.join(',')).join('\r\n') + '\r\n';
 }
+
+// 최근 자주 1위로 추천되던 상품이 지금 팔 수 없는 상태(품절·미진열·판매중지)면 관리자에게 알린다
+export interface FavoriteAlert { productNo: number; name: string; first: number; state: string }
+
+export function soldOutFavorites(
+  recs: RecLog[],
+  products: { productNo: number; name: string; display: boolean; selling: boolean; soldOut: boolean }[],
+  minFirst = 3,
+): FavoriteAlert[] {
+  const first = new Map<number, number>();
+  for (const r of recs) if (r.resultProductNos[0]) first.set(r.resultProductNos[0], (first.get(r.resultProductNos[0]) ?? 0) + 1);
+  return products
+    .filter((p) => (first.get(p.productNo) ?? 0) >= minFirst && (p.soldOut || !p.display || !p.selling))
+    .map((p) => ({ productNo: p.productNo, name: p.name, first: first.get(p.productNo) ?? 0, state: p.soldOut ? '품절' : !p.display ? '미진열' : '판매중지' }))
+    .sort((a, b) => b.first - a.first || a.productNo - b.productNo);
+}

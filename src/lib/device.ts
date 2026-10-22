@@ -31,6 +31,19 @@ export function removeKey(key: string): void {
 const DAY = 24 * 3600 * 1000;
 export const isObj = (v: unknown): v is Record<string, unknown> => Boolean(v) && typeof v === 'object' && !Array.isArray(v);
 
+// 키보드 단축키: 입력칸에서 글자를 칠 때는 가로채지 않는다
+export const isTyping = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+
+// 만든 파일을 내려받게 한다 (CSV·인쇄 묶음·스티커 그림)
+export function saveBlob(blob: Blob, name: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
 // 휴대폰·태블릿 브라우저 (모바일 쇼핑몰 주소, 공유 창, QR, 화면 배율에 쓴다)
 export const isMobileUA = () => /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 

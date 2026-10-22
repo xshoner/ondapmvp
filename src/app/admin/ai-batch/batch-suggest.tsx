@@ -4,6 +4,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { applySuggestion, type AiSuggestion } from '@/ai/suggest.ts';
+import { emptyAttributes } from '@/data/attributes-csv.ts';
 import { baseIndex } from '@/engine/formality.ts';
 import type { Cafe24Product, EngineConfig, ProductAttributes } from '@/engine/types.ts';
 import { saveAttributesAction, suggestScoresAction } from '../actions.ts';
@@ -13,13 +14,6 @@ type Item = { status: 'waiting' | 'asking' | 'ready' | 'failed' | 'saved' | 'ski
 
 const GAP_MS = 2500; // 호출 사이 간격 (무료 등급 분당 호출 한도 보호)
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-function emptyAttributes(config: EngineConfig, productNo: number): ProductAttributes {
-  return {
-    productNo, region: '국내', category: '', scores: Object.fromEntries(config.indicators.map((i) => [i.id, 5])),
-    events: [], relations: [], excludedEvents: [], meanings: {}, tags: [], story: '', reviewed: false,
-  };
-}
 
 export function BatchSuggest({ products, attributes, config }: Props) {
   const router = useRouter();

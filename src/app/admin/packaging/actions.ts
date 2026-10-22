@@ -1,7 +1,9 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { deleteAsset, getPackagingAssets, saveAsset, updateDesign, uploadAssetFile, type AssetKind } from '@/data/packaging-repository.ts';
+import {
+  deleteAsset, getPackagingAssets, listDesigns, saveAsset, updateDesign, updateDesignsStatus, uploadAssetFile, type AssetKind,
+} from '@/data/packaging-repository.ts';
 import { MAX_ACTIVE, canActivate, isCategory, normalizeDesignCode } from '@/packaging/rules.ts';
 import type { DesignImage, DesignStatus, DesignText, PackagingStyle } from '@/packaging/types.ts';
 import { requireAdmin } from '@/lib/admin-guard.ts';
@@ -110,6 +112,77 @@ export async function uploadAssetAction(form: FormData): Promise<{ ok: true; url
   }
 }
 
+const ORDER_NO = /^[0-9A-Za-z-]{0,40}$/;
+
+// 선택한 여러 건의 상태를 한 번에 (관리자 접수 목록, 스캔 되돌리기)
+export async function updateDesignsStatusAction(rawCodes: string[], status: string): Promise<{ ok: true; updated: string[]; missing: string[] } | { ok: false; message: string }> {
+  const no = await denied();
+  if (no) return no;
+  if (!STATUSES.includes(status as DesignStatus)) return { ok: false, message: '잘못된 상태입니다.' };
+  const codes = [...new Set((Array.isArray(rawCodes) ? rawCodes : []).map((c) => normalizeDesignCode(String(c))).filter((c): c is string => Boolean(c)))];
+  if (codes.length === 0) return { ok: false, message: '고른 접수가 없습니다.' };
+  if (codes.length > 500) return { ok: false, message: '한 번에 500건까지 바꿀 수 있습니다.' };
+  try {
+    const updated = await updateDesignsStatus(codes, status as DesignStatus);
+    revalidatePath('/admin', 'layout');
+    return { ok: true, updated, missing: codes.filter((c) => !updated.includes(c)) };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+// 카페24 주문 상세 붙여넣기 결과로 주문번호를 잇는다. '접수' 상태였으면 '주문 확인'으로 올린다 (다른 상태는 그대로)
+export async function linkOrdersAction(links: { code: string; orderNo: string }[]): Promise<{ ok: true; results: { code: string; ok: boolean; message: string }[] } | { ok: false; message: string }> {
+  const no = await denied();
+  if (no) return no;
+  if (!Array.isArray(links) || links.length === 0 || links.length > 200) return { ok: false, message: '잇을 주문이 없거나 너무 많습니다 (200건까지).' };
+  const results: { code: string; ok: boolean; message: string }[] = [];
+  for (const l of links) {
+    const code = normalizeDesignCode(String(l?.code ?? ''));
+    const orderNo = String(l?.orderNo ?? '').trim();
+    if (!code || !orderNo || !ORDER_NO.test(orderNo)) {
+      results.push({ code: String(l?.code ?? ''), ok: false, message: '코드나 주문번호 형식이 맞지 않습니다.' });
+      continue;
+    }
+    try {
+      const [d] = await listDesigns({ code, limit: 1 });
+      if (!d) {
+        results.push({ code, ok: false, message: '접수를 찾을 수 없습니다.' });
+        continue;
+      }
+      const status = d.status === 'received' ? 'order_confirmed' : d.status;
+      await updateDesign(code, { status, orderNo, memo: d.memo });
+      results.push({ code, ok: true, message: d.status === 'received' ? '주문번호 연결 · 주문 확인' : '주문번호 연결' });
+    } catch (e) {
+      results.push({ code, ok: false, message: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  revalidatePath('/admin', 'layout');
+  return { ok: true, results };
+}
+
+// 인쇄 시트 QR을 찍으면 그 건을 '인쇄 완료'로. 되돌리기용으로 바꾸기 전 상태를 돌려준다
+export async function markPrintedAction(raw: string): Promise<
+  { ok: true; code: string; previous: DesignStatus; productName: string; quantity: number; already: boolean } | { ok: false; message: string }
+> {
+  const no = await denied();
+  if (no) return no;
+  const code = normalizeDesignCode(String(raw ?? ''));
+  if (!code) return { ok: false, message: '디자인 코드를 읽지 못했습니다.' };
+  try {
+    const [d] = await listDesigns({ code, limit: 1 });
+    if (!d) return { ok: false, message: `${code} 접수를 찾을 수 없습니다.` };
+    if (d.status === 'canceled') return { ok: false, message: `${code}는 취소된 접수라 바꾸지 않았습니다.` };
+    const base = { ok: true as const, code, previous: d.status, productName: d.productName, quantity: d.quantity };
+    if (d.status === 'printed') return { ...base, already: true };
+    await updateDesign(code, { status: 'printed', orderNo: d.orderNo, memo: d.memo });
+    revalidatePath('/admin', 'layout');
+    return { ...base, already: false };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 export async function updateDesignAction(code: string, patch: { status: string; orderNo: string; memo: string }): Promise<Result> {
   const no = await denied();
   if (no) return no;
@@ -118,7 +191,7 @@ export async function updateDesignAction(code: string, patch: { status: string; 
   if (!STATUSES.includes(patch.status as DesignStatus)) return { ok: false, message: '잘못된 상태입니다.' };
   // 카페24 주문번호는 숫자·영문·하이픈 (인쇄 PDF 머리글에도 찍힌다)
   const orderNo = String(patch.orderNo ?? '').trim();
-  if (!/^[0-9A-Za-z-]{0,40}$/.test(orderNo)) return { ok: false, message: '주문번호는 숫자·영문·하이픈만 적어 주세요. 예: 20261021-0000123' };
+  if (!ORDER_NO.test(orderNo)) return { ok: false, message: '주문번호는 숫자·영문·하이픈만 적어 주세요. 예: 20261021-0000123' };
   return run(() => updateDesign(c, {
     status: patch.status as DesignStatus,
     orderNo: orderNo || null,

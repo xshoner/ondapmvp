@@ -9,7 +9,8 @@
  * 1) 온답 '주문하러 가기' 주소의 ondap_code·ondap_qty를 이 브라우저에 24시간 기억
  * 2) 상품 상세: 수량을 맞추고 안내 띠를 보여 준다
  * 3) 로그인 화면: 비회원 구매도 된다고 알려 준다
- * 4) 주문서: '온답 포장 디자인 코드' 칸에 코드를 자동으로 넣는다 (칸이 없으면 복사 버튼)
+ * 4) 주문서: '온답 포장 디자인 코드' 칸에 코드를 자동으로 넣는다 (칸이 없으면 복사 버튼).
+ *    온답에서 포장 내용(포장지·스티커·수량)을 받아 보여 주고, 주문 수량이 디자인 수량과 다르면 알린다
  * 5) 주문 완료(스크립트가 있을 때): 기억한 코드를 지운다. 없어도 주문서에 넣은 뒤 1시간이면 잊는다
  */
 (function () {
@@ -99,6 +100,10 @@
       },
     };
   }
+
+  var esc = function (v) {
+    return String(v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
+  };
 
   var badge = function (code) {
     return '<b style="font-family:Consolas,monospace;letter-spacing:.04em;background:rgba(255,255,255,.18);padding:1px 6px;border-radius:6px">' + code + '</b>';
@@ -201,6 +206,41 @@
     return numbered ? (mine.length ? mine : null) : fields;
   }
 
+  // 주문서의 상품 상자(.prdBox)에서 이 상품의 주문 수량('옵션' 칸의 'n개')을 더한다. 못 찾으면 null (스킨마다 다를 수 있다)
+  function orderQuantity(productNo) {
+    var total = 0;
+    var found = false;
+    [].slice.call(document.querySelectorAll('.prdBox')).forEach(function (box) {
+      var link = box.querySelector('a[href*="product_no=' + productNo + '&"], a[href$="product_no=' + productNo + '"]');
+      var chk = box.querySelector('input[name^="chk_order_cancel_list"]');
+      if (!link && !(chk && String(chk.value).split(':')[0] === productNo)) return;
+      var opt = box.querySelector('li[title="옵션"]');
+      var m = opt && opt.textContent.match(/(\d[\d,]*)\s*개/);
+      if (m) { total += parseInt(m[1].replace(/,/g, ''), 10); found = true; }
+    });
+    return found ? total : null;
+  }
+
+  // 주문서에서 내 포장 확인: 온답에서 포장지·스티커·수량을 받아 띠에 보여 준다 (코드를 아는 사람만 보는 공개 요약)
+  function describe(state) {
+    if (!window.fetch) return;
+    fetch(APP + '/api/design/' + state.code).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      if (!d || d.code !== state.code) return;
+      var designQty = Number(d.quantity) || 0;
+      var sticker = d.sticker ? Number(d.sticker.sizeCm) + 'cm ' + (d.sticker.shape === 'circle' ? '원형' : '사각') + ' 스티커' : '스티커 없음';
+      var qty = orderQuantity(String(d.productNo));
+      var lines = ['포장 디자인 ' + badge(state.code) + ' · ' + esc(d.styleName) + ' 포장 · ' + sticker + ' · ' + designQty + '개'];
+      if (d.status === 'canceled') {
+        lines.push('<b>이 디자인은 취소된 접수예요.</b> 온답에서 다시 꾸며 새 코드를 받아 주세요.');
+      } else if (qty !== null && qty !== designQty) {
+        lines.push('<b>주문 수량(' + qty + '개)과 디자인 수량(' + designQty + '개)이 달라요.</b> 스티커는 ' + designQty + '개를 인쇄해요. 수량을 맞추거나 온답 ‘내 디자인’에서 수량을 바꿔 다시 주문해 주세요.');
+      } else {
+        lines.push('주문서 ‘' + LABEL + '’ 칸에 코드를 넣어 두었어요. 이대로 주문하시면 돼요.');
+      }
+      banner(lines.join('<br>'));
+    }).catch(function () { /* 온답에 닿지 않으면 처음 띠를 그대로 둔다 */ });
+  }
+
   function onOrderForm(state) {
     waitFor(function () { return forProduct(findCodeFields(), state.productNo); }, function (fields) {
       if (fields) {
@@ -214,6 +254,7 @@
         });
         // 안내 띠에는 검증된 코드만 넣는다 (입력칸 값은 고객이 바꿀 수 있으므로 HTML에 쓰지 않음)
         banner('주문서 ‘' + LABEL + '’ 칸에 포장 디자인 코드 ' + badge(state.code) + '를 넣어 두었어요. 이대로 주문하시면 돼요.');
+        describe(state);
       } else if (!findCodeFields()) {
         // 항목 칸 자체가 없을 때만 복사 안내 (칸은 있는데 다른 상품 주문이면 조용히 넘어감)
         banner('포장 디자인 ' + badge(state.code) + '를 주문서 요청 칸에 적어 주세요.', [copyButton(state.code)]);
