@@ -31,7 +31,7 @@ type DragProps = { onDragMove(e: Konva.KonvaEventObject<DragEvent>): void; onDra
 const U = CANVAS_UNITS;
 const C = U / 2;
 
-export const fontWeight = (font: string) => (font === 'pen' ? 'normal' : 'bold');
+const fontWeight = (font: string) => (font === 'pen' ? 'normal' : 'bold');
 
 function fontSpec(l: TextLayer, families: Record<FontId, string>): string {
   return `${fontWeight(l.font)} ${Math.round(l.fontSize)}px ${families[l.font as FontId] ?? families.sans}`;

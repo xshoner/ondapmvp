@@ -1,13 +1,13 @@
 # 온답 빠른 복제 안내 — 새 PC·새 계정에서 같은 서비스 만들기
 
 이 문서 순서대로 하면 **코드 → DB → 배포 → 카페24 연결**까지 같은 서비스가 하나 더 생긴다. 계정이 준비돼 있으면 사람 손이 가는 시간은 15분 안팎이다.
-왜 이렇게 만들었는지, 시행착오 전체는 [RUNBOOK.md](RUNBOOK.md)에 있다.
+화면·데이터·코드가 어디 있는지는 [ARCHITECTURE.md](ARCHITECTURE.md), 왜 이렇게 만들었는지와 시행착오 전체는 [RUNBOOK.md](RUNBOOK.md)에 있다.
 
 > **비밀값은 저장소·문서·채팅에 넣지 않는다.** 키는 `.env.local`(git 제외)과 Vercel 환경변수(Sensitive)에만 둔다. 관리자 이메일 같은 계정 정보도 저장소에 적지 않는다.
 
 | 단계 | 누가 | 걸리는 시간 | 끝났는지 확인 |
 | --- | --- | --- | --- |
-| 1. 코드 받기·로컬 실행 | 개발자 | 2분 | `npm test` 통과, 127.0.0.1:3000 열림 |
+| 1. 코드 받기·로컬 실행 | 개발자 | 2분 | `npm test` 통과, 127.0.0.1:3000 열림, `npm run e2e` 통과 |
 | 2. `.env.local` 채우기 | 개발자 | 2분 | `npm run doctor` 의 .env 항목 |
 | 3. Supabase 새 프로젝트 | 개발자 | 3분 | `npm run doctor` 의 Supabase 항목 |
 | 4. Vercel 배포 | 개발자 | 3분 | `npm run doctor -- https://주소` |
@@ -17,7 +17,8 @@
 
 ## 0. 준비물
 
-- **Node 24** (TypeScript 파일을 그대로 실행한다. 22 이하에서는 스크립트·테스트가 안 돈다), git
+- **Node 24** (TypeScript 파일을 그대로 실행한다. 22 이하에서는 스크립트·테스트가 안 돈다. `.nvmrc`가 있어 `nvm use`·`fnm use`가 맞춰 준다), git
+- 화면 검증(`npm run e2e`)을 돌릴 때만 Chrome(또는 Chromium·Edge). 위치를 못 찾으면 `CHROME_PATH`에 실행 파일 경로
 - 계정: GitHub, Vercel, Supabase, 카페24(쇼핑몰 운영자 + 개발자센터), 선택으로 Google AI Studio(Gemini 키)
 - 저장소: https://github.com/xshoner/ondapmvp (`main`에 푸시하면 Vercel이 자동 배포)
 
@@ -29,8 +30,17 @@ cd ondapmvp
 npm ci
 cp .env.example .env.local
 npm test
+npm run typecheck
 npm run dev
 ```
+
+개발 서버를 띄운 채 다른 창에서 화면 끝까지 확인(고객·관리자·카페24 도우미 흐름 77개, 1~2분):
+
+```bash
+npm run e2e
+```
+
+`data/`는 시작할 때 임시 폴더에 복사해 두고 시험용 접수 5건을 깐 뒤, 끝나면(실패해도) 원래대로 되돌린다. DB 규칙과 인쇄 PDF까지 보려면 처음 한 번 `npm --prefix scripts/e2e ci` 후 `npm run e2e:db`(Supabase 없이 Postgres로 RLS·함수·트리거 37개), `npm run e2e:pdf`(QR 판독 6개).
 
 - 브라우저는 **http://127.0.0.1:3000** (localhost로 열면 HMR이 끊기고 서버 액션 버튼이 멈춘다)
 - `.env.example` 기본값은 `ONDAP_DATA_SOURCE=local`: 저장소의 `data/*.json`(테스트몰 상품 40개·지표·설정)로 추천·포장 꾸미기·관리자(로그인 없음)가 바로 돈다. 로컬 모드의 디자인 접수는 `data/designs.json`·`data/design-files/`에 쌓인다(git 제외). 로컬 모드 관리자는 개발 서버(`npm run dev`)에서만 열린다(운영 빌드에서는 404)
@@ -59,7 +69,7 @@ npm run doctor
 
 1. Supabase에서 새 프로젝트를 만든다. 리전은 Seoul(ap-northeast-2)
 2. **SQL Editor**에 `supabase/setup.sql` 전체를 붙여넣고 **Run**
-   - 들어 있는 것: 테이블·RLS·관리자 판별 함수, 포장 디자인 표·저장소 버킷(`packaging-assets` 공개, `design-files` 비공개)·보강 제약, 디자인 코드 조회·이용 실적 함수, 초기 데이터(상품 40·지표 40·엔진 설정·포장 예시)
+   - 들어 있는 것(`supabase/migrations/` 7개 + `seed.sql`): 테이블·RLS·관리자 판별 함수, 포장 디자인 표·저장소 버킷(`packaging-assets` 공개, `design-files` 비공개)·보강 제약, 디자인 코드 조회·이용 실적 함수, 운영 기능(상태 시각·다시 주문·지표 변경 이력), 추천 의견 표·시각과 상품명 위조 방지, 초기 데이터(상품 40·지표 40·엔진 설정·포장 예시)
    - **빈 프로젝트에서 한 번만.** 다시 실행하면 "already exists" 오류가 난다
 3. **Authentication → Users → Add user** (Auto Confirm User 체크)로 관리자 계정을 만들고, SQL Editor에서 이메일만 바꿔 실행:
    ```sql
@@ -72,12 +82,13 @@ npm run doctor
 **다른 쇼핑몰로 시작한다면** (상품번호가 몰마다 겹치므로 테스트몰 상품을 지운다) setup.sql 다음에:
 
 ```sql
-truncate public.products, public.product_attributes, public.scenario_expectations, public.recommendation_logs;
+truncate public.products, public.product_attributes, public.product_attributes_history, public.scenario_expectations, public.recommendation_logs, public.recommendation_feedback;
 ```
 
 그 뒤 5장에서 카페24를 연결하고 관리자 → **카페24 상품 다시 가져오기** → **AI 일괄 제안**으로 지표 가안을 채운다.
 
-> 이 DB 구조를 바꿀 때: `supabase/migrations/`에 새 파일을 추가 → 운영 DB SQL Editor에서 그 파일만 실행 → `npm run db:setup-sql`로 setup.sql 갱신(빠뜨리면 `npm test`가 잡는다).
+> 이 DB 구조를 바꿀 때: `supabase/migrations/`에 새 파일을 추가 → `npm run e2e:db`로 빈 Postgres에서 먼저 시험 → 운영 DB SQL Editor에서 그 파일만 실행 → `npm run db:setup-sql`로 setup.sql 갱신(빠뜨리면 `npm test`가 잡는다).
+> 이미 운영 중인 DB를 따라잡을 때는 setup.sql이 아니라 **아직 실행하지 않은 마이그레이션 파일만 날짜 순서대로** 실행한다.
 > 운영 DB의 상품 지표를 새 복제본 초기값으로 옮기려면 `npm run db:pull` → `npm run db:seed-sql` → `npm run db:setup-sql`.
 
 ## 4. Vercel 배포
@@ -130,10 +141,11 @@ npm run cafe24:snippets -- https://운영주소
 
 ## 6. 다 됐는지 한 장으로
 
-- [ ] `npm test` 통과, `npm run doctor -- https://운영주소` 모두 통과
-- [ ] 고객: 행사 고르기 → 추천 3개 → 격식지수 도장 → 상품 보기·포장 꾸미기·공유
-- [ ] 고객: `/packaging/pick` 상품 골라 꾸미기 → 코드 → `/packaging/mine`에 남음
-- [ ] 관리자: `/login` → 상품 지표·가중치·알고리즘 검증·포장 디자인·실적 화면 열림
+- [ ] `npm test`·`npm run typecheck`·`npm run e2e` 통과, `npm run doctor -- https://운영주소` 모두 통과
+- [ ] 고객: 행사 고르기 → 추천 3개 → 격식지수 도장 → 상품 보기·포장 꾸미기·공유 → 결과 끝 "도움 됐어요"
+- [ ] 고객: `/packaging/pick` 상품 골라 꾸미기 → 코드 → `/packaging/mine`에 남음·진행 상황·다시 주문
+- [ ] 관리자: `/login` → 상품 지표·가중치·알고리즘 검증·포장 디자인·실적 화면 열림, 실적 "고객 목소리"가 SQL 안내 대신 숫자로 보임
+- [ ] 관리자: 인쇄 PDF의 QR을 휴대폰으로 찍으면 `/admin/scan`에서 인쇄 완료 처리
 - [ ] 카페24: PC·모바일 메인 버튼, 상품 상세 꾸미기 버튼, 주문서 코드 자동 입력
 - [ ] Supabase 가입 허용 꺼짐, Vercel Sensitive 변수 2개
 
@@ -157,12 +169,17 @@ npm run cafe24:snippets -- https://운영주소
 | 12 | 편의 기능: 결과 공유, 내 디자인, 되돌리기, 접수 필터·CSV, 실적 대시보드 | |
 | 13 | 신뢰감 마감: 공유 미리보기 그림, 격식지수 소개, 기다림·404 화면, 이번 달 이용 실적, 아이콘 | 미리보기 그림 엔진은 woff2를 못 읽고 단어 단위 줄바꿈을 못 한다 → woff 받기, 줄 직접 나누기 |
 | 14 | 복제 도구: `supabase/setup.sql`, `npm run doctor`, `npm run cafe24:snippets` | 이 문서 |
+| 15 | (10-22) 고객 편의 CR 9개: 지난 조건, 총예산÷수량, 조건 칩, 빼고 다시, 비교표, 배송비 합계, 찜, 장례 차분 모드 | 주소 값은 모두 다시 검사(`parseResultQuery`), 브라우저 저장은 형식이 어긋나면 버림 |
+| 16 | (10-22) 포장 편의 CD 10개: 이름 자동 채우기, 긴 이름 맞춤, 주의 단어, 실물 크기 미리보기, 다시 꾸미기, 휴대폰 QR, 겹침 경고, 자동 보관 | 사진 원본은 IndexedDB, 목록은 localStorage(10개) |
+| 17 | (10-22) 주문 후 CO·관리자 AM·운영 AP 20개: 진행 상황, 다시 주문, 주문서 포장 요약, 오늘 할 일, 한꺼번에 바꾸기, 붙여넣어 주문번호, QR 완료, 지표 이력, 엑셀 일괄 | 마이그레이션 `20261025` |
+| 18 | (10-22) 추가: 추천 의견, 찾았지만 없던 것, 실적 A4 인쇄, 시각·상품명 위조 방지, 로그인 횟수 제한, 1,000행 나눠 읽기, 화면 검증 키트(`npm run e2e`) | 마이그레이션 `20261026`. 실제 사람처럼 고객·관리자 역할로 처음부터 끝까지 눌러 보는 점검을 두 번 거침 |
 
 자세한 단계별 기록(누가·무엇을·주의사항)은 [RUNBOOK.md 2장](RUNBOOK.md#2-오늘-진행한-순서-누가--무엇을--주의사항), 심이사 자료가 오면 할 일은 [RUNBOOK.md 5장](RUNBOOK.md#5-심이사-자료-도착-시-플레이북).
 
 ## 8. 새 환경에서 개발을 이어 갈 때
 
 - 저장소 루트의 `CLAUDE.md`가 작업 규칙(한국어, 127.0.0.1, 비밀값, 테스트·배포 순서)을 담고 있다. Claude Code로 열면 자동으로 읽는다
+- 무엇이 어디 있는지는 [ARCHITECTURE.md](ARCHITECTURE.md). 바꾼 뒤에는 `npm test` → `npm run typecheck` → `npm run e2e`(화면에 닿는 변경이면) → 커밋
 - `.claude/launch.json`의 `ondap-dev`로 미리보기 서버를 띄운다
 - 자주 쓰는 명령은 [RUNBOOK.md 7장](RUNBOOK.md#7-명령어-모음)
 - **Claude 계정이 바뀌었거나 이전 대화 맥락이 필요하면** [handoff/README.md](handoff/README.md): 대화 이력 전체, Claude 기억 파일, 고객 원자료, `npm run handoff:restore`(기억 되살리기)·`npm run handoff:export`(갱신)

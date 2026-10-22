@@ -9,10 +9,10 @@ export const PAPERS: Record<Paper, { width: number; height: number }> = {
   A4: { width: 210, height: 297 },
   A3: { width: 297, height: 420 },
 };
-export const SHEET_MARGIN_MM = 6; // 용지 가장자리 여백 (프린터가 못 찍는 부분 + 안내 문구)
+const SHEET_MARGIN_MM = 6; // 용지 가장자리 여백 (프린터가 못 찍는 부분 + 안내 문구)
 export const MAX_SHEETS = 200; // 한 번에 만드는 최대 장 수. 넘으면 잘라 내지 않고 거절한다 (이미지는 한 번만 들어가 200장도 1MB 안팎)
 
-export interface SheetLayout {
+interface SheetLayout {
   paper: Paper;
   cellMm: number;
   cols: number;

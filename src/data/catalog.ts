@@ -4,6 +4,7 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { dataDir } from '../lib/paths.ts';
 import type { Cafe24Product, Catalog, EngineConfig, ProductAttributes } from '../engine/types.ts';
+import type { FeedbackLog } from '../lib/feedback.ts';
 
 function readJson<T>(file: string): T {
   return JSON.parse(readFileSync(join(dataDir, file), 'utf8')) as T;
@@ -47,6 +48,18 @@ export function saveProductAttributes(...list: ProductAttributes[]): void {
   file.products.sort((a, b) => a.productNo - b.productNo);
   writeJson('product-attributes.json', file);
   if (changes.length) writeJson(HISTORY_FILE, [...loadAttributeHistory(), ...changes].slice(-HISTORY_MAX));
+}
+
+// 추천에 대한 고객 목소리 (로컬 모드). Supabase는 recommendation_feedback 표
+const FEEDBACK_FILE = 'feedback.json';
+
+export function loadFeedback(): (FeedbackLog & Record<string, unknown>)[] {
+  const file = join(dataDir, FEEDBACK_FILE);
+  return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : [];
+}
+
+export function appendFeedback(f: FeedbackLog & Record<string, unknown>): void {
+  writeJson(FEEDBACK_FILE, [...loadFeedback(), f].slice(-5000));
 }
 
 // 지표 변경 이력 (로컬 모드). Supabase는 product_attributes_history 표가 트리거로 쌓는다

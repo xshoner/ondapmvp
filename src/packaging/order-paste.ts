@@ -6,7 +6,7 @@ import { normalizeDesignCode } from './rules.ts';
 const ORDER_NO = /\b(20\d{6}-\d{7})\b/; // 카페24 주문번호: 20261021-0000123
 const TOKEN = new RegExp(`${ORDER_NO.source}|\\b(OD-[A-Z0-9]{4}-[A-Z0-9]{4})\\b`, 'gi');
 
-export interface OrderLink { code: string; orderNo: string | null }
+interface OrderLink { code: string; orderNo: string | null }
 
 export function extractOrderLinks(text: string): OrderLink[] {
   const found: { orderNo?: string; code?: string }[] = [];

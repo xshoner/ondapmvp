@@ -1605,7 +1605,7 @@ Verified in the production build: customer pages return 200, and the admin pages
 
 자, 일단 supabase 먼저 진행해. 아래는 그 정보다. 더 필요한 정보 있으면 알려줘
 https://ornwnlmprkxqwsheuzdb.supabase.co
-Publishable key=sb_publishable_QiVtBAfLAH1qwN4rG_dUzw_HbzAi__1
+Publishable key=[가림: Supabase publishable 키]
 
 **🤖 Claude**
 

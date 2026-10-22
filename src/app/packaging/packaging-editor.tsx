@@ -8,20 +8,21 @@ import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  CANVAS_UNITS, FONTS, MIN_PRINT_DPI, PLACEHOLDER_BLANK, STICKER_SIZES, bleedUnits, cautionWords, effectiveDpi, fillPlaceholders, fitScale,
+  CANVAS_UNITS, FONTS, MAX_LAYERS, MIN_PRINT_DPI, PLACEHOLDER_BLANK, STICKER_SIZES, bleedUnits, cautionWords, effectiveDpi, fillPlaceholders, fitScale,
   freeTextY, overlaps, printPixels, totalCm, type FontId,
 } from '@/packaging/rules.ts';
 import type { EventType } from '@/engine/types.ts';
 import { isMobileUA } from '@/lib/device.ts';
-import { MAX_QTY, clampQty } from '@/lib/result-query.ts';
 import type { DesignCategory, DesignDraft, DesignImage, DesignText, PackagingStyle, StickerShape, StickerSizeCm, TextLayer } from '@/packaging/types.ts';
 import { loadSavedDesigns, makeThumb, orderUrl, rememberDesign } from '@/packaging/client.ts';
+import { QtyInput } from '../components/qty-input.tsx';
 import { saveDesignAction } from './actions.ts';
 import {
   CARD_SHORT_MM, PREVIEW_PX, PX_PER_MM_RANGE, autosave, clearAutosave, forgetFields, fromStored, loadAutosave, loadFields, loadPxPerMm,
   prunePhotos, putPhoto, rememberFields, savePreview, savePxPerMm, toStored, todayLabel,
 } from './editor-store.ts';
 import type { CanvasApi, EditorImageLayer, EditorLayer, EditorSnapshot, TextRect } from './editor-types.ts';
+import { won } from '@/lib/result-query.ts';
 
 const StickerCanvas = dynamic(() => import('./sticker-canvas.tsx'), {
   ssr: false,
@@ -49,8 +50,6 @@ const COLORS = ['#1f2a26', '#ffffff', '#2f5a4b', '#b8903a', '#b5523b', '#1d3557'
 const BACKGROUNDS = ['#ffffff', '#f6edd8', '#e3ede7', '#f7e6e1', '#1f3f34'];
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const MIN_AUTO_FONT = 28; // 긴 이름 자동 맞춤은 글자 크기 막대의 최솟값까지만 줄인다
-
-const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
 
 const newId = () => 'l' + Math.random().toString(36).slice(2, 9);
 
@@ -110,6 +109,7 @@ export function PackagingEditor(props: Props) {
   const [result, setResult] = useState<{ code: string; copied: boolean; preview: string | null } | null>(null);
   const apiRef = useRef<CanvasApi | null>(null);
   const autoLayer = useRef<EditorLayer | null>(null); // 화면이 자동으로 깐 레이어 (고객이 움직이면 새 객체가 되어 더는 같지 않다)
+  const pickSeq = useRef(0); // 바탕을 고를 때마다 올린다: 늦게 도착한 이전 이미지가 새로 고른 것을 덮지 않게
   const wrapRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [displaySize, setDisplaySize] = useState(0);
@@ -140,8 +140,9 @@ export function PackagingEditor(props: Props) {
       restoring.current = false;
       return;
     }
-    if (prev.layers === layers && prev.background === background) return;
-    if (prev.layers.length === 0 && history.current.length === 0) return; // 처음 자동으로 깐 것은 되돌리기 대상이 아니다
+    const sameLayers = prev.layers === layers || (prev.layers.length === 0 && layers.length === 0); // 처음 그릴 때 빈 목록끼리
+    if (sameLayers && prev.background === background) return;
+    if (prev.layers.length === 0 && history.current.length === 0 && layers.length === 1 && layers[0] === autoLayer.current) return; // 처음 자동으로 깐 것은 되돌리기 대상이 아니다
     const now = Date.now();
     if (now - lastPush.current > 600) {
       history.current.push(prev);
@@ -174,6 +175,7 @@ export function PackagingEditor(props: Props) {
     setResume(null);
     if (!r) return setBanner('저장해 둔 디자인을 읽지 못했어요. 새로 꾸며 주세요.');
     const d = r.snap;
+    restoring.current = true; // 불러온 것 자체는 되돌리기·자동 보관 대상이 아니다
     setSettled(Object.fromEntries(d.layers.flatMap((l) => (l.type === 'text' ? [[l.id, fillPlaceholders(l.text, d.fields)]] : []))));
     setStyleId(d.styleId);
     setWithSticker(d.withSticker);
@@ -182,8 +184,9 @@ export function PackagingEditor(props: Props) {
     setBackground(d.background);
     setLayers(d.layers);
     setFields(d.fields);
-    setEvent(d.event);
-    setQuantity(d.quantity);
+    // 이어서 꾸미기는 이번에 들어온 링크의 행사·수량을 지킨다 (추천 결과에서 정한 수량을 지난 보관본이 덮지 않게)
+    setEvent(keepSaving && props.event ? props.event : d.event);
+    setQuantity(keepSaving && props.quantity > 1 ? props.quantity : d.quantity);
     setSelectedId(null);
     setConsent(false); // 사진이 바뀌었을 수 있으니 사용 권한은 다시 확인
     autosaving.current = keepSaving; // 이어서 꾸미기는 계속 보관, 다시 꾸미기는 고친 뒤부터
@@ -209,11 +212,15 @@ export function PackagingEditor(props: Props) {
     setResume(loadAutosave(product.productNo));
     const first = images.find((i) => i.category === event);
     if (first) {
-      void loadNatural(first.imageUrl).then(({ w, h }) => {
-        const l = coverLayer(first.imageUrl, w, h);
-        autoLayer.current = l;
-        setLayers((ls) => (ls.length ? ls : [l]));
-      });
+      const seq = ++pickSeq.current;
+      void loadNatural(first.imageUrl)
+        .then(({ w, h }) => {
+          if (seq !== pickSeq.current) return; // 그사이 고객이 다른 바탕을 골랐다
+          const l = coverLayer(first.imageUrl, w, h);
+          autoLayer.current = l;
+          setLayers((ls) => (ls.length ? ls : [l]));
+        })
+        .catch(() => {}); // 못 읽으면 빈 화면에서 고객이 고른다
     } else if (nearTexts[0]) {
       const l = textLayer(nearTexts[0].text);
       autoLayer.current = l;
@@ -295,6 +302,13 @@ export function PackagingEditor(props: Props) {
   const update = (id: string, patch: Partial<EditorLayer>) =>
     setLayers((ls) => ls.map((l) => (l.id === id ? ({ ...l, ...patch } as EditorLayer) : l)));
 
+  // 저장 형식이 레이어 12개까지만 담으므로 그 이상은 처음부터 막는다 (넘치면 다시 꾸미기 때 조용히 빠진다)
+  const layerFull = () => {
+    if (layers.length < MAX_LAYERS) return false;
+    setError(`스티커에는 이미지·문구를 ${MAX_LAYERS}개까지 넣을 수 있어요.`);
+    return true;
+  };
+
   // 바탕 이미지는 한 장: 맨 아래가 이미지면 바꾸고, 아니면 맨 아래에 넣는다
   const setBaseImage = (layer: EditorImageLayer) => {
     setLayers((ls) => {
@@ -305,8 +319,11 @@ export function PackagingEditor(props: Props) {
   };
 
   const pickImage = async (img: DesignImage, auto = false) => {
+    if (!auto && layers[0]?.type !== 'image' && layerFull()) return;
+    const seq = ++pickSeq.current;
     try {
       const { w, h } = await loadNatural(img.imageUrl);
+      if (seq !== pickSeq.current) return;
       const layer = coverLayer(img.imageUrl, w, h);
       if (auto) autoLayer.current = layer;
       setBaseImage(layer);
@@ -340,9 +357,12 @@ export function PackagingEditor(props: Props) {
     if (!file) return;
     if (!['image/jpeg', 'image/png'].includes(file.type)) return setError('JPG 또는 PNG 사진만 올릴 수 있어요.');
     if (file.size > MAX_UPLOAD_BYTES) return setError('사진은 10MB까지 올릴 수 있어요.');
+    if (layers[0]?.type !== 'image' && layerFull()) return;
+    const seq = ++pickSeq.current;
     const url = URL.createObjectURL(file);
     try {
       const { w, h } = await loadNatural(url);
+      if (seq !== pickSeq.current) return URL.revokeObjectURL(url);
       const photoId = newId();
       void putPhoto(photoId, file); // 다시 꾸미기·이어서 꾸미기 때 꺼낼 원본
       setBaseImage(coverLayer(url, w, h, { uploaded: true, naturalWidth: w, photoId }));
@@ -360,7 +380,7 @@ export function PackagingEditor(props: Props) {
 
   const pickText = (t: DesignText) => {
     if (selected?.type === 'text') update(selected.id, { text: t.text });
-    else {
+    else if (!layerFull()) {
       const hasImage = layers.some((l) => l.type === 'image');
       const l = placeText(t.text, hasImage ? 780 : 500, hasImage ? 64 : 78);
       if (hasImage) Object.assign(l, { fontSize: 64, color: '#ffffff', stroke: '#1f2a26' });
@@ -370,6 +390,7 @@ export function PackagingEditor(props: Props) {
   };
 
   const addText = () => {
+    if (layerFull()) return;
     const l = placeText('감사합니다', 500, 78);
     setLayers((ls) => [...ls, l]);
     setSelectedId(l.id);
@@ -438,6 +459,7 @@ export function PackagingEditor(props: Props) {
       } catch {
         // 브라우저가 자동 복사를 막으면 복사 버튼으로 안내
       }
+      if (result?.preview) URL.revokeObjectURL(result.preview);
       setResult({ code: res.code, copied, preview });
       clearTimeout(autosaveTimer.current);
       clearAutosave(); // 저장했으니 '꾸미던 디자인'으로 다시 띄우지 않는다
@@ -467,6 +489,11 @@ export function PackagingEditor(props: Props) {
     }
   };
 
+  const editMore = () => {
+    if (result?.preview) URL.revokeObjectURL(result.preview);
+    setResult(null);
+  };
+
   const style = styles.find((s) => s.id === styleId);
   const cut = (bleedUnits(sizeCm) / CANVAS_UNITS) * 100; // 재단 여백(%): 미리보기는 자르는 선 안쪽만 보여 준다
   const cutClip = shape === 'circle' ? `circle(${50 - cut}% at 50% 50%)` : `inset(${cut}%)`;
@@ -477,7 +504,11 @@ export function PackagingEditor(props: Props) {
     setSelectedId(null);
     try {
       const blob = await apiRef.current.exportPng(kind === 'real' ? printPixels(sizeCm) : 600);
-      setView({ kind, png: URL.createObjectURL(blob) });
+      const png = URL.createObjectURL(blob);
+      setView((old) => {
+        if (old) URL.revokeObjectURL(old.png);
+        return { kind, png };
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -525,15 +556,7 @@ export function PackagingEditor(props: Props) {
           <div className="small muted num">{won(product.price)}{eventName ? `, ${eventName}` : ''}</div>
           <label className="small row" style={{ gap: 6, margin: '4px 0 0' }}>
             수량
-            <input
-              type="number"
-              className="qty-input"
-              min={1}
-              max={MAX_QTY}
-              value={quantity}
-              onChange={(e) => setQuantity(clampQty(e.target.value))}
-              aria-label="수량"
-            />
+            <QtyInput className="qty-input" value={quantity} onValue={setQuantity} aria-label="수량" />
             개
           </label>
         </div>
@@ -782,7 +805,7 @@ export function PackagingEditor(props: Props) {
               {/* 카페24에서 온 고객은 같은 창으로 돌려보내고, 온답 화면에서 온 고객은 새 창으로 연다 */}
               <a className="btn block" href={orderUrl(product.url, result.code, quantity)} target={from === 'cafe24' ? '_self' : '_blank'} rel="noreferrer">주문하러 가기</a>
               <button type="button" className="btn ghost block" onClick={() => void copyAgain()}>코드 복사</button>
-              <button type="button" className="btn ghost block" style={{ border: 'none', background: 'transparent' }} onClick={() => setResult(null)}>디자인 더 고치기</button>
+              <button type="button" className="btn ghost block" style={{ border: 'none', background: 'transparent' }} onClick={editMore}>디자인 더 고치기</button>
               <p className="small muted" style={{ margin: 0, textAlign: 'center' }}>
                 고친 뒤 다시 저장하면 새 코드가 나옵니다. 저장한 디자인은 <a className="text-link" href="/packaging/mine">내 디자인</a>에서 다시 볼 수 있어요.
               </p>

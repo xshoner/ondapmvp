@@ -1,5 +1,9 @@
 import type { EngineConfig, EventType, Relation } from './types.ts';
 
+// 주소·요청으로 들어온 값이 설정에 있는 행사·관계인지. 'constructor'·'__proto__' 같은 기본 속성 이름은 거른다
+export const isEvent = (config: EngineConfig, v: unknown): v is EventType => typeof v === 'string' && Object.hasOwn(config.events, v);
+export const isRelation = (config: EngineConfig, v: unknown): v is Relation => typeof v === 'string' && Object.hasOwn(config.relations, v);
+
 // 'funeral' 또는 '장례'처럼 id나 한글 이름 어느 쪽으로도 찾는다
 export function parseEvent(config: EngineConfig, value: string): EventType {
   const hit = (Object.keys(config.events) as EventType[]).find((k) => k === value || config.events[k].name === value);

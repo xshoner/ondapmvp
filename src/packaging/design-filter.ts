@@ -28,7 +28,7 @@ export function parseDesignFilter(sp: Record<string, string | string[] | undefin
     rawCode,
     code,
     codeInvalid: Boolean(rawCode && !code),
-    status: status in STATUS_LABEL ? (status as DesignStatus) : null,
+    status: Object.hasOwn(STATUS_LABEL, status) ? (status as DesignStatus) : null,
     from: DATE.test(one('from')) ? one('from') : null,
     to: DATE.test(one('to')) ? one('to') : null,
     late: one('late') === '1',
@@ -51,10 +51,10 @@ export function filterQuery(f: DesignFilter): string {
   return q.toString();
 }
 
-// 엑셀에서 한글이 깨지지 않게 BOM, 수식으로 읽히는 값(= + - @ 시작)은 앞에 '를 붙인다 (상품 지표 CSV도 쓴다)
+// 엑셀에서 한글이 깨지지 않게 BOM, 수식으로 읽히는 값(= + - @ 탭 줄바꿈으로 시작)은 앞에 '를 붙인다 (상품 지표 CSV도 쓴다)
 export function csvCell(v: unknown): string {
   let s = v === null || v === undefined ? '' : String(v);
-  if (/^[=+\-@]/.test(s)) s = `'${s}`;
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

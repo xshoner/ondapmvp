@@ -1,6 +1,7 @@
 // 결과 설명: 격식 단계 이름과 ONDAP'S PICK 추천 문구
 // 점수 내역만으로 만드는 규칙 기반 문구다. 나중에 AI 문구로 바꿔도 순위에는 영향이 없다.
 
+import { isDepopulationArea } from './formality.ts';
 import type { EngineConfig, IndicatorContribution, ProductAttributes, RecommendInput } from './types.ts';
 
 export function tierFor(config: EngineConfig, formalityScore: number): string {
@@ -37,7 +38,7 @@ export function buildReason(
     .filter((p): p is string => Boolean(p));
   if (phrases.length) sentences.push(`${phrases.join('이자 ')}입니다.`);
 
-  if (config.depopulationAreas.includes(attrs.region)) {
+  if (isDepopulationArea(config, attrs.region)) {
     sentences.push(`${attrs.region}의 생산자를 응원하는 상생 선물이기도 합니다.`);
   }
   return sentences.join(' ');

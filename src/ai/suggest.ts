@@ -174,7 +174,10 @@ export function applySuggestion(current: ProductAttributes, s: AiSuggestion): Pr
     events: s.events,
     relations: s.relations,
     excludedEvents: s.excludedEvents,
-    meanings: { ...s.meanings },
+    // 관리자가 써 둔 의미는 남기고 AI가 낸 의미로 덮는다. AI가 '맞지 않는 행사'로 뺀 행사의 의미만 지운다
+    meanings: Object.fromEntries(
+      Object.entries({ ...current.meanings, ...s.meanings }).filter(([ev]) => !s.excludedEvents.some((x) => x.event === ev)),
+    ),
     tags: s.tags.length ? s.tags : current.tags,
     region: current.region && current.region !== '국내' ? current.region : (s.region ?? current.region),
   };

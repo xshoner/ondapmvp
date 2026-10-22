@@ -436,8 +436,10 @@
 | --- | --- |
 | `npm run dev` | 개발 서버 → http://127.0.0.1:3000 |
 | `npm test` / `npm run typecheck` | 테스트 / 타입 검사 |
+| `npm run e2e [-- ops editor]` | 화면 없는 Chrome으로 고객·관리자·카페24 도우미 흐름 끝까지 (로컬 모드 개발 서버 필요, data/ 자동 백업·복원) |
+| `npm run e2e:db` / `npm run e2e:pdf` | 마이그레이션을 Postgres(PGlite)에서 실행해 RLS·함수 시험 / 인쇄 PDF QR 판독 (처음 한 번 `npm --prefix scripts/e2e ci`) |
 | `npm run sync` | 카페24 상품 → `data/cafe24-products.json` |
-| `npm run report -- 60000` | 32개 시나리오 결과표 + 변별력 |
+| `npm run report -- 50000` | 32개 시나리오 결과표 + 변별력 |
 | `npm run recommend -- 장례 상급자/어르신 50000` | 추천 1건 + 점수 내역 |
 | `npm run db:seed-sql` | 로컬 JSON → `supabase/seed.sql` |
 | `npm run db:pull` | Supabase → 로컬 JSON |

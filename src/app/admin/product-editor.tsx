@@ -1,14 +1,16 @@
 'use client';
 
-import { useDeferredValue, useEffect, useMemo, useState, useTransition } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { baseIndex } from '@/engine/formality.ts';
+import { baseIndex, isDepopulationArea } from '@/engine/formality.ts';
 import { changeImpact, standing, withAttributes, type Standing } from '@/engine/impact.ts';
 import { filterAndScore } from '@/engine/recommend.ts';
 import type { Cafe24Product, Catalog, EngineConfig, EventType, Indicator, ProductAttributes, Relation } from '@/engine/types.ts';
 import { attributeDiff } from '@/data/attribute-diff.ts';
 import { emptyAttributes } from '@/data/attributes-csv.ts';
 import type { AttributeChange } from '@/data/repository.ts';
+import { BUDGET_STEPS, DEFAULT_ADMIN_BUDGET, won } from '@/lib/result-query.ts';
+import { ListInput } from './list-input.tsx';
 import { getAttributeHistoryAction, saveAttributesAction, suggestScoresAction, syncCafe24Action, type SyncReport } from './actions.ts';
 import { applySuggestion, type AiSuggestion } from '@/ai/suggest.ts';
 import { AiSuggestionPanel } from './ai-suggestion-panel.tsx';
@@ -28,10 +30,9 @@ type Props = {
 
 type Tab = 'edit' | 'diagnose' | 'preview' | 'history';
 const TABS: [Tab, string][] = [['edit', '지표 입력'], ['diagnose', '추천 진단'], ['preview', '고객 카드 미리보기'], ['history', '변경 이력']];
-// 알고리즘 검증 화면과 같은 예산 (undefined = 예산 상관없음)
-const BUDGETS: (number | undefined)[] = [30000, 60000, 100000, 200000, undefined];
+// 고객 화면 예산 단추와 같은 예산 (undefined = 예산 상관없음)
+const BUDGETS = BUDGET_STEPS.map((b) => b ?? undefined);
 
-const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
 const budgetLabel = (b: number | undefined) => (b === undefined ? '예산 상관없음' : `1개 ${(b / 10000).toLocaleString('ko-KR')}만 원 이하`);
 // 점수 단축키(숫자·↑↓·Delete)는 점수 막대에 포커스가 있을 때만: 글자 입력이나 화면 스크롤을 가로채지 않게
 const onSlider = (t: EventTarget | null) => t instanceof HTMLInputElement && t.type === 'range' && t.id.startsWith('s-');
@@ -57,6 +58,8 @@ export function ProductEditor({ products, attributes, config, mallId, syncedAt, 
     first ? structuredClone(attrMap.get(first.productNo) ?? emptyAttributes(config, first.productNo)) : null,
   );
   const [dirty, setDirty] = useState(false);
+  const latest = useRef(draft); // 저장하는 동안 더 고쳤는지 알기 위해 지금 입력값을 들고 있는다
+  latest.current = draft;
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<'no' | 'score' | 'review'>('no');
   const [message, setMessage] = useState<string | null>(null);
@@ -65,7 +68,7 @@ export function ProductEditor({ products, attributes, config, mallId, syncedAt, 
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiPending, startAi] = useTransition();
   const [tab, setTab] = useState<Tab>('edit');
-  const [budget, setBudget] = useState<number | undefined>(60000);
+  const [budget, setBudget] = useState<number | undefined>(DEFAULT_ADMIN_BUDGET);
   const [focusIdx, setFocusIdx] = useState(0);
   const [help, setHelp] = useState(false);
   const [showImpact, setShowImpact] = useState(false);
@@ -160,10 +163,11 @@ export function ProductEditor({ products, attributes, config, mallId, syncedAt, 
         setMessage(`저장하지 못했습니다: ${e instanceof Error ? e.message : String(e)}`);
         return;
       }
-      setDirty(false);
       setJustSaved((m) => new Map(m).set(draft.productNo, draft));
       setHistoryKey((k) => k + 1);
       router.refresh();
+      if (latest.current !== draft) return setMessage('저장했습니다. 저장하는 동안 고친 내용은 아직 저장되지 않았습니다.');
+      setDirty(false);
       const i = list.findIndex((p) => p.productNo === draft.productNo);
       const next = thenNext ? list[i + 1] : undefined;
       if (next) open(next.productNo);
@@ -368,7 +372,7 @@ export function ProductEditor({ products, attributes, config, mallId, syncedAt, 
                     <div className="field">
                       <label htmlFor="region">산지</label>
                       <input id="region" type="text" value={draft.region} onChange={(e) => update({ region: e.target.value })} />
-                      {config.depopulationAreas.includes(draft.region) && <span className="small" style={{ color: 'var(--green)' }}>소멸위기지역 상생 가산 대상</span>}
+                      {isDepopulationArea(config, draft.region) && <span className="small" style={{ color: 'var(--green)' }}>소멸위기지역 상생 가산 대상</span>}
                     </div>
                     <div className="field">
                       <label htmlFor="category">카테고리</label>
@@ -381,7 +385,7 @@ export function ProductEditor({ products, attributes, config, mallId, syncedAt, 
                   </div>
                   <div className="field">
                     <label htmlFor="tags">해시태그 (쉼표로 구분)</label>
-                    <input id="tags" type="text" value={draft.tags.join(', ')} onChange={(e) => update({ tags: e.target.value.split(',') })} />
+                    <ListInput id="tags" value={draft.tags} onValue={(tags) => update({ tags })} />
                   </div>
 
                   <div className="field">

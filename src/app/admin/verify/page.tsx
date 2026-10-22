@@ -1,15 +1,14 @@
 import { getCatalog, getExpectations } from '@/data/repository.ts';
-import { recommend } from '@/engine/recommend.ts';
-import { scoreForSituation, baseIndex } from '@/engine/formality.ts';
+import { filterAndScore, recommend } from '@/engine/recommend.ts';
+import { BUDGET_STEPS, DEFAULT_ADMIN_BUDGET, won } from '@/lib/result-query.ts';
 import type { Catalog, EventType, Relation } from '@/engine/types.ts';
 import { ScoreBreakdown } from '../../components/score-breakdown.tsx';
 import { ExpectationPicker } from './expectation-picker.tsx';
-import { eventIds as orderedEvents, relationIds as orderedRelations } from '@/engine/labels.ts';
+import { eventIds as orderedEvents, isEvent, isRelation, relationIds as orderedRelations } from '@/engine/labels.ts';
 
 export const dynamic = 'force-dynamic';
 
-const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
-const BUDGETS = [30000, 60000, 100000, 200000];
+const BUDGETS = BUDGET_STEPS.filter((b): b is number => b !== null);
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -18,11 +17,11 @@ export default async function VerifyPage({ searchParams }: { searchParams: Searc
   const catalog = await getCatalog();
   const { config } = catalog;
   const expectations = await getExpectations();
-  const budget = Number(sp.budget ?? 60000) || 60000;
+  const budget = Number(sp.budget ?? DEFAULT_ADMIN_BUDGET) || DEFAULT_ADMIN_BUDGET;
   const eventIds = orderedEvents(config);
   const relationIds = orderedRelations(config);
-  const selEvent = config.events[String(sp.event) as EventType] ? (String(sp.event) as EventType) : null;
-  const selRelation = config.relations[String(sp.relation) as Relation] ? (String(sp.relation) as Relation) : null;
+  const selEvent = isEvent(config, sp.event) ? sp.event : null;
+  const selRelation = isRelation(config, sp.relation) ? sp.relation : null;
 
   const grid = eventIds.map((event) =>
     relationIds.map((relation) => ({ event, relation, result: recommend(catalog, { event, relation, budgetMax: budget }) })),
@@ -125,17 +124,12 @@ function Detail({ catalog, catalogKey, event, relation, budget, expected }: { ca
   const { config } = catalog;
   const result = recommend(catalog, { event, relation, budgetMax: budget });
   const picked = new Set(result.results.map((x) => x.product.productNo));
-  const excludedNos = new Set(result.excluded.map((x) => x.productNo));
-
-  // 제외되지 않은 모든 상품의 점수 (순위표)
-  const attrMap = new Map(catalog.attributes.map((a) => [a.productNo, a]));
-  const ranked = catalog.products
-    .filter((p) => !excludedNos.has(p.productNo) && attrMap.has(p.productNo))
-    .map((p) => {
-      const a = attrMap.get(p.productNo)!;
-      return { product: p, attrs: a, base: baseIndex(config, a), ...scoreForSituation(config, a, event, relation) };
-    })
-    .sort((a, b) => b.matchScore - a.matchScore);
+  // 제외되지 않은 모든 상품의 순위: 추천과 같은 함수·같은 동점 처리 (예산을 넓혔으면 넓힌 예산으로)
+  const ranked = filterAndScore(catalog, { event, relation, budgetMax: budget }, result.relaxedBudget ?? budget).candidates;
+  // 기대 정답으로 골라 둔 상품이 지금 후보가 아니어도(예산 초과 등) 고른 값이 '지정 안 함'으로 보이지 않게
+  const options = ranked.map((r) => ({ productNo: r.product.productNo, name: r.product.name }));
+  const expectedProduct = expected && !options.some((o) => o.productNo === expected) ? catalog.products.find((p) => p.productNo === expected) : null;
+  if (expectedProduct) options.push({ productNo: expectedProduct.productNo, name: `${expectedProduct.name} (지금 후보 아님)` });
 
   return (
     <section className="panel">
@@ -147,7 +141,7 @@ function Detail({ catalog, catalogKey, event, relation, budget, expected }: { ca
         <ExpectationPicker
           scenarioKey={catalogKey}
           expected={expected}
-          options={ranked.map((r) => ({ productNo: r.product.productNo, name: r.product.name }))}
+          options={options}
         />
       </div>
 
@@ -190,7 +184,7 @@ function Detail({ catalog, catalogKey, event, relation, budget, expected }: { ca
                 <td className="right" title={r.bonuses.map((b) => `${b.reason} ${b.points}`).join('\n')}>
                   {r.bonuses.reduce((s, b) => s + b.points, 0)}
                 </td>
-                <td className="small">{r.attrs.category}</td>
+                <td className="small">{r.attributes.category}</td>
               </tr>
             ))}
           </tbody>

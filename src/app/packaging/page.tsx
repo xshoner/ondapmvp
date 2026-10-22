@@ -1,11 +1,10 @@
 import { getCatalog } from '@/data/repository.ts';
 import { getPackagingAssets } from '@/data/packaging-repository.ts';
-import type { EventType } from '@/engine/types.ts';
 import { CATEGORY_ORDER, categoryName } from '@/packaging/rules.ts';
 import type { PackagingAssets } from '@/packaging/types.ts';
 import { stickerFontFamilies } from './fonts.ts';
 import { PackagingEditor, type PackagingEntry } from './packaging-editor.tsx';
-import { eventIds } from '@/engine/labels.ts';
+import { eventIds, isEvent } from '@/engine/labels.ts';
 import { clampQty } from '@/lib/result-query.ts';
 
 export const dynamic = 'force-dynamic';
@@ -22,7 +21,7 @@ export default async function PackagingPage({ searchParams }: { searchParams: Se
   const catalog = await getCatalog();
   const product = catalog.products.find((p) => p.productNo === Number(sp.product));
   const quantity = clampQty(sp.qty ?? 1);
-  const event = catalog.config.events[String(sp.event) as EventType] ? (String(sp.event) as EventType) : null;
+  const event = isEvent(catalog.config, sp.event) ? sp.event : null;
 
   let assets: PackagingAssets | null = null;
   try {

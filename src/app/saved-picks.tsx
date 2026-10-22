@@ -3,8 +3,7 @@
 // 찜한 답례: 결과 화면에서 하트로 모아 둔 상품을 첫 화면에서 다시 본다 (이 기기에만 저장)
 import { useEffect, useState } from 'react';
 import { loadPicks, removePick, type SavedPick } from '@/lib/device.ts';
-
-const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
+import { won } from '@/lib/result-query.ts';
 
 export function SavedPicks() {
   const [picks, setPicks] = useState<SavedPick[]>([]);

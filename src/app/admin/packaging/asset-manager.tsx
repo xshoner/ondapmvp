@@ -58,7 +58,7 @@ export function AssetManager({ kind, assets, categoryNames }: Props) {
         </div>
       )}
 
-      <AddForm kind={kind} category={category} categoryName={categoryNames[category]} nextSort={Math.max(0, ...items.map((x) => x.sort)) + 1} />
+      <AddForm kind={kind} category={category} categoryName={categoryNames[category]} nextSort={Math.max(0, ...items.map((x) => x.sort)) + 1} full={activeCount >= MAX_ACTIVE} />
 
       <div className="spread">
         <b className="small">{byCategory ? `${categoryNames[category]} ` : ''}사용 {activeCount}/{MAX_ACTIVE}</b>
@@ -76,7 +76,7 @@ export function AssetManager({ kind, assets, categoryNames }: Props) {
   );
 }
 
-function AddForm({ kind, category, categoryName, nextSort }: { kind: Kind; category: DesignCategory; categoryName: string; nextSort: number }) {
+function AddForm({ kind, category, categoryName, nextSort, full }: { kind: Kind; category: DesignCategory; categoryName: string; nextSort: number; full: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [name, setName] = useState('');
@@ -87,6 +87,10 @@ function AddForm({ kind, category, categoryName, nextSort }: { kind: Kind; categ
 
   const submit = () => start(async () => {
     setMessage(null);
+    // 서버도 다시 검사하지만, 파일을 올리기 전에 먼저 걸러 쓰이지 않을 파일이 저장소에 남지 않게 한다
+    if (full) return setMessage(`'사용'은 ${kind === 'styles' ? '' : '분류별로 '}최대 ${MAX_ACTIVE}개까지입니다. 다른 항목을 먼저 꺼 주세요.`);
+    if (kind === 'styles' && !name.trim()) return setMessage('스타일 이름을 적어 주세요.');
+    if (kind === 'texts' && !text.trim()) return setMessage('문구를 적어 주세요.');
     try {
       let imageUrl: string | undefined;
       if (kind !== 'texts') {

@@ -1,0 +1,43 @@
+// 화면 끝까지 확인 (사람 대신 화면 없는 Chrome이 고객·관리자 흐름을 눌러 본다).
+// 준비: 로컬 모드(ONDAP_DATA_SOURCE=local)로 `npm run dev` → 다른 창에서 `npm run e2e` (특정 묶음만: `npm run e2e -- ops editor`)
+// data/는 시작할 때 임시 폴더에 복사해 두고, 시험용 접수를 깐 뒤, 끝나면(실패해도) 원래대로 되돌린다
+import { spawnSync } from 'node:child_process';
+import { cpSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { writeFixtures } from './fixtures.mjs';
+
+const root = join(import.meta.dirname, '..', '..');
+const base = process.env.E2E_BASE ?? 'http://127.0.0.1:3000';
+const ALL = ['result', 'features', 'editor', 'helper', 'ops']; // ops는 접수 상태를 바꾸므로 마지막
+const pick = process.argv.slice(2);
+const suites = pick.length ? ALL.filter((s) => pick.includes(s)) : ALL;
+
+// 로컬 모드 개발 서버인지: 관리자 화면이 로그인 없이 열려야 한다 (Supabase 모드는 로그인으로, 운영 빌드는 404)
+const admin = await fetch(`${base}/admin`, { redirect: 'manual' }).catch(() => null);
+if (admin?.status !== 200) {
+  console.error(`${base}/admin 이 열리지 않습니다(${admin ? admin.status : '연결 안 됨'}). .env.local의 ONDAP_DATA_SOURCE=local 로 npm run dev 를 먼저 띄워 주세요.`);
+  process.exit(1);
+}
+
+const data = join(root, 'data');
+const backup = mkdtempSync(join(tmpdir(), 'ondap-e2e-data-'));
+cpSync(data, backup, { recursive: true });
+console.log(`data/ 를 ${backup} 에 복사해 두었습니다 (끝나면 되돌립니다)\n`);
+const failed = [];
+try {
+  for (const s of suites) {
+    await writeFixtures(root);
+    console.log(`=== ${s} ===`);
+    const r = spawnSync(process.execPath, [join(import.meta.dirname, `${s}.mjs`), root], { stdio: 'inherit', env: { ...process.env, E2E_BASE: base } });
+    if (r.status !== 0) failed.push(s);
+    console.log('');
+  }
+} finally {
+  rmSync(data, { recursive: true, force: true });
+  cpSync(backup, data, { recursive: true });
+  if (existsSync(join(data, 'config'))) rmSync(backup, { recursive: true, force: true });
+  console.log('data/ 를 원래대로 되돌렸습니다.');
+}
+console.log(failed.length ? `실패한 묶음: ${failed.join(', ')}` : `모든 묶음 통과 (${suites.join(', ')})`);
+process.exitCode = failed.length ? 1 : 0;

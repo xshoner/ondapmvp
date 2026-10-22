@@ -1,18 +1,30 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { recommend } from '@/engine/recommend.ts';
 import type { Catalog, EngineConfig, EventType, Relation } from '@/engine/types.ts';
 import { saveConfigAction } from '../actions.ts';
 import { eventIds as orderedEvents, relationIds as orderedRelations } from '@/engine/labels.ts';
+import { BUDGET_STEPS, DEFAULT_ADMIN_BUDGET, won } from '@/lib/result-query.ts';
+import { ListInput } from '../list-input.tsx';
 
-const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
-
-function Num({ value, onChange, step = 0.1, min, max }: { value: number; onChange: (v: number) => void; step?: number; min?: number; max?: number }) {
+// 숫자 칸: 친 글자 그대로 두고(지우기·'1.' 같은 중간 상태 허용) 숫자가 되면 넘긴다. 비운 채 벗어나면 empty 값
+function Num({ value, onChange, step = 0.1, min, max, empty = 0 }: { value: number; onChange: (v: number) => void; step?: number; min?: number; max?: number; empty?: number }) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => {
+    if (Number(text) !== value || text === '') setText(String(value));
+  }, [value]);
   return (
-    <input type="number" value={value} step={step} min={min} max={max}
-      onChange={(e) => onChange(e.target.value === '' ? 0 : Number(e.target.value))} />
+    <input type="number" value={text} step={step} min={min} max={max}
+      onChange={(e) => {
+        setText(e.target.value);
+        if (e.target.value !== '' && Number.isFinite(Number(e.target.value))) onChange(Number(e.target.value));
+      }}
+      onBlur={() => {
+        if (text.trim() === '') onChange(empty);
+        setText(String(text.trim() === '' ? empty : value));
+      }} />
   );
 }
 
@@ -22,7 +34,7 @@ export function WeightsEditor({ catalog }: { catalog: Catalog }) {
   const [dirty, setDirty] = useState(false);
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
-  const [preview, setPreview] = useState<{ event: EventType; relation: Relation; budget: number }>({ event: 'funeral', relation: 'senior', budget: 60000 });
+  const [preview, setPreview] = useState<{ event: EventType; relation: Relation; budget: number }>({ event: 'funeral', relation: 'senior', budget: DEFAULT_ADMIN_BUDGET });
 
   const eventIds = orderedEvents(config);
   const relationIds = orderedRelations(config);
@@ -102,7 +114,7 @@ export function WeightsEditor({ catalog }: { catalog: Catalog }) {
                   <td>{config.relations[r].name}</td>
                   {config.indicators.map((i) => (
                     <td key={i.id}>
-                      <Num value={config.relations[r].multipliers[i.id] ?? 1} min={0} onChange={(v) => edit((c) => { c.relations[r].multipliers[i.id] = v; })} />
+                      <Num value={config.relations[r].multipliers[i.id] ?? 1} min={0} empty={1} onChange={(v) => edit((c) => { c.relations[r].multipliers[i.id] = v; })} />
                     </td>
                   ))}
                   <td><Num value={config.relations[r].formalityShift} step={0.5} onChange={(v) => edit((c) => { c.relations[r].formalityShift = v; })} /></td>
@@ -143,9 +155,9 @@ export function WeightsEditor({ catalog }: { catalog: Catalog }) {
               <tr>
                 <td>소멸위기지역 (쉼표로 구분)</td>
                 <td>
-                  <input type="text" style={{ width: '100%', border: '1px solid var(--line)', borderRadius: 6, padding: '4px 8px' }}
-                    value={config.depopulationAreas.join(', ')}
-                    onChange={(e) => edit((c) => { c.depopulationAreas = e.target.value.split(',').map((s) => s.trim()).filter(Boolean); })} />
+                  <ListInput style={{ width: '100%', border: '1px solid var(--line)', borderRadius: 6, padding: '4px 8px' }}
+                    value={config.depopulationAreas}
+                    onValue={(list) => edit((c) => { c.depopulationAreas = list; })} />
                 </td>
               </tr>
             </tbody>
@@ -195,7 +207,7 @@ export function WeightsEditor({ catalog }: { catalog: Catalog }) {
             {relationIds.map((r) => <option key={r} value={r}>{config.relations[r].name}</option>)}
           </select>
           <select value={preview.budget} onChange={(e) => setPreview({ ...preview, budget: Number(e.target.value) })}>
-            {[30000, 60000, 100000, 200000].map((b) => <option key={b} value={b}>{won(b)}</option>)}
+            {BUDGET_STEPS.filter((b): b is number => b !== null).map((b) => <option key={b} value={b}>{won(b)}</option>)}
           </select>
         </div>
         {(['저장된 설정', '수정 중'] as const).map((label, idx) => {

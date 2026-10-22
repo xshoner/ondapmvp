@@ -3,14 +3,12 @@
 // 인쇄 완료 처리: 주소로 열린 한 건은 버튼으로, 화면 안 카메라(BarcodeDetector)로는 찍는 대로 연달아 처리한다
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { STATUS_LABEL } from '@/packaging/design-filter.ts';
+import { findDesignCode as codeIn } from '@/packaging/rules.ts';
 import type { DesignStatus } from '@/packaging/types.ts';
 import { markPrintedAction, updateDesignsStatusAction } from '../packaging/actions.ts';
 
 type Initial = { code: string; productName: string; quantity: number; status: DesignStatus; statusLabel: string; orderNo: string | null } | null;
 type Done = { code: string; productName: string; quantity: number; previous: DesignStatus; already: boolean; undone?: boolean };
-
-// QR 내용(주소 또는 코드)에서 디자인 코드를 꺼낸다
-const codeIn = (text: string) => text.toUpperCase().match(/OD-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}/)?.[0] ?? null;
 
 type Detector = { detect(source: HTMLVideoElement): Promise<{ rawValue: string }[]> };
 declare global {
@@ -28,9 +26,10 @@ export function ScanView({ initial, missing }: { initial: Initial; missing: stri
 
   const mark = (code: string) => start(async () => {
     setError(null);
-    const res = await markPrintedAction(code);
+    const res = await markPrintedAction(code).catch(() => ({ ok: false as const, message: '연결이 잠시 불안정합니다. 다시 찍어 주세요.' }));
     if (!res.ok) {
-      busy.current.delete(code);
+      // 카메라에 같은 QR이 계속 보여도 0.3초마다 다시 보내지 않게, 잠시 뒤에야 다시 받는다
+      window.setTimeout(() => busy.current.delete(code), 4000);
       return setError(res.message);
     }
     if (navigator.vibrate) navigator.vibrate(60);

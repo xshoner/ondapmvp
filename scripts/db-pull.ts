@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { loadEnv } from '../src/lib/env.ts';
 import { attributesFromRow, productFromRow, type AttributesRow, type ProductRow } from '../src/data/rows.ts';
 import { saveCafe24Products, saveEngineConfig } from '../src/data/catalog.ts';
+import { readPages, type DbPage } from '../src/data/db.ts';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { dataDir } from '../src/lib/paths.ts';
@@ -20,8 +21,8 @@ if (!url || !key) {
 
 const db = createClient(url, key, { auth: { persistSession: false } });
 const [p, a, c] = await Promise.all([
-  db.from('products').select('*').order('product_no'),
-  db.from('product_attributes').select('*').order('product_no'),
+  readPages((from, to) => db.from('products').select('*').order('product_no').range(from, to) as DbPage<ProductRow>),
+  readPages((from, to) => db.from('product_attributes').select('*').order('product_no').range(from, to) as DbPage<AttributesRow>),
   db.from('engine_config').select('config').eq('id', 'active').maybeSingle(),
 ]);
 for (const [name, r] of [['products', p], ['product_attributes', a], ['engine_config', c]] as const) {
@@ -35,8 +36,8 @@ if (!c.data) {
   process.exit(1);
 }
 
-const products = (p.data as ProductRow[]).map(productFromRow);
-const attributes = (a.data as AttributesRow[]).map(attributesFromRow);
+const products = p.rows.map(productFromRow);
+const attributes = a.rows.map(attributesFromRow);
 saveCafe24Products(env.CAFE24_MALL_ID ?? '', products);
 writeFileSync(
   join(dataDir, 'product-attributes.json'),

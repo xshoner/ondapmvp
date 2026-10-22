@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { dataDir, projectRoot } from '../lib/paths.ts';
 import { dataSource } from '../lib/supabase/env.ts';
 import { createClient } from '../lib/supabase/server.ts';
+import { fail, readPages, type DbPage } from './db.ts';
 import type { EventType } from '../engine/types.ts';
 import { isLate, kstRange, lateSince } from '../packaging/design-filter.ts';
 import type { Design, DesignDraft, DesignImage, DesignStatus, DesignText, PackagingAssets, PackagingStyle, StickerSpec } from '../packaging/types.ts';
@@ -18,10 +19,6 @@ type AssetRow = PackagingStyle | DesignImage | DesignText;
 const TABLE: Record<AssetKind, string> = { styles: 'packaging_styles', images: 'design_images', texts: 'design_texts' };
 const ASSET_BUCKET = 'packaging-assets';
 const PRINT_BUCKET = 'design-files';
-
-function fail(what: string, error: { message: string } | null): never {
-  throw new Error(`${what} 실패: ${error?.message ?? '알 수 없는 오류'}`);
-}
 
 const bySort = <T extends { sort: number }>(a: T, b: T) => a.sort - b.sort;
 
@@ -233,7 +230,7 @@ export async function listDesigns(opts: { limit?: number; code?: string | null; 
   }
   const db = await createClient();
   const query = (columns: string, late: boolean) => {
-    let q = db.from('designs').select(columns).order('created_at', { ascending: false }).limit(limit);
+    let q = db.from('designs').select(columns).order('created_at', { ascending: false });
     if (opts.code) q = q.eq('code', opts.code);
     if (opts.status) q = q.eq('status', opts.status);
     if (gte) q = q.gte('created_at', gte);
@@ -244,10 +241,11 @@ export async function listDesigns(opts: { limit?: number; code?: string | null; 
     }
     return q;
   };
-  let { data, error } = await query(LIST_COLUMNS, Boolean(opts.late));
-  if (error?.code === '42703') ({ data, error } = await query(OLD_LIST_COLUMNS, false));
+  const readAll = (columns: string, late: boolean) => readPages((from, to) => query(columns, late).range(from, to) as unknown as DbPage<Row>, limit);
+  let { rows, error } = await readAll(LIST_COLUMNS, Boolean(opts.late));
+  if (error?.code === '42703') ({ rows, error } = await readAll(OLD_LIST_COLUMNS, false));
   if (error) fail('디자인 목록 읽기', error);
-  return (data as unknown as Row[]).map(designFromRow);
+  return rows.map(designFromRow);
 }
 
 export async function updateDesign(code: string, patch: { status: DesignStatus; orderNo: string | null; memo: string }): Promise<void> {

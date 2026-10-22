@@ -128,7 +128,7 @@
   }
 
   function onProductPage(state, fromLink) {
-    var no = String(window.iProductNo || new URLSearchParams(location.search).get('product_no') || '');
+    var no = productNoHere(); // 짧은 상품 주소(/product/이름/11/)에서도 번호를 찾는다
     if (state.productNo && no && state.productNo !== no) return; // 다른 상품
     var qtyText = '';
     if (fromLink && state.qty > 1) {

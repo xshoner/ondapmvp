@@ -6,7 +6,8 @@
 import { headers } from 'next/headers';
 import { getCatalog } from '@/data/repository.ts';
 import { createDesign, getPackagingAssets, lookupDesign, reorderDesign, type DesignSummary } from '@/data/packaging-repository.ts';
-import type { Cafe24Product, EventType } from '@/engine/types.ts';
+import { isEvent } from '@/engine/labels.ts';
+import type { Cafe24Product } from '@/engine/types.ts';
 import { clientIp, createRateLimiter } from '@/lib/rate-limit.ts';
 import { clampQty } from '@/lib/result-query.ts';
 import { MAX_PRINT_BYTES, generateDesignCode, normalizeDesignCode, pngSize, printPixels, sanitizeDraft, sanitizeSticker } from '@/packaging/rules.ts';
@@ -129,7 +130,7 @@ export async function saveDesignAction(form: FormData): Promise<SaveDesignResult
     const product = catalog.products.find((p) => p.productNo === Number(meta.productNo));
     if (!product) return { ok: false, message: '상품을 찾을 수 없습니다.' };
     const quantity = clampQty(meta.quantity);
-    const event = catalog.config.events[String(meta.event) as EventType] ? (String(meta.event) as EventType) : null;
+    const event = isEvent(catalog.config, meta.event) ? meta.event : null;
 
     const { styles } = await getPackagingAssets();
     const style = styles.find((s) => s.id === String(meta.styleId));

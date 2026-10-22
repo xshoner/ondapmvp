@@ -6,6 +6,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { saveBlob } from '@/lib/device.ts';
 import { kstLabel } from '@/lib/kst.ts';
 import { forgetDesign, loadSavedDesigns, orderUrl, rememberDesign, type SavedDesign } from '@/packaging/client.ts';
+import { QtyInput } from '../../components/qty-input.tsx';
 import { lookupDesignAction, lookupDesignsAction, reorderDesignAction, type CustomerDesign } from '../actions.ts';
 import { getPreview, previewCodes, savePreview } from '../editor-store.ts';
 
@@ -37,7 +38,7 @@ const NEXT_HINT: Record<string, string> = {
 const date = (iso: string) => kstLabel(iso).replace(/ \d{2}:\d{2}$/, '');
 const shortDate = (iso: string) => kstLabel(iso).slice(5, 10).replace('-', '/'); // 10/22
 
-export function Progress({ design: d, compact = false }: { design: CustomerDesign; compact?: boolean }) {
+function Progress({ design: d, compact = false }: { design: CustomerDesign; compact?: boolean }) {
   if (d.status === 'canceled') {
     return <p className="small progress-canceled" role="status">취소된 접수예요{compact ? '' : `. 다시 꾸미거나 새로 저장하면 새 코드로 주문할 수 있어요.`}</p>;
   }
@@ -59,6 +60,9 @@ export function Progress({ design: d, compact = false }: { design: CustomerDesig
   );
 }
 
+// 연결이 끊기거나 새로 배포되는 사이에 누르면 서버 호출이 실패한다: 화면 전체 오류 대신 이 문장을 보여 준다
+const NETWORK_ERROR = '연결이 잠시 불안정해요. 다시 시도해 주세요.';
+
 // 같은 디자인으로 다시 주문: 수량만 정하면 새 코드로 접수된다 (지난 주문과 인쇄·주문이 섞이지 않게)
 function Reorder({ design, onDone, link = false }: { design: CustomerDesign; onDone(next: CustomerDesign): void; link?: boolean }) {
   const [open, setOpen] = useState(false);
@@ -69,7 +73,7 @@ function Reorder({ design, onDone, link = false }: { design: CustomerDesign; onD
   if (!open) return <button type="button" className={link ? 'link-btn' : 'btn ghost small'} onClick={() => setOpen(true)}>{link ? '다시 주문' : '같은 디자인으로 다시 주문'}</button>;
   const go = () => start(async () => {
     setError(null);
-    const res = await reorderDesignAction(design.code, qty);
+    const res = await reorderDesignAction(design.code, qty).catch(() => ({ ok: false as const, message: NETWORK_ERROR }));
     if (!res.ok) return setError(res.message);
     setOpen(false);
     onDone(res.design);
@@ -78,7 +82,7 @@ function Reorder({ design, onDone, link = false }: { design: CustomerDesign; onD
     <div className="reorder" role="group" aria-label="같은 디자인으로 다시 주문">
       <label className="small row" style={{ gap: 6 }}>
         수량
-        <input type="number" className="qty-input" min={1} max={100000} value={qty} onChange={(e) => setQty(Math.min(100000, Math.max(1, Math.round(Number(e.target.value) || 1))))} />
+        <QtyInput className="qty-input" value={qty} onValue={setQty} />
         개
       </label>
       <button type="button" className="btn small" disabled={pending} onClick={go}>{pending ? '만드는 중' : '새 코드 받기'}</button>
@@ -119,14 +123,14 @@ export function MineView({ initialCode }: { initialCode: string }) {
     const list = loadSavedDesigns();
     setSaved(list);
     void previewCodes().then(setPreviews);
-    if (list.length) void lookupDesignsAction(list.map((d) => d.code)).then((s) => setStatus((old) => ({ ...old, ...s })));
+    if (list.length) void lookupDesignsAction(list.map((d) => d.code)).then((s) => setStatus((old) => ({ ...old, ...s })), () => {}); // 못 읽으면 진행 상태만 빠진다
   };
   useEffect(refreshSaved, []);
 
   const lookup = (value: string) => start(async () => {
     setMessage(null);
     setFound(null);
-    const res = await lookupDesignAction(value);
+    const res = await lookupDesignAction(value).catch(() => ({ ok: false as const, message: NETWORK_ERROR }));
     if (res.ok) setFound(res.design);
     else setMessage(res.message);
   });

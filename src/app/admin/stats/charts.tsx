@@ -51,11 +51,11 @@ export function DailyColumns({ days, unit, label }: { days: { date: string; valu
 }
 
 // 항목별 가로 막대 (많은 순). 값은 막대 끝 글자로 직접 표시
-export function RankBars({ rows, unit }: { rows: { label: string; value: number }[]; unit: string }) {
+export function RankBars({ rows, unit, wide }: { rows: { label: string; value: number }[]; unit: string; wide?: boolean }) {
   const max = Math.max(1, ...rows.map((r) => r.value));
   if (rows.length === 0) return <p className="small muted" style={{ margin: 0 }}>기록이 없습니다.</p>;
   return (
-    <ul className="rank-bars">
+    <ul className={wide ? 'rank-bars wide' : 'rank-bars'}>
       {rows.map((r) => (
         <li key={r.label} title={`${r.label} ${r.value}${unit}`}>
           <span className="rank-label">{r.label}</span>
@@ -65,4 +65,9 @@ export function RankBars({ rows, unit }: { rows: { label: string; value: number 
       ))}
     </ul>
   );
+}
+
+// 실적을 A4 한 장으로 (메뉴·필터는 인쇄 스타일에서 숨긴다)
+export function PrintButton() {
+  return <button type="button" className="btn ghost small" onClick={() => window.print()}>A4로 인쇄</button>;
 }

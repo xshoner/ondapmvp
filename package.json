@@ -23,7 +23,10 @@
     "doctor": "node scripts/doctor.ts",
     "cafe24:snippets": "node scripts/cafe24-snippets.ts",
     "handoff:export": "node scripts/handoff-export.mjs",
-    "handoff:restore": "node scripts/handoff-restore.mjs"
+    "handoff:restore": "node scripts/handoff-restore.mjs",
+    "e2e": "node scripts/e2e/run.mjs",
+    "e2e:db": "node scripts/e2e/sql.mjs",
+    "e2e:pdf": "node scripts/e2e/pdf-qr.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

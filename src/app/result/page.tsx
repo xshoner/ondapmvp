@@ -1,16 +1,19 @@
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import { getCatalog, logRecommendation } from '@/data/repository.ts';
 import { recommend } from '@/engine/recommend.ts';
-import { eventIds, relationIds } from '@/engine/labels.ts';
+import { eventIds, isEvent, isRelation, relationIds } from '@/engine/labels.ts';
+import { isDepopulationArea } from '@/engine/formality.ts';
 import type { EngineConfig, EventType, Relation, ScoredProduct } from '@/engine/types.ts';
-import { BUDGET_STEPS, MAX_EXCLUDE, MAX_QTY, budgetChipText, budgetText, parseResultQuery, resultHref, type ResultQuery } from '@/lib/result-query.ts';
-import { CloseCondOnOutside, RememberQuery } from './client-bits.tsx';
+import { BUDGET_STEPS, MAX_EXCLUDE, MAX_QTY, budgetChipText, budgetText, parseResultQuery, resultHref, type ResultQuery, won } from '@/lib/result-query.ts';
+import { CloseCondOnOutside, FeedbackBox, RememberQuery } from './client-bits.tsx';
 import { MainPick, OtherPick } from './pick-cards.tsx';
 import { ShareButton } from './share-button.tsx';
 
 export const dynamic = 'force-dynamic';
 
-const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
+// 링크 미리보기·검색 수집기 (카카오톡 미리보기는 kakaotalk-scrap, 네이버 Yeti, 다음 Daumoa). 카카오톡 안 브라우저(KAKAOTALK)는 사람이다
+const isBot = (ua: string | null) => !ua || /bot|crawl|spider|slurp|scrap|facebookexternalhit|daumoa|yeti|whatsapp|preview/i.test(ua);
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -18,9 +21,8 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 export async function generateMetadata({ searchParams }: { searchParams: SearchParams }): Promise<Metadata> {
   const q = parseResultQuery(await searchParams);
   const { config } = await getCatalog();
-  const event = q.event as EventType;
-  const relation = q.relation as Relation;
-  if (!config.events[event] || !config.relations[relation]) return {};
+  const { event, relation } = q;
+  if (!isEvent(config, event) || !isRelation(config, relation)) return {};
   const title = `${config.events[event].name} 자리에 맞춘 답례품 | 온답`;
   const description = `${config.relations[relation].name}께 드릴 답례품을 격식지수로 골랐습니다. 추천 세 가지를 확인해 보세요.`;
   const image = { url: `/og${resultHref(q)}`, width: 1200, height: 630, alt: title };
@@ -42,9 +44,8 @@ export default async function ResultPage({ searchParams }: { searchParams: Searc
   const catalog = await getCatalog();
   const { config } = catalog;
 
-  const event = q.event as EventType;
-  const relation = q.relation as Relation;
-  if (!config.events[event] || !config.relations[relation]) {
+  const { event, relation } = q;
+  if (!isEvent(config, event) || !isRelation(config, relation)) {
     return (
       <main className="mobile">
         <TopBar />
@@ -57,7 +58,8 @@ export default async function ResultPage({ searchParams }: { searchParams: Searc
   const quantity = q.qty;
 
   const result = recommend(catalog, { event, relation, budgetMax: q.budget ?? undefined, quantity, exclude: q.exclude });
-  if (q.exclude.length === 0) await logRecommendation(result, config.modelVersion); // '빼고 다시'는 같은 고객의 다시 보기라 세지 않는다
+  // '빼고 다시'는 같은 고객의 다시 보기, 미리보기 수집 봇(카카오톡·검색엔진 등)은 사람이 아니라 세지 않는다
+  if (q.exclude.length === 0 && !isBot((await headers()).get('user-agent'))) await logRecommendation(result, config.modelVersion);
   const [main, ...others] = result.results;
   const eventName = config.events[event].name;
   const calm = event === 'funeral'; // 장례는 축하 느낌(인주색 도장·찍히는 움직임)을 빼고 차분하게
@@ -125,7 +127,9 @@ export default async function ResultPage({ searchParams }: { searchParams: Searc
         </section>
       )}
 
-      {result.results.length > 1 && <CompareTable items={result.results} quantity={quantity} />}
+      {result.results.length > 1 && <CompareTable items={result.results} quantity={quantity} config={config} />}
+
+      {main && <FeedbackBox query={q} productNos={result.results.map((x) => x.product.productNo)} />}
 
       <p className="foot-note">온답 격식지수 가안 {config.modelVersion}</p>
     </main>
@@ -174,7 +178,7 @@ function CondLink({ href, on, children }: { href: string; on: boolean; children:
 }
 
 // 추천 상품을 한 표에 나란히 (휴대폰에서는 옆으로 밀어 본다)
-function CompareTable({ items, quantity }: { items: ScoredProduct[]; quantity: number }) {
+function CompareTable({ items, quantity, config }: { items: ScoredProduct[]; quantity: number; config: EngineConfig }) {
   const rows: [string, (x: ScoredProduct) => React.ReactNode][] = [
     ['격식 단계', (x) => x.tier],
     ['격식지수', (x) => <b>{Math.round(x.matchScore)}</b>],
@@ -182,7 +186,7 @@ function CompareTable({ items, quantity }: { items: ScoredProduct[]; quantity: n
     [`${quantity.toLocaleString('ko-KR')}개 합계`, (x) => won(x.product.price * quantity)],
     ['산지', (x) => x.attributes.region],
     ['분류', (x) => x.attributes.category],
-    ['지역 상생', (x) => (x.bonuses.some((b) => b.reason.startsWith('소멸위기지역')) ? '인구감소지역 상품' : '—')],
+    ['지역 상생', (x) => (isDepopulationArea(config, x.attributes.region) ? '인구감소지역 상품' : '—')],
   ];
   return (
     <details className="disclosure compare">

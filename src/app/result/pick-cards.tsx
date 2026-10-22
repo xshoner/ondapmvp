@@ -1,10 +1,8 @@
 // 추천 결과 카드: 결과 화면과 관리자 '고객 카드 미리보기'가 같은 모양을 쓴다
 import type { ScoredProduct } from '@/engine/types.ts';
-import { shippingFee } from '@/lib/result-query.ts';
+import { shippingFee, won } from '@/lib/result-query.ts';
 import { ScoreBreakdown } from '../components/score-breakdown.tsx';
 import { SavePickButton } from './client-bits.tsx';
-
-const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
 
 // preview: 관리자 '고객 카드 미리보기' (찜·빼기 없이 모양만)
 export function MainPick({ item, quantity, packagingHref, excludeHref, preview = false }: { item: ScoredProduct; quantity: number; packagingHref: string; excludeHref: string | null; preview?: boolean }) {

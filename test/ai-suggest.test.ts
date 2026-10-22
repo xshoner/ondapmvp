@@ -77,6 +77,16 @@ test('모두 적용: 점수·행사·관계를 덮고, 이미 입력한 산지�
   assert.deepEqual(next.tags, ['기존']);
 });
 
+test('모두 적용: 써 둔 선물의 의미는 남기고, AI가 뺀 행사의 의미만 지운다', () => {
+  const current = attrs(23, { meanings: { opening: '번창', funeral: '위로' } });
+  const s = normalizeSuggestion(
+    { scores: { rarity: { score: 5, reason: '' } }, meanings: [{ event: 'birth', meaning: '건강' }], excludedEvents: [{ event: 'funeral', reason: '격식이 맞지 않음' }] },
+    testConfig,
+    'm',
+  );
+  assert.deepEqual(applySuggestion(current, s).meanings, { opening: '번창', birth: '건강' });
+});
+
 test('산지가 비어 있으면 AI 제안 산지를 쓴다', () => {
   const s = normalizeSuggestion({ scores: { rarity: { score: 5, reason: '' } }, region: '하동' }, testConfig, 'm');
   assert.equal(applySuggestion(attrs(1, { region: '국내' }), s).region, '하동');

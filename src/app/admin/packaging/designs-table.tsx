@@ -2,7 +2,7 @@
 
 // 디자인 접수 목록: 카페24 주문서의 '온답 포장 디자인 코드'로 찾아 주문번호를 잇고, 인쇄 파일을 내려받는다.
 // 여러 건 상태 바꾸기, 주문 상세 붙여넣기, 늦어지는 건 표시, 키보드(j·k·x·p·s·?)로 빠르게 처리한다.
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { isTyping, saveBlob } from '@/lib/device.ts';
 import { kstLabel } from '@/lib/kst.ts';
@@ -302,9 +302,16 @@ function DesignRow({ design: d, eventNames, options, now, active, selected, onTo
   const [orderNo, setOrderNo] = useState(d.orderNo ?? '');
   const [memo, setMemo] = useState(d.memo);
   const [message, setMessage] = useState<string | null>(null);
-  // 목록이 새로 그려지면(한꺼번에 바꾸기 등) 고치지 않은 칸은 새 값으로
-  useEffect(() => setStatus(d.status), [d.status]);
-  useEffect(() => setOrderNo(d.orderNo ?? ''), [d.orderNo]);
+  // 목록이 새로 그려지면(한꺼번에 바꾸기 등) 고치지 않은 칸만 새 값으로. 고치던 칸은 그대로 두어 저장 단추로 반영한다
+  const server = useRef({ status: d.status, orderNo: d.orderNo ?? '', memo: d.memo });
+  useEffect(() => {
+    const prev = server.current;
+    const next = { status: d.status, orderNo: d.orderNo ?? '', memo: d.memo };
+    setStatus((v) => (v === prev.status ? next.status : v));
+    setOrderNo((v) => (v === prev.orderNo ? next.orderNo : v));
+    setMemo((v) => (v === prev.memo ? next.memo : v));
+    server.current = next;
+  }, [d.status, d.orderNo, d.memo]);
   const dirty = status !== d.status || orderNo !== (d.orderNo ?? '') || memo !== d.memo;
   const printable = Boolean(d.printCode && d.sticker);
   const sheets = d.sticker ? sheetsNeeded(sheetLayout(d.sticker, options.paper), d.quantity) : 0;

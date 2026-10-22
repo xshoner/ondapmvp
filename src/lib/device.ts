@@ -71,10 +71,25 @@ export function forgetLastQuery(): void {
   removeKey(LAST_QUERY_KEY);
 }
 
+// ---------- 추천 의견을 보낸 결과 (같은 결과에 두 번 묻지 않는다) ----------
+
+const FEEDBACK_KEY = 'ondap_feedback_sent';
+
+export function feedbackSent(key: string): boolean {
+  const v = readJson(FEEDBACK_KEY);
+  return Array.isArray(v) && v.includes(key);
+}
+
+export function rememberFeedback(key: string): void {
+  const v = readJson(FEEDBACK_KEY);
+  const list = Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x !== key) : [];
+  writeJson(FEEDBACK_KEY, [key, ...list].slice(0, 50));
+}
+
 // ---------- 찜한 답례 (CR-12) ----------
 
 const PICKS_KEY = 'ondap_saved_picks';
-export const MAX_PICKS = 30;
+const MAX_PICKS = 30;
 
 export interface SavedPick {
   productNo: number;

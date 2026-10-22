@@ -3,7 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { forgetLastQuery, loadLastQuery, type LastQuery } from '@/lib/device.ts';
-import { BUDGET_STEPS, MAX_QTY, budgetChipText, budgetText, clampQty, perItemBudget, resultHref } from '@/lib/result-query.ts';
+import { QtyInput } from './components/qty-input.tsx';
+import { BUDGET_STEPS, budgetChipText, budgetText, clampQty, perItemBudget, resultHref, won } from '@/lib/result-query.ts';
 
 type Option = { id: string; name: string };
 
@@ -14,8 +15,6 @@ const HANJA: Record<string, string> = {
 
 const QUICK_ADD = [10, 50, 100];
 const MAX_TOTAL_DIGITS = 10; // 99억 원. 입력칸은 숫자만 (쉼표를 넣으면 중간을 고칠 때 커서가 끝으로 튄다)
-
-const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
 
 export function GiftFinderForm({ events, relations, initial }: { events: Option[]; relations: Option[]; initial?: LastQuery | null }) {
   const router = useRouter();
@@ -134,7 +133,7 @@ export function GiftFinderForm({ events, relations, initial }: { events: Option[
         <div className="row" style={{ gap: 10 }}>
           <div className="stepper">
             <button type="button" aria-label="수량 줄이기" onClick={() => setQty(quantity - (quantity > 10 ? 10 : 1))}>−</button>
-            <input id="qty" type="number" inputMode="numeric" min={1} max={MAX_QTY} value={quantity} onChange={(e) => setQty(Number(e.target.value))} />
+            <QtyInput id="qty" value={quantity} onValue={setQty} />
             <button type="button" aria-label="수량 늘리기" onClick={() => setQty(quantity + (quantity >= 10 ? 10 : 1))}>+</button>
           </div>
           <div className="chips quick-add">

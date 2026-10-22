@@ -184,8 +184,6 @@ button, input, select, textarea { font: inherit; color: inherit; letter-spacing:
 
 /* ---------- 추천 결과 ---------- */
 .result-head { margin-top: 4px; }
-.result-head .meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
-.result-head .meta span { font-size: 13px; padding: 3px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); color: var(--ink-soft); }
 .result-note { margin: 16px 0 0; padding: 12px 14px; border-left: 2px solid var(--line-strong); font-size: 13.5px; color: var(--muted); }
 
 .pick { margin-top: 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); }
@@ -320,7 +318,6 @@ table.data td:first-child, table.data th:first-child { white-space: nowrap; }
 /* ---------- 포장 꾸미기 ---------- */
 .product-strip { display: flex; gap: 14px; align-items: center; padding: 14px; margin-top: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 .product-strip img { border-radius: var(--radius-sm); flex: none; }
-.free-note { font-size: 13px; color: var(--pine); font-weight: 600; }
 .style-grid, .sticker-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .sticker-grid { grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .thumb {
@@ -429,6 +426,7 @@ table.data.designs-table th { position: static; }
 .chart-x span { flex: 1; min-width: 0; text-align: center; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: visible; }
 .rank-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .rank-bars li { display: grid; grid-template-columns: 84px 1fr 44px; align-items: center; gap: 10px; font-size: 13px; }
+.rank-bars.wide li { grid-template-columns: 160px 1fr 44px; }
 .rank-label { color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rank-track { height: 10px; background: #f0f2ee; border-radius: 0 4px 4px 0; }
 .rank-track .bar { display: block; height: 100%; background: var(--chart); border-radius: 0 4px 4px 0; }
@@ -550,3 +548,22 @@ table.data.designs-table tr.late.cursor td:first-child { box-shadow: inset 3px 0
 .mine-more .link-btn { font-weight: 500; }
 .mine-more .link-btn.muted { color: var(--muted); }
 .mine-more .reorder { flex-basis: 100%; }
+
+/* 추천 의견 (결과 화면 끝) */
+.feedback { margin-top: 32px; padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); text-align: center; }
+.feedback .row, .feedback .chips { justify-content: center; }
+.feedback-q { margin: 0 0 10px; font-weight: 600; font-size: 14.5px; }
+
+/* 실적 A4 인쇄: 메뉴·필터·안내를 숨기고 흰 바탕 한 장으로 */
+.print-only { display: none; }
+@media print {
+  @page { size: A4; margin: 12mm; }
+  body, .admin { background: #fff; }
+  .admin-nav, .today-bar, .admin-body > .notice, .no-print { display: none !important; }
+  .print-only { display: block; }
+  .admin-body { padding: 0; max-width: none; }
+  .kpi, .panel { break-inside: avoid; box-shadow: none; }
+  .kpi { padding: 10px 12px; }
+  .kpi-value { font-size: 24px; }
+  .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

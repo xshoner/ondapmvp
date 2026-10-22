@@ -3,32 +3,30 @@
 // CLI 스크립트와 테스트는 src/data/catalog.ts(로컬 JSON)를 직접 쓴다.
 
 import * as local from './catalog.ts';
+import { fail, readPages, type DbPage } from './db.ts';
 import { attributesFromRow, attributesToRow, productFromRow, productToRow, type AttributesRow, type ProductRow } from './rows.ts';
 import { dataSource } from '../lib/supabase/env.ts';
 import { createClient } from '../lib/supabase/server.ts';
 import type { Cafe24Product, Catalog, EngineConfig, ProductAttributes, RecommendResult } from '../engine/types.ts';
+import type { FeedbackLog, FeedbackReason } from '../lib/feedback.ts';
 
 export type Expectations = local.Expectations;
 export type AttributeChange = local.AttributeChange;
-
-function fail(what: string, error: { message: string } | null): never {
-  throw new Error(`${what} 실패: ${error?.message ?? '알 수 없는 오류'}`);
-}
 
 export async function getCatalog(): Promise<Catalog> {
   if (dataSource() === 'local') return local.loadCatalog();
   const db = await createClient();
   const [p, a, c] = await Promise.all([
-    db.from('products').select('*').order('product_no'),
-    db.from('product_attributes').select('*').order('product_no'),
+    readPages((from, to) => db.from('products').select('*').order('product_no').range(from, to) as DbPage<ProductRow>),
+    readPages((from, to) => db.from('product_attributes').select('*').order('product_no').range(from, to) as DbPage<AttributesRow>),
     db.from('engine_config').select('config').eq('id', 'active').maybeSingle(),
   ]);
   if (p.error) fail('상품 읽기', p.error);
   if (a.error) fail('지표 읽기', a.error);
   if (c.error || !c.data) fail('엔진 설정 읽기', c.error ?? { message: 'engine_config 행이 없습니다. seed.sql을 실행하세요.' });
   return {
-    products: (p.data as ProductRow[]).map(productFromRow),
-    attributes: (a.data as AttributesRow[]).map(attributesFromRow),
+    products: p.rows.map(productFromRow),
+    attributes: a.rows.map(attributesFromRow),
     config: c.data.config as EngineConfig,
   };
 }
@@ -101,16 +99,14 @@ export async function saveConfig(config: EngineConfig): Promise<void> {
 
 // 카페24 동기화 결과로 상품 표를 맞춘다 (카페24에서 사라진 상품은 지운다. 지표는 남겨 둔다)
 export async function saveProducts(mallId: string, products: Cafe24Product[]): Promise<void> {
+  if (products.length === 0) return; // 빈 목록은 카페24 쪽 일시 오류일 수 있어 상품을 모두 지우지 않는다
   if (dataSource() === 'local') return local.saveCafe24Products(mallId, products);
   const db = await createClient();
   const now = new Date().toISOString();
   const { error } = await db.from('products').upsert(products.map((p) => ({ ...productToRow(p), synced_at: now })));
   if (error) fail('상품 저장', error);
-  const keep = products.map((p) => p.productNo);
-  if (keep.length) {
-    const del = await db.from('products').delete().not('product_no', 'in', `(${keep.join(',')})`);
-    if (del.error) fail('사라진 상품 정리', del.error);
-  }
+  const del = await db.from('products').delete().not('product_no', 'in', `(${products.map((p) => p.productNo).join(',')})`);
+  if (del.error) fail('사라진 상품 정리', del.error);
 }
 
 export async function saveExpectation(key: string, productNo: number | null): Promise<void> {
@@ -142,21 +138,54 @@ export async function logRecommendation(result: RecommendResult, modelVersion: s
   }
 }
 
-// 실적 대시보드용 추천 기록 (관리자만 읽기 가능). 한 번에 1,000건씩 나눠 최대 20,000건
-export async function getRecommendationLogs(range: { gte: string | null; lt: string | null }): Promise<{ createdAt: string; event: string; relation: string; resultProductNos: number[] }[]> {
-  if (dataSource() === 'local') return []; // 로컬 모드는 추천 기록을 남기지 않는다
+type RecLogRow = { createdAt: string; event: string; relation: string; resultProductNos: number[]; budgetMax: number | null };
+
+// 기간 조건을 건 기록 읽기 (실적 화면). 최대 20,000건
+async function readPeriod(table: string, columns: string, range: { gte: string | null; lt: string | null }) {
   const db = await createClient();
-  const out: { createdAt: string; event: string; relation: string; resultProductNos: number[] }[] = [];
-  for (let page = 0; page < 20; page++) {
-    let q = db.from('recommendation_logs').select('created_at, event, relation, result_product_nos').order('created_at', { ascending: true }).range(page * 1000, page * 1000 + 999);
+  return readPages((from, to) => {
+    let q = db.from(table).select(columns).order('created_at', { ascending: true }).range(from, to);
     if (range.gte) q = q.gte('created_at', range.gte);
     if (range.lt) q = q.lt('created_at', range.lt);
-    const { data, error } = await q;
-    if (error) fail('추천 기록 읽기', error);
-    for (const r of data ?? []) out.push({ createdAt: r.created_at as string, event: r.event as string, relation: r.relation as string, resultProductNos: (r.result_product_nos as number[]) ?? [] });
-    if (!data || data.length < 1000) break;
+    return q as DbPage<Record<string, unknown>>;
+  });
+}
+
+// 실적 대시보드용 추천 기록 (관리자만 읽기 가능)
+export async function getRecommendationLogs(range: { gte: string | null; lt: string | null }): Promise<RecLogRow[]> {
+  if (dataSource() === 'local') return []; // 로컬 모드는 추천 기록을 남기지 않는다
+  const { rows, error } = await readPeriod('recommendation_logs', 'created_at, event, relation, result_product_nos, budget_max', range);
+  if (error) fail('추천 기록 읽기', error);
+  return rows.map((r) => ({
+    createdAt: r.created_at as string, event: r.event as string, relation: r.relation as string,
+    resultProductNos: (r.result_product_nos as number[]) ?? [], budgetMax: (r.budget_max as number | null) ?? null,
+  }));
+}
+
+// 추천에 대한 고객 목소리 (결과 화면 끝). 저장이 안 돼도 고객 화면은 그대로 둔다
+export interface NewFeedback {
+  event: string; relation: string; budgetMax: number | null; quantity: number; resultProductNos: number[];
+  helpful: boolean; reasons: FeedbackReason[]; modelVersion: string;
+}
+
+export async function saveFeedback(f: NewFeedback): Promise<void> {
+  if (dataSource() === 'local') return local.appendFeedback({ ...f, createdAt: new Date().toISOString() });
+  const db = await createClient();
+  const { error } = await db.from('recommendation_feedback').insert({
+    event: f.event, relation: f.relation, budget_max: f.budgetMax, quantity: f.quantity,
+    result_product_nos: f.resultProductNos, helpful: f.helpful, reasons: f.reasons, model_version: f.modelVersion,
+  });
+  if (error) fail('의견 저장', error);
+}
+
+// 실적 화면용 (관리자만 읽기). 표가 아직 없으면(SQL 실행 전) null → 화면에서 안내
+export async function getFeedback(range: { gte: string | null; lt: string | null }): Promise<FeedbackLog[] | null> {
+  if (dataSource() === 'local') {
+    return local.loadFeedback().filter((f) => (!range.gte || f.createdAt >= range.gte) && (!range.lt || f.createdAt < range.lt));
   }
-  return out;
+  const { rows, error } = await readPeriod('recommendation_feedback', 'created_at, event, relation, helpful, reasons', range);
+  if (error) return null;
+  return rows.map((r) => ({ createdAt: r.created_at as string, event: r.event as string, relation: r.relation as string, helpful: r.helpful as boolean, reasons: (r.reasons as string[]) ?? [] }));
 }
 
 // 메인 화면 '이번 달 n번' 한 줄. 함수가 아직 없거나(SQL 미실행) 로컬 모드면 null → 화면에서 숨김

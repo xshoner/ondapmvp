@@ -48,7 +48,7 @@ export function baseIndex(config: EngineConfig, attrs: ProductAttributes): numbe
   return max ? round1((sum / max) * 100) : 0;
 }
 
-export interface FormalityBreakdown {
+interface FormalityBreakdown {
   formalityIndex: number;
   matchScore: number;
   indicators: IndicatorContribution[];

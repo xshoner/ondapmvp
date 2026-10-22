@@ -1,9 +1,8 @@
 import Image from 'next/image';
 import { getCatalog } from '@/data/repository.ts';
+import { won } from '@/lib/result-query.ts';
 
 export const dynamic = 'force-dynamic';
-
-const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 

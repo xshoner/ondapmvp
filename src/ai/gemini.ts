@@ -5,11 +5,11 @@
 
 import { ApiError, GoogleGenAI } from '@google/genai';
 
-export const DEFAULT_AI_MODEL = 'gemini-3.6-flash';
-export const DEFAULT_FALLBACK_MODEL = 'gemini-flash-latest';
+const DEFAULT_AI_MODEL = 'gemini-3.6-flash';
+const DEFAULT_FALLBACK_MODEL = 'gemini-flash-latest';
 const RETRYABLE = new Set([429, 500, 503, 504]);
 // 한 번 호출의 최대 대기 시간. 넘으면 끊고 다음 모델로 (응답이 늦어 화면이 마냥 '검토 중'에 머무는 것 방지)
-export const CALL_TIMEOUT_MS = 40_000;
+const CALL_TIMEOUT_MS = 40_000;
 
 export function aiModels(env: Record<string, string | undefined> = process.env): string[] {
   const primary = env.ONDAP_AI_MODEL || DEFAULT_AI_MODEL;

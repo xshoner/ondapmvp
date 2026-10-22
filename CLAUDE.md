@@ -19,6 +19,7 @@
 - Next.js 16 App Router: `src/proxy.ts`(middleware 아님), 서버에서 로그인 확인은 `getClaims()`, `error.tsx`는 `retry` prop
 - 데이터 입구는 `src/data/repository.ts`·`packaging-repository.ts` (`ONDAP_DATA_SOURCE` local|supabase). 화면 순서는 `eventIds()`·`relationIds()` (jsonb가 키 순서를 섞는다)
 - 바꾼 뒤: `npm test` → `npm run typecheck` → 화면이면 미리보기로 확인 → 커밋. `main` 푸시 = Vercel 운영 배포
+- 화면 흐름 검증: 로컬 모드 개발 서버를 띄운 채 `npm run e2e` (data/는 자동 백업·복원). DB 규칙은 `npm run e2e:db`, 인쇄 PDF QR은 `npm run e2e:pdf` (처음 한 번 `npm --prefix scripts/e2e ci`). 무엇이 어디 있는지는 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - 설정 점검: `npm run doctor` (배포까지: `npm run doctor -- https://ondapmvp.vercel.app`)
 
 ## DB (Supabase)

@@ -5,10 +5,10 @@ import { eventIds, relationIds } from './labels.ts';
 import { filterAndScore, recommend } from './recommend.ts';
 import type { Catalog, EventType, ProductAttributes, Relation } from './types.ts';
 
-export interface Scenario { event: EventType; relation: Relation }
+interface Scenario { event: EventType; relation: Relation }
 
 // 행사 × 관계 전부 (알고리즘 검증 화면과 같은 32가지)
-export function allScenarios(catalog: Catalog): Scenario[] {
+function allScenarios(catalog: Catalog): Scenario[] {
   return eventIds(catalog.config).flatMap((event) => relationIds(catalog.config).map((relation) => ({ event, relation })));
 }
 
@@ -18,7 +18,7 @@ export function withAttributes(catalog: Catalog, next: ProductAttributes): Catal
   return { ...catalog, attributes: [...others, next] };
 }
 
-export interface ImpactRow extends Scenario {
+interface ImpactRow extends Scenario {
   before: number[]; // 바꾸기 전 추천 상품번호 (순위대로)
   after: number[];
   firstChanged: boolean;

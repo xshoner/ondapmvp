@@ -97,6 +97,7 @@ export async function syncCafe24Action(): Promise<{ ok: true; message: string; r
     const config = cafe24ConfigFromEnv(process.env as Record<string, string>);
     const before = (await getCatalog()).products;
     const products = await fetchAllProducts(config);
+    if (products.length === 0) return { ok: false, message: '카페24에서 상품을 하나도 받지 못해 아무것도 바꾸지 않았습니다. 잠시 후 다시 시도해 주세요.' };
     await saveProducts(config.mallId, products);
     revalidatePath('/', 'layout');
     const d = diffProducts(before, products);

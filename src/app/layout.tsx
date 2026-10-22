@@ -1,10 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { sans, serif } from './fonts.ts';
 import './globals.css';
-
-// 공유 미리보기 그림 주소를 절대 주소로 만드는 기준 (운영 주소 → Vercel이 알려 주는 주소 → 로컬)
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
-  ?? (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : 'http://127.0.0.1:3000');
+import { siteUrl } from '@/lib/site.ts';
 
 export const viewport: Viewport = { themeColor: '#1f4436' };
 

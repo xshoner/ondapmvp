@@ -67,11 +67,6 @@ function normalize(p: RawProduct, mallId: string): Cafe24Product {
   };
 }
 
-export async function fetchProduct(config: Cafe24Config, productNo: number): Promise<Cafe24Product> {
-  const body = await get<{ product: RawProduct }>(config, `/products/${productNo}`);
-  return normalize(body.product, config.mallId);
-}
-
 export async function fetchAllProducts(config: Cafe24Config): Promise<Cafe24Product[]> {
   const limit = 100;
   const all: Cafe24Product[] = [];

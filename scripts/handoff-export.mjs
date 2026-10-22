@@ -34,10 +34,12 @@ const REDACTIONS = [
   [/eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}/g, '[가림: 토큰]'],
   [/gh[pousr]_[A-Za-z0-9]{30,}/g, '[가림: GitHub 토큰]'],
   [/vercel_[A-Za-z0-9]{20,}/g, '[가림: Vercel 토큰]'],
+  [/sb_(publishable|secret)_[A-Za-z0-9_-]{10,}/g, '[가림: Supabase $1 키]'],
+  [/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g, '[가림: JWT]'],
   // "패스워드는 abc123!" 처럼 숫자·기호가 섞인 6자 이상 값만 가린다 ("비밀번호 재설정" 같은 문장은 그대로)
   [/((?:password|passwd|pwd|pw|비밀번호|비번|패스워드|암호)\s*(?:은|는|이|가|:|=|：)?\s*)(?=[^\s,]*[0-9!@#$%^&*])[^\s,]{6,}/gi, '$1[가림]'],
   [/((?:FRONT_API_KEY|CLIENT_SECRET|SERVICE_ROLE_KEY|ondap_ai|SECRET|TOKEN)\s*=\s*)[^\s`'"]{4,}/g, '$1[가림]'],
-  [/(\b[A-Za-z0-9_]*(?:KEY|SECRET|TOKEN|PASSWORD|PASSWD)["']?\s*[=:]\s*["']?)(?!\[가림)[^\s`'",}]{6,}/g, '$1[가림]'],
+  [/(\b[A-Za-z0-9_]*(?:KEY|SECRET|TOKEN|PASSWORD|PASSWD)["']?\s*[=:]\s*["']?)(?!\[가림)[^\s`'",}]{6,}/gi, '$1[가림]'],
   [/(\b[a-z][a-z0-9+.\-]*:\/\/)[^\s:@\/]+:[^\s@\/]+@/gi, '$1[가림]@'],
   [/(\bBearer\s+)[A-Za-z0-9._~+\/\-]{10,}=*/g, '$1[가림]'],
   [/(\bBasic\s+)[A-Za-z0-9+\/]{16,}=*/g, '$1[가림]'],

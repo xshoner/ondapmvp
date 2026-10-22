@@ -1,5 +1,5 @@
 // 행사 8종 × 관계 4종 = 32개 시나리오를 한 번에 돌려 결과표를 만든다 (알고리즘 검증용)
-// 사용법: npm run report -- [1개당 예산, 기본 60000]
+// 사용법: npm run report -- [1개당 예산, 기본 50000]
 // 출력: 화면 + reports/scenario-report.md
 
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -9,7 +9,7 @@ import { recommend } from '../src/engine/recommend.ts';
 import { projectRoot } from '../src/lib/paths.ts';
 import type { EventType, Relation } from '../src/engine/types.ts';
 
-const budgetMax = Number(process.argv[2] ?? 60000);
+const budgetMax = Number(process.argv[2] ?? 50000);
 const catalog = loadCatalog();
 const { config } = catalog;
 const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;

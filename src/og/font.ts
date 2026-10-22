@@ -4,7 +4,7 @@
 const OLD_UA = 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/534.30 (KHTML, like Gecko) Chrome/12.0.742.112 Safari/534.30';
 const cache = new Map<string, Promise<ArrayBuffer | null>>();
 
-export function loadGoogleFont(family: string, weight: number, text: string): Promise<ArrayBuffer | null> {
+function loadGoogleFont(family: string, weight: number, text: string): Promise<ArrayBuffer | null> {
   const chars = [...new Set(text)].join('');
   const key = `${family}:${weight}:${chars}`;
   if (!cache.has(key)) {

@@ -4,7 +4,7 @@
 import type { DesignCategory, DesignDraft, Layer, StickerShape, StickerSizeCm, StickerSpec } from './types.ts';
 
 export const MAX_ACTIVE = 10; // 스타일, 분류별 추천 이미지·문구 각각 '사용' 최대 개수
-export const DPI = 300;
+const DPI = 300;
 export const BLEED_CM = 0.2; // 재단 여백(사방 2mm). 인쇄 파일은 이만큼 크게 만든다
 export const CANVAS_UNITS = 1000; // 편집기 좌표계: 재단 여백 포함 전체 = 1000
 export const MAX_LAYERS = 12;
@@ -116,6 +116,9 @@ export function generateDesignCode(random: (n: number) => Uint8Array = (n) => cr
   const chars = Array.from(random(8), (b) => CODE_ALPHABET[b % 32]);
   return `OD-${chars.slice(0, 4).join('')}-${chars.slice(4).join('')}`;
 }
+
+// QR 내용(주소 또는 코드)이나 긴 글 속에서 디자인 코드 하나를 꺼낸다
+export const findDesignCode = (text: string): string | null => text.toUpperCase().match(new RegExp(CODE_PATTERN.source.slice(1, -1)))?.[0] ?? null;
 
 // 고객이 소문자·공백을 섞어 적어도 찾을 수 있게 정리한다
 export function normalizeDesignCode(value: string): string | null {

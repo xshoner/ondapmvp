@@ -15,7 +15,7 @@ const INK = rgb(0.25, 0.25, 0.25);
 // 기본 글꼴(WinAnsi)에 없는 글자(한글 등)는 ?로 바꾼다. 그대로 쓰면 PDF 생성이 실패한다
 const ascii = (v: string) => v.replace(/[^\x20-\x7E]/g, '?');
 
-export interface PrintSheetInput {
+interface PrintSheetInput {
   png: Uint8Array;
   sticker: StickerSpec;
   paper: Paper;

@@ -3,16 +3,16 @@
 import { ImageResponse } from 'next/og';
 import { getCatalog } from '@/data/repository.ts';
 import { recommend } from '@/engine/recommend.ts';
-import type { EventType, Relation } from '@/engine/types.ts';
+import { isEvent, isRelation } from '@/engine/labels.ts';
 import { OG_COLORS as C, OG_SIZE, ogFonts } from '@/og/font.ts';
 import { clampQty, parseBudget, parseExclude } from '@/lib/result-query.ts';
 
 export async function GET(request: Request) {
   const q = new URL(request.url).searchParams;
   const catalog = await getCatalog();
-  const event = q.get('event') as EventType;
-  const relation = q.get('relation') as Relation;
-  if (!catalog.config.events[event] || !catalog.config.relations[relation]) return new Response('잘못된 조건입니다.', { status: 400 });
+  const event = q.get('event');
+  const relation = q.get('relation');
+  if (!isEvent(catalog.config, event) || !isRelation(catalog.config, relation)) return new Response('잘못된 조건입니다.', { status: 400 });
   const budgetMax = parseBudget(q.get('budget')) ?? undefined;
   const quantity = clampQty(q.get('qty') ?? 1);
   const seal = event === 'funeral' ? C.sealCalm : C.seal; // 장례는 축하 느낌의 인주색 대신 차분한 색
