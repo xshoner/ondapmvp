@@ -43,11 +43,11 @@ const feedbackCount = () => (existsSync(feedbackFile) ? JSON.parse(readFileSync(
     const before = feedbackCount();
     await b.goto(`${BASE}/result?event=opening&relation=business&qty=20&budget=50000`);
     await b.waitFor(`document.querySelector('.feedback')`);
-    await b.evaluate(click('.feedback button', '아쉬워요'));
+    await b.click('.feedback button', '아쉬워요');
     await b.waitFor(`document.querySelector('.feedback .chip')`);
-    await b.evaluate(click('.feedback .chip', '가격이 맞지 않아요'));
-    await b.evaluate(click('.feedback .chip', '원하는 종류가 없어요'));
-    await b.evaluate(click('.feedback button', '보내기'));
+    await b.click('.feedback .chip', '가격이 맞지 않아요');
+    await b.click('.feedback .chip', '원하는 종류가 없어요');
+    await b.click('.feedback button', '보내기');
     await b.waitFor(`document.querySelector('.feedback')?.textContent.includes('의견 고맙습니다')`);
     const saved = JSON.parse(readFileSync(feedbackFile, 'utf8')).at(-1);
     check('의견 보내기 → 저장(행사·관계·예산·수량·이유)', feedbackCount() === before + 1 && saved.event === 'opening' && saved.relation === 'business' && saved.budgetMax === 50000 && saved.quantity === 20 && saved.helpful === false && saved.reasons.join(',') === 'price,kind' && saved.resultProductNos.length === 3, JSON.stringify(saved));
@@ -56,7 +56,7 @@ const feedbackCount = () => (existsSync(feedbackFile) ? JSON.parse(readFileSync(
     check('같은 결과에는 다시 묻지 않음', !(await b.evaluate(`return Boolean(document.querySelector('.feedback'))`)));
     await b.goto(`${BASE}/result?event=opening&relation=senior&qty=20&budget=50000`);
     await b.waitFor(`document.querySelector('.feedback')`);
-    await b.evaluate(click('.feedback button', '도움 됐어요'));
+    await b.click('.feedback button', '도움 됐어요');
     await b.waitFor(`document.querySelector('.feedback')?.textContent.includes('의견 고맙습니다')`);
     check('도움 됐어요는 이유 없이 저장', JSON.parse(readFileSync(feedbackFile, 'utf8')).at(-1).helpful === true && feedbackCount() === before + 2);
 

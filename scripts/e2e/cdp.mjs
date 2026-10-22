@@ -80,11 +80,18 @@ export async function launch({ port = 9333, mobile = false } = {}) {
     if (r.exceptionDetails) throw new Error('evaluate: ' + (r.exceptionDetails.exception?.description ?? r.exceptionDetails.text));
     return r.result.value;
   };
+  // 문서가 다 오고, Next 화면이면 React가 단추에 연결(hydration)될 때까지 기다린다.
+  // 느린 PC에서 연결 전에 누르면 아무 일도 안 일어나 검증이 들쭉날쭉해진다
   const goto = async (url) => {
     await send('Page.navigate', { url });
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 150; i++) {
       await sleep(200);
-      const ok = await evaluate(`return document.readyState === 'complete' && !document.querySelector('[hidden][id^="S:"]')`).catch(() => false);
+      const ok = await evaluate(`
+        if (document.readyState !== 'complete' || document.querySelector('[hidden][id^="S:"]')) return false;
+        if (!document.querySelector('script[src*="/_next/"]')) return true;
+        const el = document.querySelector('main, header, nav, body > div');
+        return Boolean(el && Object.keys(el).some((k) => k.startsWith('__reactFiber')));
+      `).catch(() => false);
       if (ok) break;
     }
   };
@@ -97,11 +104,21 @@ export async function launch({ port = 9333, mobile = false } = {}) {
     }
     throw new Error('waitFor 시간 초과: ' + expr);
   };
+  // 글자가 맞고 막혀 있지 않은(disabled 아님) 첫 요소를 누른다. 생길 때까지 기다린다
+  const click = async (selector, text, ms = 15000) => {
+    const find = `[...document.querySelectorAll(${JSON.stringify(selector)})].find((e) => !e.disabled && ${text ? `e.textContent.includes(${JSON.stringify(text)})` : 'true'})`;
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+      if (await evaluate(`const el = ${find}; if (!el) return false; el.click(); return true;`).catch(() => false)) return;
+      await sleep(150);
+    }
+    throw new Error(`누를 수 없음: ${selector} ${text ?? ''}`);
+  };
   const setFile = async (selector, path) => {
     const { root } = await send('DOM.getDocument', { depth: -1, pierce: true });
     const { nodeId } = await send('DOM.querySelector', { nodeId: root.nodeId, selector });
     await send('DOM.setFileInputFiles', { nodeId, files: [path] });
   };
   const close = async () => { try { await send('Browser.close'); } catch {} proc.kill(); };
-  return { send, evaluate, goto, waitFor, setFile, close, logs, sleep };
+  return { send, evaluate, goto, waitFor, click, setFile, close, logs, sleep };
 }

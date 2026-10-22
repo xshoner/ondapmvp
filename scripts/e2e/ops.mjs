@@ -9,7 +9,6 @@ const BASE = process.env.E2E_BASE ?? 'http://127.0.0.1:3000';
 const results = [];
 const check = (name, ok, detail = '') => { results.push(ok); console.log(`${ok ? 'OK ' : 'NG '} ${name}${detail ? ' — ' + String(detail).slice(0, 300) : ''}`); };
 const designs = () => JSON.parse(readFileSync(join(root, 'data/designs.json'), 'utf8'));
-const click = (sel, text) => `{ const el = [...document.querySelectorAll(${JSON.stringify(sel)})].find((e) => ${text ? `e.textContent.includes(${JSON.stringify(text)})` : 'true'}); if (!el) throw new Error('없음: ${sel} ${text ?? ''}'); el.click(); }`;
 const key = (b, k, opts = {}) => b.send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, code: opts.code, text: opts.text, modifiers: opts.mod ?? 0, windowsVirtualKeyCode: opts.vk }).then(() => b.send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, code: opts.code, modifiers: opts.mod ?? 0, windowsVirtualKeyCode: opts.vk }));
 const type = (b, ch) => b.send('Input.dispatchKeyEvent', { type: 'char', text: ch });
 
@@ -44,7 +43,7 @@ const type = (b, ch) => b.send('Input.dispatchKeyEvent', { type: 'char', text: c
     await b.evaluate(`for (const c of ${JSON.stringify(targets)}) document.querySelector('tr[data-row="' + c + '"] input[type=checkbox]').click()`);
     await b.waitFor(`document.querySelector('.batch-bar')`);
     await b.evaluate(`const s = document.querySelector('.batch-bar select'); const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set; set.call(s, 'printed'); s.dispatchEvent(new Event('change', { bubbles: true }))`);
-    await b.evaluate(click('.batch-bar button', '상태 한꺼번에'));
+    await b.click('.batch-bar button', '상태 한꺼번에');
     await b.waitFor(`[...document.querySelectorAll('[role=status]')].some((e) => e.textContent.includes('2건을'))`);
     const after = designs().filter((d) => targets.includes(d.code)).map((d) => d.status);
     check('AP-02 상태 한꺼번에 바꾸기', after.every((s) => s === 'printed'), after.join(','));
@@ -55,11 +54,11 @@ const type = (b, ch) => b.send('Input.dispatchKeyEvent', { type: 'char', text: c
     check('AP-02 화면의 상태 칸도 새 값', rowsShown.every((v) => v === 'printed'), rowsShown.join(','));
 
     // AP-07 주문 상세 붙여넣기
-    await b.evaluate(click('button', '주문 상세 붙여넣기'));
+    await b.click('button', '주문 상세 붙여넣기');
     await b.waitFor(`document.querySelector('textarea[aria-label="붙여넣을 주문 상세"]')`);
     await b.evaluate(`const t = document.querySelector('textarea[aria-label="붙여넣을 주문 상세"]'); const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set; set.call(t, '주문번호 20261022-0000777\\n상품: 지리산 벌꿀 30개\\n온답 포장 디자인 코드 : od-l588-sm5t'); t.dispatchEvent(new Event('input', { bubbles: true }))`);
     await b.waitFor(`[...document.querySelectorAll('button')].some((x) => x.textContent.includes('주문번호 1건 잇기'))`);
-    await b.evaluate(click('button', '주문번호 1건 잇기'));
+    await b.click('button', '주문번호 1건 잇기');
     await b.waitFor(`[...document.querySelectorAll('td')].some((x) => x.textContent.includes('주문번호 연결 · 주문 확인'))`);
     const linked = designs().find((d) => d.code === 'OD-L588-SM5T');
     check('AP-07 붙여넣어 주문번호 잇기', linked.orderNo === '20261022-0000777' && linked.status === 'order_confirmed', `${linked.orderNo} ${linked.status}`);
@@ -84,19 +83,19 @@ const type = (b, ch) => b.send('Input.dispatchKeyEvent', { type: 'char', text: c
     await b.goto(`${BASE}/s/OD-3QNT-CPFA`);
     await b.waitFor(`location.pathname === '/admin/scan' && [...document.querySelectorAll('button')].some((x) => x.textContent === '인쇄 완료로 바꾸기')`, 40000);
     check('AP-04 QR 주소 → 스캔 화면', await b.evaluate(`return location.search === '?code=OD-3QNT-CPFA'`));
-    await b.evaluate(click('button', '인쇄 완료로 바꾸기'));
+    await b.click('button', '인쇄 완료로 바꾸기');
     await b.waitFor(`document.querySelector('.scan-log')`);
     check('AP-04 인쇄 완료로 바뀜', designs().find((d) => d.code === 'OD-3QNT-CPFA').status === 'printed');
-    await b.evaluate(click('.scan-log button', '되돌리기'));
+    await b.click('.scan-log button', '되돌리기');
     await b.waitFor(`document.querySelector('.scan-log li').textContent.includes('되돌림')`);
     check('AP-04 되돌리기', designs().find((d) => d.code === 'OD-3QNT-CPFA').status === 'received');
-    await b.evaluate(click('button', '카메라 켜기'));
+    await b.click('button', '카메라 켜기');
     await b.sleep(1500);
     const cam = await b.evaluate(`return { unsupported: document.body.innerText.includes('화면 안에서 QR을 읽지 못합니다'), video: Boolean(document.querySelector('.scan-video')), alert: document.querySelector('[role=alert]')?.textContent ?? '' }`);
     check('AP-04 카메라: 지원 안 되는 브라우저 안내 또는 영상', cam.unsupported || cam.video || /카메라를 켜지 못했/.test(cam.alert), JSON.stringify(cam));
     // 직접 입력
     await b.evaluate(`const i = document.querySelector('input[aria-label="디자인 코드 직접 입력"]'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, 'od-7zbm-mvl5'); i.dispatchEvent(new Event('input', { bubbles: true }))`);
-    await b.evaluate(click('button', '완료 처리'));
+    await b.click('button', '완료 처리');
     await b.waitFor(`document.querySelector('.scan-log').textContent.includes('OD-7ZBM-MVL5')`);
     const already = await b.evaluate(`return document.querySelector('.scan-log').textContent`);
     check('AP-04 이미 완료인 건은 그대로', already.includes('이미 인쇄 완료였음'), already);
@@ -136,7 +135,7 @@ const type = (b, ch) => b.send('Input.dispatchKeyEvent', { type: 'char', text: c
     await b.sleep(600);
     const big = await b.evaluate(`return document.querySelector('.impact').innerText`);
     check('AM-01 크게 올리면 1위가 바뀌는 상황 표시', /1위가 바뀌는 상황 \d+건|새로 추천되는 상황/.test(big), big);
-    await b.evaluate(click('.impact button', '자세히'));
+    await b.click('.impact button', '자세히');
     const list = await b.evaluate(`return document.querySelectorAll('.impact-list li').length`);
     check('AM-01 자세히 목록', list > 0, `${list}건`);
     // AM-03 Ctrl+S 저장 → AM-05 이력
@@ -144,21 +143,21 @@ const type = (b, ch) => b.send('Input.dispatchKeyEvent', { type: 'char', text: c
     await b.waitFor(`document.body.innerText.includes('저장했습니다')`);
     const saved = JSON.parse(readFileSync(attrsFile, 'utf8')).products.find((a) => a.productNo === 27).scores;
     check('AM-03 Ctrl+S 저장', saved.rarity === 10 && saved.trust === 10, JSON.stringify(saved));
-    await b.evaluate(click('.admin-tabs a', '변경 이력'));
+    await b.click('.admin-tabs a', '변경 이력');
     await b.waitFor(`document.querySelector('.history-list')`);
     const hist = await b.evaluate(`return document.querySelector('.history-list li').innerText`);
     check('AM-05 변경 이력 (바뀐 칸)', /희소성/.test(hist) && /→ 10/.test(hist), hist);
     // 처음 값으로 되돌리기: 맨 아래(가장 오래된) 기록의 이전 값이 아니라, 저장 직전 값 = 두 번째 기록 or 원래 값. 여기서는 '이때 값 불러오기'가 동작하는지만 본다
-    await b.evaluate(click('.history-list button', '불러오기'));
+    await b.click('.history-list button', '불러오기');
     await b.waitFor(`document.getElementById('s-rarity')`);
     check('AM-05 이때 값 불러오기 → 입력 탭', await b.evaluate(`return document.body.innerText.includes('그때 값을 불러왔습니다')`));
     // AM-02 추천 진단
-    await b.evaluate(click('.admin-tabs a', '추천 진단'));
+    await b.click('.admin-tabs a', '추천 진단');
     await b.waitFor(`document.querySelector('.diagnose-table')`);
     const diag = await b.evaluate(`return { rows: document.querySelectorAll('.diagnose-table tbody tr').length, cells: document.querySelectorAll('.diagnose-table .stand').length, kinds: [...new Set([...document.querySelectorAll('.diagnose-table .stand')].map((s) => s.className))] }`);
     check('AM-02 추천 진단 표 8×4', diag.rows === 8 && diag.cells === 32, JSON.stringify(diag));
     // AM-09 고객 카드 미리보기
-    await b.evaluate(click('.admin-tabs a', '고객 카드 미리보기'));
+    await b.click('.admin-tabs a', '고객 카드 미리보기');
     await b.waitFor(`document.querySelector('.card-preview')`);
     const card = await b.evaluate(`return { pick: Boolean(document.querySelector('.card-preview .pick')), heart: Boolean(document.querySelector('.card-preview .save-pick')), notice: document.querySelector('.card-preview .notice')?.textContent ?? '' }`);
     check('AM-09 고객 카드 미리보기 (찜 버튼 없음)', (card.pick && !card.heart) || card.notice.includes('보이지 않습니다'), JSON.stringify(card));
@@ -196,7 +195,7 @@ const type = (b, ch) => b.send('Input.dispatchKeyEvent', { type: 'char', text: c
     await b.waitFor(`document.body.innerText.includes('1개 상품이 바뀝니다')`);
     const preview = await b.evaluate(`return document.querySelector('.change-list').innerText`);
     check('AM-04 올리기 미리보기: 바뀐 칸만', /희소성/.test(preview) && preview.split('\n').length === 1, preview);
-    await b.evaluate(click('button', '1개 저장하기'));
+    await b.click('button', '1개 저장하기');
     await b.waitFor(`document.body.innerText.includes('1개 상품을 저장했습니다')`);
     const savedRarity = JSON.parse(readFileSync(join(root, 'data/product-attributes.json'), 'utf8')).products.find((a) => a.productNo === 11).scores.rarity;
     check('AM-04 한꺼번에 저장', String(savedRarity) === row[r], `${savedRarity}`);
@@ -211,7 +210,7 @@ const type = (b, ch) => b.send('Input.dispatchKeyEvent', { type: 'char', text: c
     await b.goto(`${BASE}/admin/weights`);
     await b.waitFor(`document.querySelector('input[aria-label="희소성 높은 점수 예시"]')`, 40000);
     await b.evaluate(`const i = document.querySelector('input[aria-label="희소성 높은 점수 예시"]'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, '울릉도 명이처럼 산지 한정 소량'); i.dispatchEvent(new Event('input', { bubbles: true }))`);
-    await b.evaluate(click('button', '설정 저장'));
+    await b.click('button', '설정 저장');
     await b.waitFor(`document.body.innerText.includes('저장했습니다')`);
     await b.goto(`${BASE}/admin?product=11`);
     await b.waitFor(`document.getElementById('s-rarity')`, 40000);
@@ -237,10 +236,11 @@ const type = (b, ch) => b.send('Input.dispatchKeyEvent', { type: 'char', text: c
     await b.goto(`${BASE}/packaging?product=49&qty=12&event=wedding&relation=business`);
     await b.waitFor(`${konva} && ${konva}.find('Image').length > 0`, 40000);
     await b.sleep(600);
-    await b.evaluate(click('button', '디자인 저장하고'));
+    await b.click('button', '디자인 저장하고');
     await b.waitFor(`document.querySelector('.design-code')`, 30000);
     const code = await b.evaluate(`return document.querySelector('.design-code').textContent`);
-    await b.sleep(800);
+    // '스티커 그림 받기'용 그림은 저장 뒤 따로 줄여 넣는다: 들어갈 때까지 기다린다
+    await b.waitFor(`await new Promise((res) => { const r = indexedDB.open('ondap', 1); r.onsuccess = () => { const q = r.result.transaction('photos').objectStore('photos').get('p:${code}'); q.onsuccess = () => res(Boolean(q.result)); q.onerror = () => res(false); }; r.onerror = () => res(false); })`, 20000);
 
     // CO-01 진행 상황 (이 기기 목록 + 코드 조회)
     await b.goto(`${BASE}/packaging/mine?code=${code}`);
@@ -254,10 +254,10 @@ const type = (b, ch) => b.send('Input.dispatchKeyEvent', { type: 'char', text: c
     check('CO-05 화면용 그림 480px PNG 보관', png?.type === 'image/png' && png.size > 5000, JSON.stringify(png));
 
     // CO-03 같은 디자인으로 다시 주문
-    await b.evaluate(click('article.card button', '같은 디자인으로 다시 주문'));
+    await b.click('article.card button', '같은 디자인으로 다시 주문');
     await b.waitFor(`document.querySelector('.reorder input')`);
     await b.evaluate(`const i = document.querySelector('.reorder input'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, '25'); i.dispatchEvent(new Event('input', { bubbles: true }))`);
-    await b.evaluate(click('.reorder button', '새 코드 받기'));
+    await b.click('.reorder button', '새 코드 받기');
     await b.waitFor(`document.querySelector('.fresh-code .design-code')`, 20000);
     const fresh = await b.evaluate(`return { code: document.querySelector('.fresh-code .design-code').textContent, order: document.querySelector('.fresh-code a')?.getAttribute('href') }`);
     const row = designs().find((d) => d.code === fresh.code);

@@ -14,7 +14,6 @@ await sharp({ create: { width: 1400, height: 1000, channels: 3, background: { r:
 const results = [];
 const check = (name, ok, detail = '') => { results.push({ name, ok, detail }); console.log(`${ok ? 'OK ' : 'NG '} ${name}${detail ? ' — ' + detail : ''}`); };
 
-const click = (sel, text) => `{ const el = [...document.querySelectorAll(${JSON.stringify(sel)})].find((e) => ${text ? `e.textContent.includes(${JSON.stringify(text)})` : 'true'}); if (!el) throw new Error('없음: ${sel} ${text ?? ''}'); el.click(); }`;
 const setInput = (sel, value) => `{ const el = document.querySelector(${JSON.stringify(sel)}); const d = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value'); d.set.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event('input', { bubbles: true })); }`;
 const konva = `window.Konva?.stages?.[0]`;
 
@@ -30,12 +29,12 @@ const konva = `window.Konva?.stages?.[0]`;
     await b.waitFor(`${konva}.find('Image').some((n) => n.image()?.src?.startsWith('blob:'))`);
     check('사진 올리기', true);
 
-    await b.evaluate(click('[role=tab]', '문구'));
+    await b.click('[role=tab]', '문구');
     await b.sleep(300);
-    await b.evaluate(click('.text-choice', '결혼합니다'));
+    await b.click('.text-choice', '결혼합니다');
     await b.waitFor(`document.querySelector('.name-fields input')`);
     await b.evaluate(setInput('.name-fields input', '홍길동·김영희'));
-    await b.evaluate(click('.date-row button', '오늘'));
+    await b.click('.date-row button', '오늘');
     await b.sleep(1800);
     const auto = await b.evaluate(`const v = JSON.parse(localStorage.getItem('ondap_editor_autosave') || 'null'); return v && { pn: v.productNo, layers: v.snap.layers.map((l) => l.type + ':' + (l.src ?? l.text) + ':' + (l.photoId ?? '')) }`);
     check('자동 보관 기록', Boolean(auto && auto.pn === 49 && auto.layers.some((l) => l.startsWith('image:upload:l'))), JSON.stringify(auto));
@@ -45,20 +44,20 @@ const konva = `window.Konva?.stages?.[0]`;
     await b.goto(`${BASE}/packaging?product=49&qty=30&event=wedding&relation=business`);
     await b.waitFor(`document.querySelector('.editor-resume')`);
     check('다시 열면 "꾸미다 만 디자인" 안내', true);
-    await b.evaluate(click('.editor-resume button', '이어서 꾸미기'));
+    await b.click('.editor-resume button', '이어서 꾸미기');
     await b.waitFor(`${konva} && ${konva}.find('Image').some((n) => n.image()?.src?.startsWith('blob:')) && ${konva}.find('Text').length > 0`);
     const restored = await b.evaluate(`return { banner: document.querySelector('.notice[role=status]')?.textContent, text: ${konva}.find('Text').map((t) => t.text()), names: [...document.querySelectorAll('.name-fields input')].map((i) => i.value) }`);
     check('이어서 꾸미기: 사진·문구·이름 복원', restored.text.some((t) => t.includes('홍길동·김영희')), JSON.stringify(restored));
 
     // 저장: 사진 권한 + 철자 확인
-    await b.evaluate(click('button', '디자인 저장하고'));
+    await b.click('button', '디자인 저장하고');
     await b.sleep(400);
     const err1 = await b.evaluate(`return document.querySelector('[role=alert]')?.textContent ?? ''`);
-    await b.evaluate(click('[role=tab]', '이미지'));
+    await b.click('[role=tab]', '이미지');
     await b.sleep(200);
     await b.evaluate(`const c = [...document.querySelectorAll('label')].find((l) => l.textContent.includes('사용 권한이 있는 사진입니다'))?.querySelector('input'); if (c && !c.checked) c.click();`);
     await b.evaluate(`const c = document.querySelector('.name-check input'); if (c && !c.checked) c.click();`);
-    await b.evaluate(click('button', '디자인 저장하고'));
+    await b.click('button', '디자인 저장하고');
     await b.waitFor(`document.querySelector('[aria-label="디자인 코드"]')`, 20000);
     await b.waitFor(`localStorage.getItem('ondap_my_designs')`, 10000);
     const saved = await b.evaluate(`return { code: document.querySelector('.design-code')?.textContent, qr: Boolean(document.querySelector('.qr-box')), autosave: localStorage.getItem('ondap_editor_autosave'), mine: JSON.parse(localStorage.getItem('ondap_my_designs'))[0] }`);
@@ -82,9 +81,9 @@ const konva = `window.Konva?.stages?.[0]`;
     // 이름 기억 (다른 상품 새 편집에서)
     await b.goto(`${BASE}/packaging?product=27&qty=10&event=wedding&relation=business`);
     await b.waitFor(`${konva} && ${konva}.find('Image').length > 0`, 30000);
-    await b.evaluate(click('[role=tab]', '문구'));
+    await b.click('[role=tab]', '문구');
     await b.sleep(300);
-    await b.evaluate(click('.text-choice', '결혼합니다'));
+    await b.click('.text-choice', '결혼합니다');
     await b.waitFor(`document.querySelector('.name-fields input')`);
     const remembered = await b.evaluate(`return { v: document.querySelector('.name-fields input').value, note: document.querySelector('.name-fields .link-btn')?.textContent }`);
     check('이름 자동 채우기 (이 기기 기억)', remembered.v === '홍길동·김영희' && remembered.note === '지우기', JSON.stringify(remembered));
@@ -104,7 +103,7 @@ const konva = `window.Konva?.stages?.[0]`;
     await b.waitFor(`${konva} && (${konva}.find('Image').length > 0 || ${konva}.find('Text').length > 0)`, 30000);
     await b.sleep(800);
     await b.evaluate(`const c = document.querySelector('.name-check input'); if (c && !c.checked) c.click();`);
-    await b.evaluate(click('button', '디자인 저장하고'));
+    await b.click('button', '디자인 저장하고');
     await b.waitFor(`document.querySelector('.qr-box img')?.src.startsWith('data:image/gif')`, 20000);
     check('PC 저장 → QR 표시', true);
   } catch (e) {

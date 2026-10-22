@@ -2,7 +2,7 @@
 // 준비: 로컬 모드(ONDAP_DATA_SOURCE=local)로 `npm run dev` → 다른 창에서 `npm run e2e` (특정 묶음만: `npm run e2e -- ops editor`)
 // data/는 시작할 때 임시 폴더에 복사해 두고, 시험용 접수를 깐 뒤, 끝나면(실패해도) 원래대로 되돌린다
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { writeFixtures } from './fixtures.mjs';
@@ -26,6 +26,13 @@ cpSync(data, backup, { recursive: true });
 console.log(`data/ 를 ${backup} 에 복사해 두었습니다 (끝나면 되돌립니다)\n`);
 const failed = [];
 try {
+  // 서버가 이 폴더의 data/를 읽는지: 이번에만 쓰는 코드로 접수 1건을 깔고 서버에 물어본다
+  // (다른 폴더에서 띄운 서버에 대고 돌리면 그 폴더의 data/를 바꾸게 된다)
+  const probe = `OD-${Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 32]).join('').replace(/^(.{4})/, '$1-')}`;
+  writeFileSync(join(data, 'designs.json'), JSON.stringify([{ code: probe, productNo: 49, productName: '확인', quantity: 1, styleName: '확인', sticker: null, status: 'received', createdAt: new Date().toISOString() }]));
+  if ((await fetch(`${base}/api/design/${probe}`).catch(() => null))?.status !== 200) {
+    throw new Error(`${base} 서버가 이 폴더(${root})의 data/를 읽지 않습니다. 이 폴더에서 npm run dev 로 띄운 서버에 대고 돌려 주세요.`);
+  }
   for (const s of suites) {
     await writeFixtures(root);
     console.log(`=== ${s} ===`);
