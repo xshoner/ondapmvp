@@ -5,4 +5,4 @@
 - [개선 보고서·PRD (2026-10)](project-improvement-roadmap-2026-10.md) — 두 문서 링크, A/B/C 과제·P1 요구사항 번호, 인구감소지역 92곳
 - [GitHub 푸시 계정](reference-github-push-account.md) — 저장소는 xshoner 소유, 활성 계정 안 바꾸고 명령에만 xshoner 토큰
 - [화면 검증이 멈출 때](reference-headless-verify.md) — 숨겨진 브라우저 창은 rAF 정지 → headless Chrome CDP로 검증
-- [CO·AM·AP 기능과 DB 실행 여부](project-ops-features-2026-10-22.md) — 커밋 0089dcb, 운영 DB에 20261025 SQL 먼저 실행 필요
+- [CO·AM·AP 기능과 DB 실행 여부](project-ops-features-2026-10-22.md) — 커밋 0089dcb·79e6742, 운영 DB 20261025 SQL 실행 완료(10/22)

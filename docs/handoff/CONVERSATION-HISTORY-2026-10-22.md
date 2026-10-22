@@ -1,6 +1,6 @@
 # 온답 프로젝트 대화 이력 (전체)
 
-> 만든 시각: 2026. 10. 22. 10:11 (KST) · 만든 도구: `npm run handoff:export`
+> 만든 시각: 2026. 10. 22. 10:56 (KST) · 만든 도구: `npm run handoff:export`
 > 사용자 메시지와 Claude 답변은 원문 그대로, 도구 사용은 한 줄 요약, 도구 결과·내부 추론은 뺐다. 비밀번호·키는 [가림] 처리.
 > 작업 결과의 정리본은 [CLONE.md](../CLONE.md)·[RUNBOOK.md](../RUNBOOK.md). 이 파일은 "왜 그렇게 했는지"를 찾을 때 본다.
 
@@ -8,7 +8,7 @@
 
 | # | 제목 | 기간 (KST) | 사용자 메시지 | 세션 ID |
 | --- | --- | --- | --- | --- |
-| 1 | 지역소멸지역 쇼핑몰 기능 분석 | 2026. 10. 21. 21:47 ~ 2026. 10. 22. 10:11 | 5 | `0c65b06d-2416-45f0-9aea-30c6e22a766c` |
+| 1 | 지역소멸지역 쇼핑몰 기능 분석 | 2026. 10. 21. 21:47 ~ 2026. 10. 22. 10:56 | 7 | `0c65b06d-2416-45f0-9aea-30c6e22a766c` |
 
 ## 사용자 요청 순서 (목차)
 
@@ -19,6 +19,8 @@
 3. [2026. 10. 22. 08:13] PRD는 이제 됐고, 추가적인 세부 기능들을 더 구현하고 싶다. 사용자나 관리자 입장에서 더 직관적이고 편리한 기능. 아주 정교하고 세밀하지만 사용자나 관리자 입장에서 이 정도 기능까지 제공한다는 …
 4. [2026. 10. 22. 08:29] CR 과제 모두와 CD 과제 모두 개발해서 배포한다. 배포 전에 반드시 오류 및 최적화 검증 후에 완벽을 기해 배포한다. 실시해.
 5. [2026. 10. 22. 09:33] co am ap 과제를 모두 개발한다. 최고 수준의 쇼핑몰과 그 서비스가 되어야 한다. 다시 한번 강조하지만 개발 후 검증이 무엇보다 중요하다. 실수는 없었는지 최적화는 잘 되었는지 기능은 연계성있…
+6. [2026. 10. 22. 10:32] 자 그럼 이제 너가 실제 고객과 관리자 입장으로 역할을 달리하여 처음부터 끝까지 과정을 실제 사람처럼 진행하면서 이상한 부분이나 오류, 개선해야 할 부분을 점검하고 개선한다.
+7. [2026. 10. 22. 10:52] 실행했어
 
 ---
 
@@ -1202,12 +1204,302 @@ PDF 크기 검사는 통과했고, QR 판독 4건은 실패했습니다. 판독 
 
 코드·문서 작업이 끝났습니다. 로컬에 커밋하고 인계 자료를 갱신합니다. 이전 기록이 덮이지 않도록 이번에는 날짜 붙인 파일만 새로 고칩니다.
 
-<details><summary>도구 사용 4건</summary>
+<details><summary>도구 사용 6건</summary>
 
 - `Bash` Stage changes and review the file list
 - `Bash` Commit the CO/AM/AP work locally
 - `Write` C:\Users\xshon\.claude\projects\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\memory\project-ops-features-2026-10-22.md
 - `Bash` Update memory and handoff bundle without overwriting old history
+- `Bash` Check handoff diff for secrets and commit
+- `mcp:show_pane` 
+
+</details>
+
+**🤖 Claude**
+
+CO 4개, AM 9개, AP 7개, 모두 20개 기능을 개발하고 검증까지 마쳤습니다. 커밋은 로컬에만 해 두었고, 운영 배포는 아직 하지 않았습니다. 배포 전에 운영 DB에 SQL을 먼저 실행해 주셔야 합니다.
+
+**운영 DB에 SQL을 먼저 실행해 주세요**
+
+이번 기능 중 일부는 DB에 새 칸과 새 기능이 있어야 동작합니다.
+- 디자인 상태가 바뀐 시각: 늦어지는 건 표시, 고객 진행 단계에 쓰입니다.
+- 같은 디자인으로 다시 주문하는 기능
+- 상품 지표 변경 이력 표
+
+제 Supabase 연결은 다른 계정이라 이 프로젝트 DB에 직접 넣을 수 없습니다. 규칙상 운영 DB 변경은 직접 실행해 주시는 것이기도 합니다.
+
+1. Supabase 대시보드 → 이 프로젝트 → **SQL Editor**
+2. 옆 창에 열어 둔 [20261025000000_operations.sql](supabase/migrations/20261025000000_operations.sql) 내용을 전부 붙여넣고 **Run**
+3. 끝나면 "실행했어"라고 알려 주세요. 그때 main에 올려 배포하고, 운영 사이트에서 다시 확인합니다.
+
+이 SQL은 Postgres 17(PGlite)에서 미리 돌려 권한·자동 기록·새 기능 26가지를 모두 확인했습니다. 지금 운영 중인 코드에도 문제를 일으키지 않게 만들었습니다.
+
+**만든 것**
+- **CO (주문한 뒤)**
+  - '내 디자인'에 진행 단계(접수 → 주문 확인 → 인쇄 완료)와 취소 안내를 보여 줍니다.
+  - 같은 디자인으로 다시 주문하면 수량만 정해 새 코드를 받습니다. 인쇄 파일은 원본 것을 씁니다.
+  - 스티커 그림을 받거나 휴대폰 공유 창으로 보낼 수 있습니다.
+  - 카페24 주문서 띠에 포장·스티커·수량 요약이 뜨고, 주문 수량이 디자인 수량과 다르면 알립니다.
+- **AM (상품·지표)**
+  - 저장 전에 "저장하면 32가지 상황 중 1위가 바뀌는 상황 N건"을 보여 줍니다.
+  - 추천 진단 표, 고객 카드 미리보기, 변경 이력과 되돌리기가 생겼습니다.
+  - 키보드 입력: 점수 막대에서 숫자와 ↑↓, Ctrl+S는 저장, Ctrl+Enter는 저장 후 다음 상품입니다.
+  - 엑셀(CSV)로 여러 상품을 한 번에 고칠 수 있습니다. 엑셀의 일반 CSV(한글 EUC-KR)도 읽습니다.
+  - 점수 기준 예시, 카페24 가져오기 요약, 자주 1위였던 상품의 품절 경고가 생겼습니다.
+- **AP (주문·인쇄)**
+  - 관리자 화면 맨 위에 '오늘 할 일'이 뜹니다.
+  - 여러 건의 상태를 한꺼번에 바꿀 수 있습니다.
+  - 늦어지는 건(접수 3일, 주문 확인 2일)을 빨갛게 표시합니다.
+  - 카페24 주문 상세를 붙여넣으면 주문번호가 이어집니다.
+  - 시험 인쇄 1장을 뽑을 수 있습니다.
+  - 인쇄 PDF 오른쪽 위 QR을 휴대폰으로 찍으면 '인쇄 완료'가 되고, 되돌릴 수도 있습니다.
+  - 접수 목록에서 키보드 단축키를 쓸 수 있습니다.
+
+**검증 결과**
+- 자동 테스트 115개와 운영용 빌드가 통과했습니다.
+- 화면 없는 Chrome으로 20개 기능을 32가지 상황에서 눌러 봤고, 모두 통과했습니다. 콘솔 오류는 없었습니다.
+- 지난번 CR·CD 기능도 다시 확인했고 26가지 모두 그대로 동작합니다.
+- 인쇄 PDF의 QR은 판독기로 A4·A3, 4·6cm 네 가지 판형 모두 읽힙니다. 100장짜리 PDF에서도 QR 때문에 늘어나는 크기는 9KB 정도입니다.
+- 실제 카페24 주문서 구조는 시험 장바구니로 주문서 화면까지만 열어 확인했고, 주문은 하지 않았습니다. 수량 비교는 그 구조대로 만든 가짜 주문서에서 확인했습니다. 실제 주문서에서의 확인은 배포 후 하겠습니다.
+- 코드 검토에서 나온 문제 6건을 모두 고쳤습니다.
+
+**작업 리스트와 조금 다르게 만든 것**
+- **AP-06 늦어지는 기준(3일·2일):** 관리자 화면에서 바꾸는 칸 없이 코드 한 곳에 두었습니다. 주말은 빼지 않고 셉니다.
+- **CO-05 스티커 그림 받기:** 이 기기에서 저장한 디자인만 됩니다. 다른 기기에서 저장한 디자인은 인쇄 원본이 관리자 전용 저장소에 있어 그림을 꺼낼 수 없습니다.
+- **AM-07 점수 기준 예시:** 예시 글은 비어 있습니다. 가중치 설정 화면에서 심이사가 채우면 됩니다. 대신 같은 점수를 받은 다른 상품 이름은 지금도 바로 보입니다.
+
+### 🧑 사용자 #6 · 2026. 10. 22. 10:32
+
+자 그럼 이제 너가 실제 고객과 관리자 입장으로 역할을 달리하여 처음부터 끝까지 과정을 실제 사람처럼 진행하면서 이상한 부분이나 오류, 개선해야 할 부분을 점검하고 개선한다.
+
+<details><summary>도구 사용 6건</summary>
+
+- `mcp:mark_chapter` 고객·관리자 역할 점검
+- `mcp:tabs_context` 
+- `Write` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\driver.mjs
+- `Bash` Start persistent browser driver server
+- `Bash` Open customer session on home page and capture
+- `Read` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\walk\001-c1-home.p…
+
+</details>
+
+**🤖 Claude**
+
+첫 화면은 깔끔합니다. 고객 1(휴대폰, "대표님 아들 결혼식 답례로 거래처 30곳, 전체 예산 150만 원")으로 진행합니다.
+
+<details><summary>도구 사용 29건</summary>
+
+- `Bash` Fill the gift finder form as a customer
+- `Bash` Fill the form using a UTF-8 safe driver client
+- `Read` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\walk\003-c1-form.p…
+- `Bash` Submit and capture the full result page
+- `Read` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\walk\004-c1-result…
+- `Bash` Open compare table and quantity chip
+- `Read` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\walk\005-c1-compar…
+- `Read` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\walk\006-c1-qty-po…
+- `Bash` Go to packaging editor from result
+- `Read` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\walk\007-c1-editor…
+- `Bash` Pick a thank-you text in the editor
+- `Bash` Add sender line and type names
+- `Read` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\walk\008-c1-texts.…
+- `Bash` Try saving as a customer
+- `Read` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\walk\009-c1-saved.…
+- `Bash` Desktop funeral customer flow to results
+- `Read` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\walk\010-c2-funera…
+- `Bash` Open funeral packaging editor on desktop
+- `Read` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\walk\011-c2-funera…
+- `Bash` Save funeral design on desktop and view QR modal
+- `Read` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\walk\012-c2-funera…
+- `Bash` Returning customer: home and my designs
+- `Read` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\walk\013-c1-return…
+- `Read` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\walk\014-c1-mine.p…
+- `Bash` Admin opens dashboard and pending orders
+- `Read` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\walk\015-a1-admin-…
+- `Bash` Check admin thumbnail loading
+- `Bash` Admin views stats page
+- `Read` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\walk\017-a1-stats.…
+
+</details>
+
+**🤖 Claude**
+
+관리자 실적 화면도 정상입니다. 고객이 들를 만한 나머지 화면('포장만 꾸미기' 상품 고르기, '격식지수란?')도 둘러봅니다.
+
+<details><summary>도구 사용 6건</summary>
+
+- `Bash` Browse product picker and formality pages
+- `Read` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\walk\018-c1-pick.p…
+- `Read` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\walk\019-c1-formal…
+- `Bash` Inspect login redirect handling
+- `Bash` Locate pick page images and alt-section heading
+- `Bash` View pick page image loop
+
+</details>
+
+**🤖 Claude**
+
+Fixes 1, 2, 8 first (result heading, prefilled form, pick-page images).
+
+<details><summary>도구 사용 14건</summary>
+
+- `Bash` Fix alternative heading, back link with conditions, eager pick images
+- `Bash` Prefill home form when returning from results
+- `Bash` Keep custom per-item budget as a selected chip
+- `Bash` Locate text insertion and warning code in editor
+- `Bash` Show overflow computation and warning markup
+- `Bash` Avoid overlapping new texts, warn on overlaps, polish inputs and preview
+- `Write` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\fix_walk1.py
+- `Bash` Apply editor overlap fixes and run rules tests
+- `Bash` Prefer the wider side when placing new text
+- `Bash` Locate saved card markup in my-designs view
+- `Write` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\fix_walk2.py
+- `Bash` Tidy saved-design card layout on mobile
+- `Bash` Redirect logged-out admin requests to login with return path
+- `Bash` Limit login redirect to page navigations; check safeNext
+
+</details>
+
+**🤖 Claude**
+
+9가지를 모두 고쳤습니다. 같은 고객 1로 다시 진행하며 고쳐졌는지 확인합니다.
+
+<details><summary>도구 사용 2건</summary>
+
+- `Bash` Recheck result heading and prefilled back navigation
+- `Bash` Check prefilled form values
+
+</details>
+
+**🤖 Claude**
+
+조건 바꾸기는 이제 고른 조건(결혼·거래처·5만 원·30개)이 그대로 채워진 채 열립니다. 편집기에서 문구 두 개를 다시 넣어 봅니다.
+
+<details><summary>도구 사용 2건</summary>
+
+- `Bash` Add two texts and check placement
+- `Read` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\walk\020-c1-two-te…
+
+</details>
+
+**🤖 Claude**
+
+문구 두 개가 더 이상 겹치지 않고 위아래로 나뉘어 놓입니다. 저장한 뒤 저장 창과 '내 디자인' 카드도 다시 봅니다.
+
+<details><summary>도구 사용 4건</summary>
+
+- `Bash` Save again and view saved modal and my designs
+- `Read` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\walk\022-c1-mine2.…
+- `Read` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\walk\021-c1-saved2…
+- `Bash` Move preview shadow to wrapper; shorten reorder link
+
+</details>
+
+**🤖 Claude**
+
+관리자 쪽 나머지 화면(포장 스타일·추천 이미지·추천 문구 관리, 알고리즘 검증, 가중치 설정)도 오류 없이 열리는지 차례로 엽니다.
+
+<details><summary>도구 사용 4건</summary>
+
+- `Bash` Open remaining admin pages and check for errors
+- `Bash` Capture recommended images admin tab
+- `Read` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\walk\023-a1-assets…
+- `Bash` Typecheck, tests, and full browser regression after fixes
+
+</details>
+
+**🤖 Claude**
+
+회귀 검증 2건이 실패했습니다. 시험이 너무 빨리 확인한 탓인지, 실제 결함인지 가려 보겠습니다. 두 화면을 기다린 뒤 다시 확인합니다.
+
+<details><summary>도구 사용 5건</summary>
+
+- `Bash` Rerun with waits to distinguish timing from defects
+- `Bash` Production build and commit walkthrough fixes
+- `Bash` Close walkthrough browser sessions
+- `ToolSearch` select:TaskStop
+- `TaskStop` 
+
+</details>
+
+**🤖 Claude**
+
+고객 2명과 관리자 1명의 역할로 처음부터 끝까지 진행하면서 문제 9가지를 찾아 모두 고쳤습니다. 커밋은 로컬에만 했고, 운영 배포는 지난번 말씀드린 운영 DB SQL 실행을 기다리고 있습니다.
+
+점검은 개발 PC에서 했습니다. 새 기능이 아직 운영에 배포되지 않았고, 운영에서 저장하면 가짜 접수가 실제 인쇄 대기열에 들어가기 때문입니다. 화면 없는 Chrome으로 한 단계씩 누르고 화면을 캡처해 직접 보면서 진행했습니다.
+
+**진행한 역할**
+- **고객 1 (휴대폰):** 대표님 아들 결혼 답례, 거래처 30곳, 전체 예산 150만 원. 추천 → 비교·조건 바꾸기 → 포장 꾸미기(감사 문구 + 보내는 분 이름) → 저장 → 다음 날 다시 방문 → 내 디자인.
+- **고객 2 (PC):** 장례 조문 답례, 어르신, 110개. 차분한 결과 화면 → 포장 → 저장 후 휴대폰 주문용 QR.
+- **관리자:** 오늘 할 일 → 접수 목록 → 실적 → 포장 자료 관리 → 알고리즘 검증 → 가중치 설정, 그리고 휴대폰으로 QR을 찍는 상황.
+
+**찾아서 고친 것**
+
+| | 문제 | 고친 내용 |
+|---|---|---|
+| 1 | 결과 화면 '다른 격식 단계의 선택' 아래 상품이 1위와 같은 단계라 헷갈림 | 단계가 같으면 제목을 '함께 고려할 만한 선택'으로 바꿈 |
+| 2 | '조건 바꾸기'를 누르면 첫 화면이 빈칸이라 처음부터 다시 골라야 함 | 고른 조건(행사·관계·예산·수량)이 채워진 채 열림 |
+| 3 | 문구를 두 개 넣으면 같은 자리에 겹쳐 읽을 수 없음 | 새 문구는 빈자리, 그중 스티커 가운데에 가까운 쪽에 놓음 |
+| 4 | 문구가 겹친 채로도 저장됨 | 겹치면 빨간 상자로 표시하고 저장 전에 확인 |
+| 5 | 이름 칸에 빨간 맞춤법 물결선이 생김 | 이름·문구 칸의 맞춤법 검사를 끔 |
+| 6 | 저장 완료 창에서 흰 스티커가 흰 바탕에 묻혀 글자만 떠 보임 | 실제로 잘리는 모양에 그림자를 넣어 보여 줌 |
+| 7 | 휴대폰 '내 디자인'에서 코드가 두 줄로 꺾이고 버튼 6개가 쌓여 어수선함 | 주요 버튼 2개만 남기고 나머지는 작은 링크로 정리 |
+| 8 | 관리자가 휴대폰으로 인쇄 시트 QR을 처음 찍으면 로그인 뒤 스캔 화면이 아닌 관리자 첫 화면으로 감 | 로그인 뒤 원래 보려던 화면으로 돌아옴 |
+| 9 | 상품 고르기 화면의 첫 사진이 늦게 뜬다는 경고 | 첫 줄 사진을 먼저 불러옴 |
+
+8번은 로그인이 있는 운영 환경에서만 생기는 상황이라 개발 PC에서는 직접 확인하지 못했고, 배포 후 확인하겠습니다.
+
+**검증 결과**
+- 자동 테스트 117개, 운영용 빌드 통과.
+- 실제 화면 회귀 검증 58가지 모두 통과, 콘솔 오류 없음.
+- 중간에 실패 2건이 있었는데, 둘 다 시험이 화면 반영(약 0.5초)을 기다리지 않은 탓이었습니다.
+- 시험으로 바뀐 로컬 데이터는 원래대로 되돌렸습니다.
+
+**제가 코드로 고칠 수 없는 운영 자료 문제**
+- 결혼 행사로 들어오면 기본 그림이 '결혼기념일을 축하드립니다'입니다. 이 서비스의 결혼 답례는 하객에게 감사를 전하는 자리라 뜻이 맞지 않습니다. 관리자 화면 '추천 이미지'에서 결혼용 감사 그림(예: "와 주셔서 감사합니다")으로 바꾸시길 권합니다.
+- 장례·출산·승진/이직·신축/개업은 추천 그림이 0개라, 이 행사들은 문구만으로 시작합니다.
+
+**결정 하나:** '○○○ 드림' 같은 서명 문구를 추가할 때, 원형 스티커는 아래쪽이 좁아 글자가 잘리기 쉽습니다. 그래서 기존 문구의 아래가 아니라 위에 놓이게 했습니다. 서명을 맨 아래에 두고 싶으면 고객이 끌어서 옮기면 됩니다. 기존 문구를 위로 밀어 올려 서명 자리를 아래에 만드는 방식도 가능하니, 원하시면 말씀해 주세요.
+
+**다음 단계:** 운영 DB에 `supabase/migrations/20261025000000_operations.sql`을 실행하고 "실행했어"라고 알려 주시면, 이번 수정까지 함께 배포하고 운영 사이트에서 다시 확인하겠습니다.
+
+### 🧑 사용자 #7 · 2026. 10. 22. 10:52
+
+실행했어
+
+**🤖 Claude**
+
+감사합니다. SQL이 실행됐으니 바로 배포하겠습니다. 먼저 기억 메모를 '실행 완료'로 고치고, GitHub main에 올립니다.
+
+<details><summary>도구 사용 2건</summary>
+
+- `Bash` Mark migration as executed in memory; list unpushed commits
+- `Bash` Push to main and wait for the Vercel production deploy
+
+</details>
+
+**🤖 Claude**
+
+배포가 끝났습니다. 운영 사이트에서 설정 점검과, 새로 만든 주소들이 제대로 반응하는지 확인합니다. 데이터를 만들지 않는 조회만 합니다.
+
+<details><summary>도구 사용 7건</summary>
+
+- `Bash` Production doctor and read-only endpoint probes
+- `Bash` Check whether the public Supabase URL is shipped to browsers
+- `Write` C:\Users\xshon\AppData\Local\Temp\claude\C--Users-xshon-Downloads-ondapmvp-main-ondapmvp-main\0c65b06d-2416-45f0-9aea-30c6e22a766c\scratchpad\verify-prod-readon…
+- `Bash` Read-only production customer checks
+- `Bash` Rerun production editor check with deselect step
+- `mcp:read` 
+- `mcp:update` 
+
+</details>
+
+**🤖 Claude**
+
+작업 리스트 문서의 CO·AM·AP 20개 항목을 '완료'로 바꿨습니다. 마지막으로 운영 기록(RUNBOOK)과 인계 자료를 갱신해 올립니다.
+
+<details><summary>도구 사용 1건</summary>
+
+- `Bash` Update runbook and handoff bundle without overwriting old history
 
 </details>
 
