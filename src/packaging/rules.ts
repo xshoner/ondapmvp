@@ -76,6 +76,27 @@ export function fitScale(shape: StickerShape, sizeCm: number, box: Box): number 
   return k >= 0 ? 0 : (-b + Math.sqrt(b * b - 4 * a * k)) / (2 * a);
 }
 
+// 두 문구 상자가 읽기 어려울 만큼 겹치는지: 겹친 넓이가 작은 상자의 20% 넘음
+export function overlaps(a: Box, b: Box): boolean {
+  const w = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+  const h = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+  if (w <= 0 || h <= 0) return false;
+  return w * h > 0.2 * Math.min(a.width * a.height, b.width * b.height);
+}
+
+// 새 문구를 놓을 높이(가운데 y): 원하는 자리에 이미 문구가 있으면 위·아래 빈자리 중 가운데에 가까운 쪽(원형은 더 넓은 쪽)으로 비켜 놓는다
+export function freeTextY(boxes: Box[], want: number, height: number, sizeCm: number): number {
+  const c = CANVAS_UNITS / 2;
+  const safe = c - 2 * bleedUnits(sizeCm);
+  const gap = 12;
+  const hits = (y: number) => boxes.some((b) => y + height / 2 + gap > b.y && y - height / 2 - gap < b.y + b.height);
+  if (!hits(want)) return want;
+  const below = Math.max(...boxes.map((b) => b.y + b.height)) + gap + height / 2;
+  const above = Math.min(...boxes.map((b) => b.y)) - gap - height / 2;
+  const fits = [below, above].filter((y) => y - height / 2 >= c - safe && y + height / 2 <= c + safe);
+  return fits.sort((a, b) => Math.abs(a - c) - Math.abs(b - c))[0] ?? want;
+}
+
 // ---------- 행사와 어긋난 말 (막지 않고 알려만 준다) ----------
 
 const CALM_WORDS = ['축하', '경축', '기쁨', '기쁜', '행복', '경사', '축복']; // 장례에 어울리지 않는 말

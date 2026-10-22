@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  MAX_ACTIVE, MAX_LAYERS, bleedUnits, canActivate, cautionWords, effectiveDpi, fillPlaceholders, fitScale, generateDesignCode,
+  MAX_ACTIVE, MAX_LAYERS, bleedUnits, canActivate, cautionWords, effectiveDpi, fillPlaceholders, fitScale, freeTextY, generateDesignCode, overlaps,
   normalizeDesignCode, pngSize, printPixels, sanitizeDraft, sanitizeSticker,
 } from '../src/packaging/rules.ts';
 
@@ -118,4 +118,23 @@ test('행사와 어긋난 말: 장례에 축하, 결혼에 조의는 알려 준�
   assert.deepEqual(cautionWords('funeral', '와 주셔서 감사합니다'), []);
   assert.deepEqual(cautionWords('common', '축하'), []);
   assert.deepEqual(cautionWords(null, '조의'), []);
+});
+
+test('문구 겹침: 많이 겹치면 참, 살짝 닿으면 거짓', () => {
+  const a = { x: 300, y: 740, width: 400, height: 80 };
+  assert.equal(overlaps(a, { x: 320, y: 750, width: 360, height: 80 }), true);
+  assert.equal(overlaps(a, { x: 300, y: 815, width: 400, height: 80 }), false, '5칸만 닿음');
+  assert.equal(overlaps(a, { x: 300, y: 900, width: 400, height: 80 }), false);
+});
+
+test('새 문구 자리: 비었으면 그대로, 차 있으면 위·아래 중 가운데 쪽, 한쪽이 모자라면 다른 쪽', () => {
+  assert.equal(freeTextY([], 780, 80, 6), 780);
+  const at780 = [{ x: 300, y: 740, width: 400, height: 80 }];
+  const y = freeTextY(at780, 780, 80, 6);
+  assert.ok(y + 40 <= 740 - 12, `가운데 쪽(위)으로 비킴: ${y}`);
+  const top = [{ x: 300, y: 200, width: 400, height: 80 }];
+  assert.ok(freeTextY(top, 240, 80, 6) - 40 >= 280, '위 문구 아래로');
+  const low = [{ x: 300, y: 860, width: 400, height: 70 }];
+  const up = freeTextY(low, 890, 80, 6);
+  assert.ok(up + 40 <= 860, `위로 비킴: ${up}`);
 });

@@ -17,23 +17,25 @@ const MAX_TOTAL_DIGITS = 10; // 99억 원. 입력칸은 숫자만 (쉼표를 넣
 
 const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
 
-export function GiftFinderForm({ events, relations }: { events: Option[]; relations: Option[] }) {
+export function GiftFinderForm({ events, relations, initial }: { events: Option[]; relations: Option[]; initial?: LastQuery | null }) {
   const router = useRouter();
-  const [event, setEvent] = useState<string | null>(null);
-  const [relation, setRelation] = useState<string | null>(null);
-  // 예산은 1개당으로 고르거나, 전체 예산을 넣으면 수량으로 나눠 1개당 예산을 잡는다
+  const [event, setEvent] = useState<string | null>(initial?.event ?? null);
+  const [relation, setRelation] = useState<string | null>(initial?.relation ?? null);
+  // 예산은 1개당으로 고르거나, 전체 예산을 넣으면 수량으로 나눠 1개당 예산을 잡는다.
+  // 결과에서 돌아온 예산이 칩에 없는 값(전체 예산으로 계산한 값)이면 그 값을 칩 하나로 더해 고른 채로 둔다
+  const budgetSteps = initial?.budget != null && !BUDGET_STEPS.includes(initial.budget) ? [initial.budget, ...BUDGET_STEPS] : BUDGET_STEPS;
   const [budgetMode, setBudgetMode] = useState<'each' | 'total'>('each');
-  const [budget, setBudget] = useState<number | null>(50000);
+  const [budget, setBudget] = useState<number | null>(initial ? initial.budget : 50000);
   const [total, setTotal] = useState('');
-  const [quantity, setQuantity] = useState(10);
+  const [quantity, setQuantity] = useState(initial?.qty ?? 10);
   const [pending, setPending] = useState(false);
   const [last, setLast] = useState<LastQuery | null>(null);
 
   // 지난 조건은 이 기기에만 있으므로 화면을 그린 뒤 읽는다 (서버 화면과 어긋나지 않게)
   useEffect(() => {
     const q = loadLastQuery();
-    if (q && events.some((e) => e.id === q.event) && relations.some((r) => r.id === q.relation)) setLast(q);
-  }, [events, relations]);
+    if (!initial && q && events.some((e) => e.id === q.event) && relations.some((r) => r.id === q.relation)) setLast(q);
+  }, [events, relations, initial]);
 
   const totalWon = Number(total) || 0;
   const effectiveBudget = budgetMode === 'each' ? budget : perItemBudget(totalWon, quantity);
@@ -99,7 +101,7 @@ export function GiftFinderForm({ events, relations }: { events: Option[]; relati
         </div>
         {budgetMode === 'each' ? (
           <div className="chips">
-            {BUDGET_STEPS.map((b) => (
+            {budgetSteps.map((b) => (
               <button key={String(b)} type="button" className="chip" aria-pressed={budget === b} onClick={() => setBudget(b)}>
                 {b === null ? '상관없음' : budgetText(b)}
               </button>

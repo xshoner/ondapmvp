@@ -543,3 +543,10 @@ table.data.designs-table tr.late.cursor td:first-child { box-shadow: inset 3px 0
   .today-bar { padding: 10px 16px; }
   .today-bar .today-scan { margin-left: 0; }
 }
+.saved-preview { display: block; width: 140px; margin: 4px auto 0; filter: drop-shadow(0 2px 6px rgba(28, 36, 32, 0.3)); }
+.saved-preview img { display: block; width: 100%; height: auto; }
+.mine-card .mine-code { display: block; letter-spacing: 0.02em; white-space: nowrap; font-size: 16px; }
+.mine-more { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; }
+.mine-more .link-btn { font-weight: 500; }
+.mine-more .link-btn.muted { color: var(--muted); }
+.mine-more .reorder { flex-basis: 100%; }

@@ -9,7 +9,7 @@ import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CANVAS_UNITS, FONTS, MIN_PRINT_DPI, PLACEHOLDER_BLANK, STICKER_SIZES, bleedUnits, cautionWords, effectiveDpi, fillPlaceholders, fitScale,
-  printPixels, totalCm, type FontId,
+  freeTextY, overlaps, printPixels, totalCm, type FontId,
 } from '@/packaging/rules.ts';
 import type { EventType } from '@/engine/types.ts';
 import { isMobileUA } from '@/lib/device.ts';
@@ -279,6 +279,9 @@ export function PackagingEditor(props: Props) {
       return l.type === 'text' && r && r.text === l.text && settled[l.id] === l.text && fitScale(shape, sizeCm, r) < 1 ? [r] : [];
     })
     : [];
+  // 문구끼리 겹쳐 읽기 어려운 것
+  const textBoxes = withSticker ? rendered.flatMap((l) => (l.type === 'text' && textRects[l.id] ? [textRects[l.id]] : [])) : [];
+  const overlapBoxes = textBoxes.filter((a, i) => textBoxes.some((b, j) => i !== j && overlaps(a, b)));
   // 행사와 어긋난 말
   const caution = withSticker ? [...new Set(rendered.flatMap((l) => (l.type === 'text' ? cautionWords(event, l.text) : [])))] : [];
   // 이름·날짜를 넣었으면 저장 전에 철자 확인을 받는다
@@ -349,11 +352,17 @@ export function PackagingEditor(props: Props) {
     }
   };
 
+  // 새 문구는 이미 있는 문구와 겹치지 않는 높이에 놓는다
+  const placeText = (text: string, want: number, fontSize: number) => {
+    const boxes = layers.flatMap((l) => (l.type === 'text' && textRects[l.id] ? [textRects[l.id]] : []));
+    return textLayer(text, freeTextY(boxes, want, fontSize * 1.3 * text.split('\n').length, sizeCm));
+  };
+
   const pickText = (t: DesignText) => {
     if (selected?.type === 'text') update(selected.id, { text: t.text });
     else {
       const hasImage = layers.some((l) => l.type === 'image');
-      const l = textLayer(t.text, hasImage ? 780 : 500);
+      const l = placeText(t.text, hasImage ? 780 : 500, hasImage ? 64 : 78);
       if (hasImage) Object.assign(l, { fontSize: 64, color: '#ffffff', stroke: '#1f2a26' });
       setLayers((ls) => [...ls, l]);
       setSelectedId(l.id);
@@ -361,7 +370,7 @@ export function PackagingEditor(props: Props) {
   };
 
   const addText = () => {
-    const l = textLayer('감사합니다');
+    const l = placeText('감사합니다', 500, 78);
     setLayers((ls) => [...ls, l]);
     setSelectedId(l.id);
     setTab('text');
@@ -390,6 +399,7 @@ export function PackagingEditor(props: Props) {
     if (withSticker && layers.length === 0) return setError('스티커에 이미지나 문구를 하나 이상 넣어 주세요.');
     if (withSticker && uploads.length > 0 && !consent) return setError('올린 사진의 사용 권한을 확인해 주세요.');
     if (namesUsed && !namesChecked) return setError('이름과 날짜 철자를 확인했다고 체크해 주세요.');
+    if (overlapBoxes.length > 0 && !window.confirm('문구가 서로 겹쳐 읽기 어려울 수 있어요. 그대로 저장할까요?')) return;
     if (overflowBoxes.length > 0 && !window.confirm('빨간 상자로 표시한 글자가 자르는 선에 걸려 잘릴 수 있어요. 그대로 저장할까요?')) return;
     setSaving(true);
     setSelectedId(null);
@@ -590,7 +600,7 @@ export function PackagingEditor(props: Props) {
                 onChange={update}
                 apiRef={apiRef}
                 onTextRects={setTextRects}
-                warnBoxes={overflowBoxes}
+                warnBoxes={[...overflowBoxes, ...overlapBoxes]}
               />
             )}
           </div>
@@ -607,6 +617,11 @@ export function PackagingEditor(props: Props) {
           {overflowBoxes.length > 0 && (
             <p className="small" role="status" style={{ color: 'var(--red)', margin: '6px 0 0', textAlign: 'center' }}>
               빨간 상자 글자가 회색 점선 밖으로 나가 잘릴 수 있어요. 안쪽으로 옮기거나 크기를 줄여 주세요.
+            </p>
+          )}
+          {overlapBoxes.length > 0 && (
+            <p className="small" role="status" style={{ color: 'var(--red)', margin: '6px 0 0', textAlign: 'center' }}>
+              문구가 서로 겹쳐 있어요. 빨간 상자 문구를 끌어서 떼어 놓아 주세요.
             </p>
           )}
           {caution.length > 0 && (
@@ -680,14 +695,14 @@ export function PackagingEditor(props: Props) {
               {(usedPlaceholders.recipient || usedPlaceholders.sender || usedPlaceholders.date) && (
                 <div className="name-fields">
                   {usedPlaceholders.recipient && (
-                    <label>받는 분<input className="num-input" value={fields.recipient} maxLength={30} placeholder="예: 김영희" onChange={(e) => setFields({ ...fields, recipient: e.target.value })} /></label>
+                    <label>받는 분<input className="num-input" spellCheck={false} autoComplete="off" value={fields.recipient} maxLength={30} placeholder="예: 김영희" onChange={(e) => setFields({ ...fields, recipient: e.target.value })} /></label>
                   )}
                   {usedPlaceholders.sender && (
-                    <label>보내는 분<input className="num-input" value={fields.sender} maxLength={30} placeholder="예: 홍길동·김영희" onChange={(e) => setFields({ ...fields, sender: e.target.value })} /></label>
+                    <label>보내는 분<input className="num-input" spellCheck={false} autoComplete="off" value={fields.sender} maxLength={30} placeholder="예: 홍길동·김영희" onChange={(e) => setFields({ ...fields, sender: e.target.value })} /></label>
                   )}
                   {usedPlaceholders.date && (
                     <div className="date-row">
-                      <label>날짜<input className="num-input" value={fields.date} maxLength={30} placeholder="예: 2026년 12월 5일" onChange={(e) => setFields({ ...fields, date: e.target.value })} /></label>
+                      <label>날짜<input className="num-input" spellCheck={false} autoComplete="off" value={fields.date} maxLength={30} placeholder="예: 2026년 12월 5일" onChange={(e) => setFields({ ...fields, date: e.target.value })} /></label>
                       <button type="button" className="btn ghost small" onClick={() => setFields({ ...fields, date: todayLabel() })}>오늘</button>
                     </div>
                   )}
@@ -747,7 +762,7 @@ export function PackagingEditor(props: Props) {
         <div className="modal-back" role="dialog" aria-modal="true" aria-label="디자인 코드">
           <div className="modal card">
             <h2 style={{ fontSize: 20, textAlign: 'center' }}>디자인이 접수됐어요</h2>
-            {result.preview && <img src={result.preview} alt="저장한 스티커" style={{ width: 140, height: 140, display: 'block', margin: '0 auto', objectFit: 'contain' }} />}
+            {result.preview && <span className="saved-preview"><img src={result.preview} alt="저장한 스티커" width={140} height={140} style={{ clipPath: cutClip }} /></span>}
             <div className="design-code">{result.code}</div>
             <p className="small" style={{ textAlign: 'center', margin: '4px 0 0', color: result.copied ? 'var(--green)' : 'var(--muted)' }}>
               {result.copied ? '코드가 복사됐어요.' : '아래 버튼으로 코드를 복사해 주세요.'}
@@ -856,6 +871,7 @@ function TextControls({ layer, onChange }: { layer: TextLayer; onChange(p: Parti
   return (
     <div className="text-controls">
       <textarea
+        spellCheck={false}
         value={layer.text}
         maxLength={200}
         rows={2}

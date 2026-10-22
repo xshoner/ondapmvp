@@ -27,10 +27,10 @@ export async function generateMetadata({ searchParams }: { searchParams: SearchP
   return { title, description, openGraph: { title, description, images: [image], type: 'website', locale: 'ko_KR' }, twitter: { card: 'summary_large_image', title, description, images: [image.url] } };
 }
 
-function TopBar() {
+function TopBar({ back = '/' }: { back?: string }) {
   return (
     <header className="topbar">
-      <a className="back" href="/">‹ 조건 바꾸기</a>
+      <a className="back" href={back}>‹ 조건 바꾸기</a>
       <a className="brand" href="/" style={{ fontSize: 18 }}><span className="brand-mark" aria-hidden />온답</a>
       <span style={{ width: 72 }} />
     </header>
@@ -72,7 +72,7 @@ export default async function ResultPage({ searchParams }: { searchParams: Searc
 
   return (
     <main className={calm ? 'mobile mood-calm' : 'mobile'}>
-      <TopBar />
+      <TopBar back={`/${resultHref(q, { exclude: [] }).slice('/result'.length)}`} />
       <RememberQuery query={q} />
       <CloseCondOnOutside />
 
@@ -108,8 +108,17 @@ export default async function ResultPage({ searchParams }: { searchParams: Searc
 
       {others.length > 0 && (
         <section>
-          <h2 className="alt-title">다른 격식 단계의 선택</h2>
-          <p className="small muted" style={{ margin: 0 }}>같은 자리에서 조금 더 실속 있게, 또는 가볍게 고를 수 있는 상품입니다.</p>
+          {others.some((x) => x.tier !== main?.tier) ? (
+            <>
+              <h2 className="alt-title">다른 격식 단계의 선택</h2>
+              <p className="small muted" style={{ margin: 0 }}>같은 자리에서 조금 더 실속 있게, 또는 가볍게 고를 수 있는 상품입니다.</p>
+            </>
+          ) : (
+            <>
+              <h2 className="alt-title">함께 고려할 만한 선택</h2>
+              <p className="small muted" style={{ margin: 0 }}>같은 격식으로 종류를 달리해 고른 상품입니다. 받는 분 취향에 맞춰 비교해 보세요.</p>
+            </>
+          )}
           <div className="alt-list">
             {others.map((x) => <OtherPick key={x.product.productNo} item={x} packagingHref={packagingHref(x.product.productNo)} excludeHref={excludeHref(x.product.productNo)} />)}
           </div>

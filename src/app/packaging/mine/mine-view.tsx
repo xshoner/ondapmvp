@@ -35,13 +35,14 @@ const NEXT_HINT: Record<string, string> = {
 };
 
 const date = (iso: string) => kstLabel(iso).replace(/ \d{2}:\d{2}$/, '');
+const shortDate = (iso: string) => kstLabel(iso).slice(5, 10).replace('-', '/'); // 10/22
 
 export function Progress({ design: d, compact = false }: { design: CustomerDesign; compact?: boolean }) {
   if (d.status === 'canceled') {
     return <p className="small progress-canceled" role="status">취소된 접수예요{compact ? '' : `. 다시 꾸미거나 새로 저장하면 새 코드로 주문할 수 있어요.`}</p>;
   }
   const at = STEPS.findIndex((s) => s.id === d.status);
-  if (compact) return <span className="pill">{STEPS[at]?.label ?? d.status} · {date(at === 0 ? d.createdAt : d.statusChangedAt)}</span>;
+  if (compact) return <span className="pill">{STEPS[at]?.label ?? d.status} {shortDate(at === 0 ? d.createdAt : d.statusChangedAt)}</span>;
   return (
     <div>
       <ol className="progress" aria-label="진행 상황">
@@ -59,13 +60,13 @@ export function Progress({ design: d, compact = false }: { design: CustomerDesig
 }
 
 // 같은 디자인으로 다시 주문: 수량만 정하면 새 코드로 접수된다 (지난 주문과 인쇄·주문이 섞이지 않게)
-function Reorder({ design, onDone }: { design: CustomerDesign; onDone(next: CustomerDesign): void }) {
+function Reorder({ design, onDone, link = false }: { design: CustomerDesign; onDone(next: CustomerDesign): void; link?: boolean }) {
   const [open, setOpen] = useState(false);
   const [qty, setQty] = useState(design.quantity);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   if (design.status === 'canceled' || !design.canOrder) return null;
-  if (!open) return <button type="button" className="btn ghost small" onClick={() => setOpen(true)}>같은 디자인으로 다시 주문</button>;
+  if (!open) return <button type="button" className={link ? 'link-btn' : 'btn ghost small'} onClick={() => setOpen(true)}>{link ? '다시 주문' : '같은 디자인으로 다시 주문'}</button>;
   const go = () => start(async () => {
     setError(null);
     const res = await reorderDesignAction(design.code, qty);
@@ -206,26 +207,26 @@ export function MineView({ initialCode }: { initialCode: string }) {
             {saved.map((d) => {
               const s = status[d.code];
               return (
-                <article key={d.code} className="alt">
+                <article key={d.code} className="alt mine-card">
                   {d.thumb ? <img src={d.thumb} alt="저장한 스티커" style={{ objectFit: 'contain', background: 'var(--paper-deep)' }} /> : <span className="ph" />}
                   <div style={{ minWidth: 0 }}>
-                    <div className="spread" style={{ alignItems: 'baseline' }}>
-                      <b className="serif num" style={{ letterSpacing: '0.03em' }}>{d.code}</b>
-                      {s && <Progress design={s} compact />}
-                    </div>
-                    <div className="small" style={{ marginTop: 2, lineHeight: 1.4 }}>{d.productName}</div>
-                    <div className="small muted">{d.quantity.toLocaleString('ko-KR')}개, {kstLabel(d.savedAt)}</div>
+                    <b className="serif num mine-code">{d.code}</b>
+                    {s && <div style={{ marginTop: 2 }}><Progress design={s} compact /></div>}
+                    <div className="small" style={{ marginTop: 4, lineHeight: 1.4 }}>{d.productName}</div>
+                    <div className="small muted">{d.quantity.toLocaleString('ko-KR')}개 · {kstLabel(d.savedAt)} 저장</div>
                     <div className="alt-actions" style={{ flexWrap: 'wrap' }}>
                       {d.productUrl && (!s || (s.status === 'received' && s.canOrder)) && <a className="btn small" href={orderUrl(d.productUrl, d.code, d.quantity)}>주문하러 가기</a>}
                       <CopyButton code={d.code} />
+                    </div>
+                    <div className="mine-more small">
                       {d.productNo && d.snapshot ? (
-                        <a className="btn ghost small" href={`/packaging?product=${d.productNo}&qty=${d.quantity}&from=mine&restore=${encodeURIComponent(d.code)}`}>다시 꾸미기</a>
+                        <a className="link-btn" href={`/packaging?product=${d.productNo}&qty=${d.quantity}&from=mine&restore=${encodeURIComponent(d.code)}`}>다시 꾸미기</a>
                       ) : null}
-                      {s && <Reorder design={s} onDone={reordered(d.code)} />}
+                      {s && <Reorder design={s} onDone={reordered(d.code)} link />}
                       {previews.has(d.code) && (
-                        <button type="button" className="btn ghost small" onClick={() => void shareSticker(d.code, d.productName).then((m) => m && alert(m))}>스티커 그림 받기</button>
+                        <button type="button" className="link-btn" onClick={() => void shareSticker(d.code, d.productName).then((m) => m && alert(m))}>스티커 그림 받기</button>
                       )}
-                      <button type="button" className="btn ghost small" style={{ border: 'none' }} onClick={() => { forgetDesign(d.code); refreshSaved(); }}>목록에서 빼기</button>
+                      <button type="button" className="link-btn muted" onClick={() => { forgetDesign(d.code); refreshSaved(); }}>목록에서 빼기</button>
                     </div>
                   </div>
                 </article>

@@ -2,13 +2,19 @@ import { getCatalog, getMonthlyRecommendationCount } from '@/data/repository.ts'
 import { GiftFinderForm } from './gift-finder-form.tsx';
 import { SavedPicks } from './saved-picks.tsx';
 import { eventIds, relationIds } from '@/engine/labels.ts';
+import { parseResultQuery } from '@/lib/result-query.ts';
 
 export const dynamic = 'force-dynamic';
 
-export default async function Home() {
-  const [{ config }, monthly] = await Promise.all([getCatalog(), getMonthlyRecommendationCount()]);
+// 결과 화면 '조건 바꾸기'는 지금 조건을 주소에 담아 온다 (/?event=&relation=&budget=&qty=) → 고른 상태로 연다
+export default async function Home({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const [{ config }, monthly, sp] = await Promise.all([getCatalog(), getMonthlyRecommendationCount(), searchParams]);
   const events = eventIds(config).map((id) => ({ id, name: config.events[id].name }));
   const relations = relationIds(config).map((id) => ({ id, name: config.relations[id].name }));
+  const q = parseResultQuery(sp);
+  const initial = events.some((e) => e.id === q.event) && relations.some((r) => r.id === q.relation)
+    ? { event: q.event, relation: q.relation, budget: q.budget, qty: q.qty }
+    : null;
 
   return (
     <main className="mobile">
@@ -25,7 +31,7 @@ export default async function Home() {
         )}
       </section>
 
-      <GiftFinderForm events={events} relations={relations} />
+      <GiftFinderForm events={events} relations={relations} initial={initial} />
 
       <SavedPicks />
 

@@ -58,10 +58,10 @@ export default async function PickProductPage({ searchParams }: { searchParams: 
         <p className="small muted" style={{ marginTop: 20, textAlign: 'center' }}>맞는 상품이 없어요. 다른 이름으로 찾아 보세요.</p>
       ) : (
         <div className="pick-grid">
-          {shown.map((p) => (
+          {shown.map((p, i) => (
             <a key={p.productNo} className="card pick-card" href={`/packaging?product=${p.productNo}&from=pick`}>
               {p.image ? (
-                <Image src={p.image} alt="" width={240} height={240} sizes="(max-width: 480px) 45vw, 220px" />
+                <Image src={p.image} alt="" width={240} height={240} sizes="(max-width: 480px) 45vw, 220px" priority={i < 2} />
               ) : (
                 <div style={{ aspectRatio: '1', background: '#efe9dc' }} />
               )}
