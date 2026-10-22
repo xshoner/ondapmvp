@@ -1,6 +1,6 @@
 // 추천 엔진: 행사 정보 → 상위 N개 상품
 //
-// 1) 거르기: 미진열·판매중지·품절, 지표 미입력, 해당 행사 금지 상품, 예산 초과
+// 1) 거르기: 고객이 뺀 상품, 미진열·판매중지·품절, 지표 미입력, 해당 행사 금지 상품, 예산 초과
 // 2) 점수: scoreForSituation (격식지수 + 상황 적합 보너스)
 // 3) 순위: matchScore ↓ → 격식 적합도 ↓ → 예산과 가까운 가격 → 상품번호 ↑  (같은 입력이면 항상 같은 결과)
 // 4) 다양성: 순위대로 고르되 같은 카테고리는 maxPerCategory개까지. 모자라면 남은 순위대로 채운다
@@ -28,10 +28,12 @@ function filterAndScore(
   const attrByNo = new Map<number, ProductAttributes>(catalog.attributes.map((a) => [a.productNo, a]));
   const candidates: ScoredProduct[] = [];
   const excluded: Exclusion[] = [];
+  const skipped = new Set(input.exclude ?? []);
 
   for (const product of catalog.products) {
     const exclude = (reason: string) => excluded.push({ productNo: product.productNo, name: product.name, reason });
 
+    if (skipped.has(product.productNo)) { exclude('고객이 뺀 상품'); continue; }
     if (!product.display || !product.selling) { exclude('미진열 또는 판매중지'); continue; }
     if (product.soldOut) { exclude('품절'); continue; }
 

@@ -8,6 +8,7 @@ import { getCatalog } from '@/data/repository.ts';
 import { createDesign, getPackagingAssets, lookupDesign } from '@/data/packaging-repository.ts';
 import type { EventType } from '@/engine/types.ts';
 import { clientIp, createRateLimiter } from '@/lib/rate-limit.ts';
+import { clampQty } from '@/lib/result-query.ts';
 import { MAX_PRINT_BYTES, generateDesignCode, normalizeDesignCode, pngSize, printPixels, sanitizeDraft, sanitizeSticker } from '@/packaging/rules.ts';
 
 // 같은 접속 주소에서 10분에 20번까지 (보통 고객은 한두 번 저장한다)
@@ -63,7 +64,7 @@ export async function saveDesignAction(form: FormData): Promise<SaveDesignResult
     const catalog = await getCatalog();
     const product = catalog.products.find((p) => p.productNo === Number(meta.productNo));
     if (!product) return { ok: false, message: '상품을 찾을 수 없습니다.' };
-    const quantity = Math.min(100000, Math.max(1, Math.round(Number(meta.quantity) || 1)));
+    const quantity = clampQty(meta.quantity);
     const event = catalog.config.events[String(meta.event) as EventType] ? (String(meta.event) as EventType) : null;
 
     const { styles } = await getPackagingAssets();

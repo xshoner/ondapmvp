@@ -2,6 +2,7 @@
 
 // 추천 결과 공유: 휴대폰은 기기 공유 창(카카오톡·문자 등), 그 밖에는 주소 복사
 import { useState } from 'react';
+import { isMobileUA } from '@/lib/device.ts';
 
 export function ShareButton({ title }: { title: string }) {
   const [done, setDone] = useState<string | null>(null);
@@ -9,7 +10,7 @@ export function ShareButton({ title }: { title: string }) {
   const share = async () => {
     const url = location.href;
     try {
-      if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
+      if (navigator.share && isMobileUA()) {
         await navigator.share({ title, text: `${title} 온답 답례 추천 결과입니다.`, url });
         return;
       }

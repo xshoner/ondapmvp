@@ -80,6 +80,8 @@ export interface RecommendInput {
   relation: Relation;
   budgetMax?: number;
   quantity?: number;
+  // 고객이 결과에서 "이건 빼고 다시"로 뺀 상품번호
+  exclude?: number[];
 }
 
 export interface IndicatorContribution {

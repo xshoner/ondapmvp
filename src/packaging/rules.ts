@@ -1,7 +1,7 @@
 // 포장 디자인 규칙: 인쇄 크기, 디자인 코드, 자리표시자, 입력 검사.
 // 고객 화면(브라우저)과 서버 액션이 함께 쓰므로 Node 전용 모듈을 쓰지 않는다.
 
-import type { DesignCategory, DesignDraft, Layer, StickerSizeCm, StickerSpec } from './types.ts';
+import type { DesignCategory, DesignDraft, Layer, StickerShape, StickerSizeCm, StickerSpec } from './types.ts';
 
 export const MAX_ACTIVE = 10; // 스타일, 분류별 추천 이미지·문구 각각 '사용' 최대 개수
 export const DPI = 300;
@@ -53,6 +53,37 @@ export function bleedUnits(sizeCm: number): number {
 export function effectiveDpi(naturalWidth: number, widthUnits: number, sizeCm: number): number {
   const inches = ((widthUnits / CANVAS_UNITS) * totalCm(sizeCm)) / 2.54;
   return inches > 0 ? naturalWidth / inches : Infinity;
+}
+
+// ---------- 안전선 (자르는 선에서 재단 여백만큼 더 안쪽) ----------
+
+export interface Box { x: number; y: number; width: number; height: number } // 편집기 좌표
+
+// 상자를 가운데 기준으로 몇 배로 바꾸면 안전선에 꼭 맞는지. 1 이상이면 지금 그대로 안전하다
+export function fitScale(shape: StickerShape, sizeCm: number, box: Box): number {
+  const c = CANVAS_UNITS / 2;
+  const safe = c - 2 * bleedUnits(sizeCm); // 원은 반지름, 사각은 가운데에서 변까지
+  const hw = box.width / 2;
+  const hh = box.height / 2;
+  if (hw <= 0 || hh <= 0) return Infinity;
+  const dx = Math.abs(box.x + hw - c);
+  const dy = Math.abs(box.y + hh - c);
+  if (shape === 'square') return Math.max(0, Math.min((safe - dx) / hw, (safe - dy) / hh));
+  // 원: 가장 먼 모서리 (dx + s·hw, dy + s·hh)가 반지름 안에 드는 가장 큰 s
+  const a = hw * hw + hh * hh;
+  const b = 2 * (dx * hw + dy * hh);
+  const k = dx * dx + dy * dy - safe * safe;
+  return k >= 0 ? 0 : (-b + Math.sqrt(b * b - 4 * a * k)) / (2 * a);
+}
+
+// ---------- 행사와 어긋난 말 (막지 않고 알려만 준다) ----------
+
+const CALM_WORDS = ['축하', '경축', '기쁨', '기쁜', '행복', '경사', '축복']; // 장례에 어울리지 않는 말
+const MOURN_WORDS = ['위로', '조의', '애도', '명복', '부고', '조문']; // 장례가 아닌 자리에 어울리지 않는 말
+
+export function cautionWords(event: DesignCategory | null, text: string): string[] {
+  if (!event || event === 'common') return [];
+  return (event === 'funeral' ? CALM_WORDS : MOURN_WORDS).filter((w) => text.includes(w));
 }
 
 // ---------- 디자인 코드 (카페24 주문서 추가항목에 고객이 붙여넣는 값) ----------

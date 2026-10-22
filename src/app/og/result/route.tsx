@@ -1,10 +1,11 @@
-// 추천 결과 공유 미리보기: /og/result?event=&relation=&budget=&qty=
+// 추천 결과 공유 미리보기: /og/result?event=&relation=&budget=&qty=&exclude=
 // 결과 화면과 같은 계산으로 1순위 상품 사진·이름·격식지수 도장을 그린다 (추천 기록은 남기지 않는다)
 import { ImageResponse } from 'next/og';
 import { getCatalog } from '@/data/repository.ts';
 import { recommend } from '@/engine/recommend.ts';
 import type { EventType, Relation } from '@/engine/types.ts';
 import { OG_COLORS as C, OG_SIZE, ogFonts } from '@/og/font.ts';
+import { clampQty, parseBudget, parseExclude } from '@/lib/result-query.ts';
 
 export async function GET(request: Request) {
   const q = new URL(request.url).searchParams;
@@ -12,10 +13,11 @@ export async function GET(request: Request) {
   const event = q.get('event') as EventType;
   const relation = q.get('relation') as Relation;
   if (!catalog.config.events[event] || !catalog.config.relations[relation]) return new Response('잘못된 조건입니다.', { status: 400 });
-  const budgetMax = q.get('budget') ? Number(q.get('budget')) : undefined;
-  const quantity = Math.max(1, Number(q.get('qty') ?? 1) || 1);
+  const budgetMax = parseBudget(q.get('budget')) ?? undefined;
+  const quantity = clampQty(q.get('qty') ?? 1);
+  const seal = event === 'funeral' ? C.sealCalm : C.seal; // 장례는 축하 느낌의 인주색 대신 차분한 색
 
-  const result = recommend(catalog, { event, relation, budgetMax, quantity });
+  const result = recommend(catalog, { event, relation, budgetMax, quantity, exclude: parseExclude(q.get('exclude')) });
   const main = result.results[0];
   const eventName = catalog.config.events[event].name;
   const title = `${eventName} 자리에 맞춘 답례품`;
@@ -42,7 +44,7 @@ export async function GET(request: Request) {
         )}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '52px 52px 48px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'Noto Sans KR', fontSize: 24, color: C.muted }}>
-            <div style={{ width: 14, height: 14, background: C.seal, transform: 'rotate(45deg)', borderRadius: 2 }} />
+            <div style={{ width: 14, height: 14, background: seal, transform: 'rotate(45deg)', borderRadius: 2 }} />
             온답 답례 큐레이션
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -58,7 +60,7 @@ export async function GET(request: Request) {
               {metaLines.map((l) => <span key={l}>{l}</span>)}
             </div>
             {score && (
-              <div style={{ width: 136, height: 136, background: C.seal, borderRadius: 10, transform: 'rotate(-4deg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8 }}>
+              <div style={{ width: 136, height: 136, background: seal, borderRadius: 10, transform: 'rotate(-4deg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8 }}>
                 <div style={{ flex: 1, height: '100%', border: '2px solid rgba(255,255,255,0.55)', borderRadius: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
                   <span style={{ fontFamily: 'Hahmlet', fontSize: 18 }}>격식지수</span>
                   <span style={{ fontFamily: 'Hahmlet', fontSize: 58, lineHeight: 1 }}>{score}</span>

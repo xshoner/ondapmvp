@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  MAX_ACTIVE, MAX_LAYERS, bleedUnits, canActivate, effectiveDpi, fillPlaceholders, generateDesignCode,
+  MAX_ACTIVE, MAX_LAYERS, bleedUnits, canActivate, cautionWords, effectiveDpi, fillPlaceholders, fitScale, generateDesignCode,
   normalizeDesignCode, pngSize, printPixels, sanitizeDraft, sanitizeSticker,
 } from '../src/packaging/rules.ts';
 
@@ -95,4 +95,27 @@ test(`'사용'은 최대 ${MAX_ACTIVE}개: 이미 켜진 항목은 다시 저장
   assert.equal(canActivate(items, 'new'), false);
   assert.equal(canActivate(items, 'a3'), true);
   assert.equal(canActivate([...items.slice(1), { id: 'a0', active: false }], 'new'), true);
+});
+
+test('안전선 맞춤: 가운데 작은 글자는 그대로, 넘치면 몇 배로 줄일지 알려 준다', () => {
+  const safe = 500 - 2 * bleedUnits(6); // 437.5
+  const center = (w: number, h: number) => ({ x: 500 - w / 2, y: 500 - h / 2, width: w, height: h });
+  assert.ok(fitScale('circle', 6, center(400, 100)) > 1);
+  // 사각: 폭 1000짜리는 안전선 폭(2×437.5)에 맞추려면 0.875배
+  assert.ok(Math.abs(fitScale('square', 6, center(1000, 100)) - 0.875) < 1e-9);
+  // 원: 줄인 상자의 모서리가 정확히 안전선 위에 온다
+  const s = fitScale('circle', 6, center(900, 300));
+  assert.ok(s < 1);
+  assert.ok(Math.abs(Math.hypot(450 * s, 150 * s) - safe) < 1e-6);
+  // 가운데가 이미 안전선 밖이면 0
+  assert.equal(fitScale('circle', 6, { x: 940, y: 490, width: 20, height: 20 }), 0);
+  assert.equal(fitScale('square', 4, { x: 0, y: 0, width: 0, height: 0 }), Infinity);
+});
+
+test('행사와 어긋난 말: 장례에 축하, 결혼에 조의는 알려 준다', () => {
+  assert.deepEqual(cautionWords('funeral', '결혼을 축하합니다'), ['축하']);
+  assert.deepEqual(cautionWords('wedding', '삼가 고인의 명복을 빕니다'), ['명복']);
+  assert.deepEqual(cautionWords('funeral', '와 주셔서 감사합니다'), []);
+  assert.deepEqual(cautionWords('common', '축하'), []);
+  assert.deepEqual(cautionWords(null, '조의'), []);
 });

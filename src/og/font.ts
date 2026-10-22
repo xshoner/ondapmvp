@@ -39,4 +39,5 @@ export async function ogFonts(serifText: string, sansText: string): Promise<Font
 }
 
 export const OG_SIZE = { width: 1200, height: 630 };
-export const OG_COLORS = { paper: '#f3f4f1', ink: '#1c2420', muted: '#66706a', pine: '#1f4436', brass: '#8a6a35', seal: '#b03a2e', line: '#dde0d9' };
+// sealCalm: 장례 자리용 차분한 도장 색 (결과 화면 CSS .mood-calm과 같은 색)
+export const OG_COLORS = { paper: '#f3f4f1', ink: '#1c2420', muted: '#66706a', pine: '#1f4436', brass: '#8a6a35', seal: '#b03a2e', sealCalm: '#4a524d', line: '#dde0d9' };

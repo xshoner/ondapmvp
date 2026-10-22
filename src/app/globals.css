@@ -153,6 +153,34 @@ button, input, select, textarea { font: inherit; color: inherit; letter-spacing:
 
 .summary-line { font-size: 13px; color: var(--muted); text-align: center; margin: 0 0 8px; min-height: 20px; }
 .summary-line b { color: var(--ink); font-weight: 600; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* 지난 조건 이어 하기 */
+.resume-card { display: flex; align-items: stretch; margin-top: 20px; background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--pine); border-radius: var(--radius-sm); }
+.resume-card a { flex: 1; min-width: 0; display: grid; gap: 2px; padding: 11px 14px; text-decoration: none; }
+.resume-card .resume-label { font-size: 14px; font-weight: 600; color: var(--pine); }
+.resume-card .resume-detail { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resume-card button { width: 44px; border: 0; background: transparent; color: var(--muted); font-size: 18px; cursor: pointer; }
+
+/* 예산: 1개당 / 전체 예산 */
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); padding: 2px; }
+.seg button { border: 0; background: transparent; border-radius: 999px; padding: 4px 12px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.seg button[aria-pressed='true'] { background: var(--pine); color: #fff; font-weight: 600; }
+.money-input { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
+.money-input:focus-within { border-color: var(--pine); box-shadow: 0 0 0 3px var(--pine-weak); }
+.money-input input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+.quick-add .chip { padding: 9px 11px; }
+
+/* 찜한 답례 */
+.saved-picks { margin-top: 28px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.saved-picks summary { cursor: pointer; list-style: none; padding: 14px 16px; font-size: 14.5px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.saved-picks summary::-webkit-details-marker { display: none; }
+.saved-picks summary::after { content: '+'; margin-left: auto; color: var(--muted); font-weight: 400; }
+.saved-picks[open] summary::after { content: '−'; }
+.saved-picks .heart-icon { color: var(--seal); }
+.saved-picks ul { list-style: none; margin: 0; padding: 0 16px 6px; }
+.saved-picks li { display: grid; grid-template-columns: 56px 1fr; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.saved-picks li img, .saved-picks li .ph { width: 56px; height: 56px; border-radius: var(--radius-sm); object-fit: cover; display: block; background: var(--paper-deep); }
 
 /* ---------- 추천 결과 ---------- */
 .result-head { margin-top: 4px; }
@@ -204,6 +232,38 @@ button, input, select, textarea { font: inherit; color: inherit; letter-spacing:
 .alt-meta .score { color: var(--pine); font-weight: 600; }
 .alt-actions { display: flex; gap: 6px; margin-top: 10px; }
 .foot-note { font-size: 12px; color: var(--muted); text-align: center; margin-top: 40px; }
+
+/* 결과 화면에서 조건 바로 바꾸기: 칩을 누르면 아래로 고르기 창이 열린다 */
+.cond-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; position: relative; }
+.cond summary { list-style: none; cursor: pointer; font-size: 13px; padding: 4px 10px 4px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); color: var(--ink-soft); display: inline-flex; align-items: center; gap: 4px; }
+.cond summary::-webkit-details-marker { display: none; }
+.cond summary::after { content: '▾'; font-size: 10px; color: var(--muted); }
+.cond[open] summary { border-color: var(--pine); color: var(--pine); font-weight: 600; }
+.cond-pop { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 20; display: flex; flex-wrap: wrap; gap: 6px; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-float); }
+.cond-pop .chip { text-decoration: none; }
+.cond-pop .chip[aria-current='true'] { background: var(--pine); border-color: var(--pine); color: #fff; font-weight: 600; }
+.cond-qty { display: flex; gap: 8px; width: 100%; }
+.cond-qty .num-input { min-height: 40px; padding: 6px 12px; }
+
+/* 이 상품은 빼고 다시 */
+.exclude-link { justify-self: center; margin-top: 4px; color: var(--muted); font-weight: 500; }
+
+/* 찜 하트 (대표 상품 사진 위) */
+.save-pick { position: absolute; top: 12px; right: 12px; width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.92); color: var(--ink-soft); font-size: 22px; line-height: 1; cursor: pointer; box-shadow: 0 2px 8px rgba(28, 36, 32, 0.15); }
+.save-pick[aria-pressed='true'], .save-pick-inline[aria-pressed='true'] { color: var(--seal); }
+
+/* 나란히 비교 */
+.compare { margin-top: 28px; }
+.compare-scroll { overflow-x: auto; margin: 12px -20px 0; padding: 0 20px 4px; }
+.compare-table { border-collapse: collapse; min-width: 100%; font-size: 13px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.compare-table th, .compare-table td { padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.compare-table thead th { min-width: 132px; font-weight: 600; line-height: 1.4; }
+.compare-table tbody th { white-space: nowrap; color: var(--muted); font-weight: 500; position: sticky; left: 0; background: var(--surface); }
+.compare-table tr:last-child th, .compare-table tr:last-child td { border-bottom: 0; }
+
+/* 장례: 인주색·도장 찍히는 움직임 없이 차분하게 (공유 그림 OG_COLORS.sealCalm과 같은 색) */
+.mood-calm { --seal: #4a524d; }
+.mood-calm .seal { animation: none; box-shadow: 0 10px 22px -12px rgba(28, 36, 32, 0.5); }
 
 /* ---------- 관리자 ---------- */
 .admin { min-height: 100vh; background: var(--paper); }
@@ -293,6 +353,27 @@ table.data td:first-child, table.data th:first-child { white-space: nowrap; }
 .modal { width: 100%; max-width: 380px; padding: 24px 22px 20px; max-height: calc(100vh - 32px); overflow: auto; box-shadow: var(--shadow-float); }
 .design-code { font-family: var(--font-serif), serif; font-size: 28px; font-weight: 700; letter-spacing: 0.04em; text-align: center; margin-top: 14px; color: var(--ink); user-select: all; font-variant-numeric: tabular-nums; }
 .steps-list { margin: 16px 0 0; padding-left: 20px; font-size: 13.5px; color: var(--ink-soft); display: grid; gap: 6px; }
+.link-btn { border: 0; background: none; padding: 0; color: var(--pine); font-weight: 600; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; cursor: pointer; font-size: inherit; }
+.editor-resume { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
+.date-row { display: flex; align-items: flex-end; gap: 6px; }
+.date-row label { flex: 1; }
+.date-row .btn { min-height: 42px; }
+.name-check { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px 12px; margin: 0 0 8px; font-size: 13px; }
+.name-check label { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--ink-soft); }
+.qr-box { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--ink-soft); }
+.qr-box img { flex: none; image-rendering: pixelated; }
+
+/* 포장된 모습: 포장 사진 가운데에 스티커를 붙여 본다 (자르는 선 안쪽만) */
+.mockup { position: relative; display: grid; place-items: center; aspect-ratio: 1; margin-top: 12px; border-radius: var(--radius-sm); background: var(--paper-deep) center / cover no-repeat; overflow: hidden; }
+.mockup-sticker { display: block; filter: drop-shadow(0 2px 3px rgba(28, 36, 32, 0.35)); }
+.mockup-sticker img { display: block; width: 100%; height: auto; }
+
+/* 실제 크기로 보기: 화면 전체를 흰 바탕으로 */
+.real-view { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: #fff; overflow: auto; }
+.real-stage { flex: 1; display: grid; place-items: center; min-height: 320px; padding: 16px 0; overflow: hidden; }
+.real-stage img { display: block; max-width: none; height: auto; }
+.real-panel { width: 100%; max-width: 480px; margin: 0 auto; padding: 16px 20px calc(16px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
+.card-ruler { height: 14px; max-width: 100%; border: 2px solid var(--pine); border-top: 0; }
 
 /* ---------- 관리자: 포장 디자인 ---------- */
 .admin-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }

@@ -1,7 +1,9 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { forgetLastQuery, loadLastQuery, type LastQuery } from '@/lib/device.ts';
+import { BUDGET_STEPS, MAX_QTY, budgetChipText, budgetText, clampQty, perItemBudget, resultHref } from '@/lib/result-query.ts';
 
 type Option = { id: string; name: string };
 
@@ -10,41 +12,59 @@ const HANJA: Record<string, string> = {
   funeral: '弔', wedding: '婚', longevity: '壽', birth: '誕', promotion: '榮', opening: '開', thanks: '謝', birthday: '生',
 };
 
-const BUDGETS: { value: number | null; label: string }[] = [
-  { value: 30000, label: '3만 원 이하' },
-  { value: 50000, label: '5만 원 이하' },
-  { value: 100000, label: '10만 원 이하' },
-  { value: 200000, label: '20만 원 이하' },
-  { value: null, label: '상관없음' },
-];
+const QUICK_ADD = [10, 50, 100];
+const MAX_TOTAL_DIGITS = 10; // 99억 원. 입력칸은 숫자만 (쉼표를 넣으면 중간을 고칠 때 커서가 끝으로 튄다)
 
-const MAX_QTY = 100000;
+const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
 
 export function GiftFinderForm({ events, relations }: { events: Option[]; relations: Option[] }) {
   const router = useRouter();
   const [event, setEvent] = useState<string | null>(null);
   const [relation, setRelation] = useState<string | null>(null);
+  // 예산은 1개당으로 고르거나, 전체 예산을 넣으면 수량으로 나눠 1개당 예산을 잡는다
+  const [budgetMode, setBudgetMode] = useState<'each' | 'total'>('each');
   const [budget, setBudget] = useState<number | null>(50000);
+  const [total, setTotal] = useState('');
   const [quantity, setQuantity] = useState(10);
   const [pending, setPending] = useState(false);
+  const [last, setLast] = useState<LastQuery | null>(null);
 
-  const ready = event !== null && relation !== null && quantity > 0;
-  const setQty = (n: number) => setQuantity(Math.min(MAX_QTY, Math.max(1, Math.round(n) || 1)));
+  // 지난 조건은 이 기기에만 있으므로 화면을 그린 뒤 읽는다 (서버 화면과 어긋나지 않게)
+  useEffect(() => {
+    const q = loadLastQuery();
+    if (q && events.some((e) => e.id === q.event) && relations.some((r) => r.id === q.relation)) setLast(q);
+  }, [events, relations]);
+
+  const totalWon = Number(total) || 0;
+  const effectiveBudget = budgetMode === 'each' ? budget : perItemBudget(totalWon, quantity);
+  const budgetReady = budgetMode === 'each' || effectiveBudget !== null;
+  const ready = event !== null && relation !== null && quantity > 0 && budgetReady;
+  const setQty = (n: number) => setQuantity(clampQty(n));
 
   function submit() {
-    if (!ready) return;
-    const params = new URLSearchParams({ event, relation, qty: String(quantity) });
-    if (budget !== null) params.set('budget', String(budget));
+    if (!ready || event === null || relation === null) return;
     setPending(true);
-    router.push(`/result?${params}`);
+    router.push(resultHref({ event, relation, budget: effectiveBudget, qty: quantity, exclude: [] }));
   }
 
-  const eventName = events.find((e) => e.id === event)?.name;
-  const relationName = relations.find((r) => r.id === relation)?.name;
-  const budgetLabel = BUDGETS.find((b) => b.value === budget)?.label;
+  const nameOf = (list: Option[], id: string | null) => list.find((x) => x.id === id)?.name;
+  const eventName = nameOf(events, event);
+  const relationName = nameOf(relations, relation);
 
   return (
     <div>
+      {last && (
+        <div className="resume-card">
+          <a href={resultHref({ ...last, exclude: [] })}>
+            <span className="resume-label">지난번 조건으로 보기</span>
+            <span className="resume-detail">
+              {nameOf(events, last.event)} · {nameOf(relations, last.relation)} · {budgetChipText(last.budget)} · {last.qty.toLocaleString('ko-KR')}개
+            </span>
+          </a>
+          <button type="button" aria-label="지난번 조건 지우기" onClick={() => { forgetLastQuery(); setLast(null); }}>×</button>
+        </div>
+      )}
+
       <section className="step">
         <h2 className="step-label"><span className="step-no">1</span>어떤 자리인가요?</h2>
         <div className="occasion-grid">
@@ -70,30 +90,67 @@ export function GiftFinderForm({ events, relations }: { events: Option[]; relati
       </section>
 
       <section className="step">
-        <h2 className="step-label"><span className="step-no">3</span>1개당 예산</h2>
-        <div className="chips">
-          {BUDGETS.map((b) => (
-            <button key={b.label} type="button" className="chip" aria-pressed={budget === b.value} onClick={() => setBudget(b.value)}>
-              {b.label}
-            </button>
-          ))}
+        <div className="spread" style={{ alignItems: 'baseline' }}>
+          <h2 className="step-label"><span className="step-no">3</span>예산</h2>
+          <div className="seg" role="group" aria-label="예산 정하는 방법">
+            <button type="button" aria-pressed={budgetMode === 'each'} onClick={() => setBudgetMode('each')}>1개당</button>
+            <button type="button" aria-pressed={budgetMode === 'total'} onClick={() => setBudgetMode('total')}>전체 예산</button>
+          </div>
         </div>
+        {budgetMode === 'each' ? (
+          <div className="chips">
+            {BUDGET_STEPS.map((b) => (
+              <button key={String(b)} type="button" className="chip" aria-pressed={budget === b} onClick={() => setBudget(b)}>
+                {b === null ? '상관없음' : budgetText(b)}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="total-budget">
+            <label className="money-input">
+              <span className="sr-only">전체 예산</span>
+              <input
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="예: 1500000"
+                value={total}
+                onChange={(e) => setTotal(e.target.value.replace(/\D/g, '').replace(/^0+/, '').slice(0, MAX_TOTAL_DIGITS))}
+              />
+              <span aria-hidden>원</span>
+            </label>
+            <p className="small" style={{ margin: '8px 0 0', color: effectiveBudget ? 'var(--ink-soft)' : 'var(--muted)' }} aria-live="polite">
+              {effectiveBudget
+                ? <>{won(totalWon)} ÷ {quantity.toLocaleString('ko-KR')}개 = <b>1개당 {won(effectiveBudget)} 이하</b>로 찾아요</>
+                : '행사 전체에 쓸 금액을 넣으면 수량으로 나눠 1개당 예산을 잡아 드려요'}
+            </p>
+          </div>
+        )}
       </section>
 
       <section className="step">
         <h2 className="step-label"><span className="step-no">4</span><label htmlFor="qty">수량</label><span className="hint">받는 분 수만큼</span></h2>
-        <div className="stepper">
-          <button type="button" aria-label="수량 줄이기" onClick={() => setQty(quantity - (quantity > 10 ? 10 : 1))}>−</button>
-          <input id="qty" type="number" inputMode="numeric" min={1} max={MAX_QTY} value={quantity} onChange={(e) => setQty(Number(e.target.value))} />
-          <button type="button" aria-label="수량 늘리기" onClick={() => setQty(quantity + (quantity >= 10 ? 10 : 1))}>+</button>
+        <div className="row" style={{ gap: 10 }}>
+          <div className="stepper">
+            <button type="button" aria-label="수량 줄이기" onClick={() => setQty(quantity - (quantity > 10 ? 10 : 1))}>−</button>
+            <input id="qty" type="number" inputMode="numeric" min={1} max={MAX_QTY} value={quantity} onChange={(e) => setQty(Number(e.target.value))} />
+            <button type="button" aria-label="수량 늘리기" onClick={() => setQty(quantity + (quantity >= 10 ? 10 : 1))}>+</button>
+          </div>
+          <div className="chips quick-add">
+            {QUICK_ADD.map((n) => (
+              <button key={n} type="button" className="chip" aria-label={`수량 ${n}개 더하기`} onClick={() => setQty(quantity + n)}>+{n}</button>
+            ))}
+          </div>
         </div>
       </section>
 
       <div className="sticky-cta">
         <p className="summary-line" aria-live="polite">
           {ready ? (
-            <><b>{eventName}</b>, {relationName}, {budgetLabel === '상관없음' ? '예산 상관없음' : `1개 ${budgetLabel}`}, {quantity.toLocaleString('ko-KR')}개</>
-          ) : event ? '받는 분과의 관계를 골라 주세요' : '어떤 자리인지 먼저 골라 주세요'}
+            <><b>{eventName}</b>, {relationName}, {budgetChipText(effectiveBudget)}, {quantity.toLocaleString('ko-KR')}개</>
+          ) : !event ? '어떤 자리인지 먼저 골라 주세요'
+            : !relation ? '받는 분과의 관계를 골라 주세요'
+            : totalWon > 0 ? '전체 예산이 수량보다 적어요. 금액이나 수량을 확인해 주세요'
+            : '전체 예산을 넣어 주세요'}
         </p>
         <button type="button" className="btn block" disabled={!ready || pending} onClick={submit}>
           {pending ? '고르는 중…' : '답례품 세 가지 추천받기'}

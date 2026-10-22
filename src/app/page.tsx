@@ -1,5 +1,6 @@
 import { getCatalog, getMonthlyRecommendationCount } from '@/data/repository.ts';
 import { GiftFinderForm } from './gift-finder-form.tsx';
+import { SavedPicks } from './saved-picks.tsx';
 import { eventIds, relationIds } from '@/engine/labels.ts';
 
 export const dynamic = 'force-dynamic';
@@ -25,6 +26,8 @@ export default async function Home() {
       </section>
 
       <GiftFinderForm events={events} relations={relations} />
+
+      <SavedPicks />
 
       <p className="small muted" style={{ textAlign: 'center', margin: '28px 0 0' }}>
         추천 없이 원하는 상품의 포장만 꾸미려면 <a className="text-link" href="/packaging/pick">상품 고르기</a>

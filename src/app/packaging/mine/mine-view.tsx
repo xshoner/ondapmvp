@@ -98,6 +98,9 @@ export function MineView({ initialCode }: { initialCode: string }) {
                   <div className="alt-actions" style={{ flexWrap: 'wrap' }}>
                     <a className="btn small" href={orderUrl(d.productUrl, d.code, d.quantity)}>주문하러 가기</a>
                     <CopyButton code={d.code} />
+                    {d.productNo && d.snapshot ? (
+                      <a className="btn ghost small" href={`/packaging?product=${d.productNo}&qty=${d.quantity}&from=mine&restore=${encodeURIComponent(d.code)}`}>다시 꾸미기</a>
+                    ) : null}
                     <button type="button" className="btn ghost small" style={{ border: 'none' }} onClick={() => { forgetDesign(d.code); setSaved(loadSavedDesigns()); }}>목록에서 빼기</button>
                   </div>
                 </div>
