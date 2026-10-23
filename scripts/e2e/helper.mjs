@@ -29,7 +29,7 @@ try {
     await b.goto(fileUrl(page));
     await remember(b);
     await b.goto(fileUrl(page));
-    await b.waitFor(`document.getElementById('ondap-banner')?.textContent.includes('포장')`, 15000);
+    await b.waitFor(`document.getElementById('ondap-banner')?.textContent.includes('송학 장생')`, 15000);
     const r = await b.evaluate(`return { field: document.querySelector('input[name="oa_content[1|49]"]').value, banner: document.getElementById('ondap-banner').innerText }`);
     check(`주문서: 주문 ${qty}개 / 디자인 30개`, r.field === CODE && r.banner.includes(expect) && r.banner.includes('송학 장생') && r.banner.includes('6cm 원형'), r.banner.replace(/\n/g, ' / '));
   }

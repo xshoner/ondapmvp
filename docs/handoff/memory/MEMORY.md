@@ -5,4 +5,4 @@
 - [개선 보고서·PRD (2026-10)](project-improvement-roadmap-2026-10.md) — 두 문서 링크, A/B/C 과제·P1 요구사항 번호, 인구감소지역 92곳
 - [GitHub 푸시 계정](reference-github-push-account.md) — 저장소는 xshoner 소유, 활성 계정 안 바꾸고 명령에만 xshoner 토큰
 - [화면 검증이 멈출 때](reference-headless-verify.md) — 숨겨진 브라우저 창은 rAF 정지 → headless Chrome CDP로 검증
-- [기능 상태와 DB 실행 여부](project-ops-features-2026-10-22.md) — 10/22 전부 배포(7e808cd), 20261025 실행 완료, 20261026 미실행·키 교체 권고
+- [기능 상태와 DB 실행 여부](project-ops-features-2026-10-22.md) — 10/22 전부 배포(7e808cd), 20261025·20261026 운영 적용 완료(10/23), 키 교체 권고는 별도

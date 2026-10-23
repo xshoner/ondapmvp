@@ -209,7 +209,9 @@ const type = (b, ch) => b.send('Input.dispatchKeyEvent', { type: 'char', text: c
     // AM-07 점수 기준 예시 입력 → 상품 편집기 도움말
     await b.goto(`${BASE}/admin/weights`);
     await b.waitFor(`document.querySelector('input[aria-label="희소성 높은 점수 예시"]')`, 40000);
-    await b.evaluate(`const i = document.querySelector('input[aria-label="희소성 높은 점수 예시"]'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, '울릉도 명이처럼 산지 한정 소량'); i.dispatchEvent(new Event('input', { bubbles: true }))`);
+    await b.evaluate(`document.querySelector('input[aria-label="희소성 높은 점수 예시"]').focus()`);
+    await key(b, 'a', { code: 'KeyA', mod: 2, vk: 65 });
+    await b.send('Input.insertText', { text: '울릉도 명이처럼 산지 한정 소량' });
     await b.click('button', '설정 저장');
     await b.waitFor(`document.body.innerText.includes('저장했습니다')`);
     await b.goto(`${BASE}/admin?product=11`);
