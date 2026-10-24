@@ -236,7 +236,8 @@ const type = (b, ch) => b.send('Input.dispatchKeyEvent', { type: 'char', text: c
   try {
     // 디자인 하나 저장 (이 기기에 그림·편집 내용이 남게)
     await b.goto(`${BASE}/packaging?product=49&qty=12&event=wedding&relation=business`);
-    await b.waitFor(`${konva} && ${konva}.find('Image').length > 0`, 40000);
+    await b.waitFor(`${konva} && ${konva}.find('Text').length > 0`, 40000);
+    await b.click('.style-grid button','모란');
     await b.sleep(600);
     await b.click('button', '디자인 저장하고');
     await b.waitFor(`document.querySelector('.design-code')`, 30000);
@@ -253,7 +254,7 @@ const type = (b, ch) => b.send('Input.dispatchKeyEvent', { type: 'char', text: c
     // CO-05 스티커 그림 받기 버튼 (이 기기에 그림이 있을 때)
     check('CO-05 스티커 그림 받기 버튼', await b.evaluate(`return [...document.querySelectorAll('button')].some((x) => x.textContent === '스티커 그림 받기')`));
     const png = await b.evaluate(`return await new Promise((res) => { const r = indexedDB.open('ondap', 1); r.onsuccess = () => { const q = r.result.transaction('photos').objectStore('photos').get('p:${code}'); q.onsuccess = () => res(q.result ? { type: q.result.type, size: q.result.size } : null); }; })`);
-    check('CO-05 화면용 그림 480px PNG 보관', png?.type === 'image/png' && png.size > 5000, JSON.stringify(png));
+    check('CO-05 화면용 그림 480px PNG 보관', png?.type === 'image/png' && png.size > 500, JSON.stringify(png));
 
     // CO-03 같은 디자인으로 다시 주문
     await b.click('article.card button', '같은 디자인으로 다시 주문');

@@ -7,8 +7,10 @@ import { getAdminStatus } from '@/lib/admin-guard.ts';
 import { buildPrintPdf } from '@/packaging/print-pdf.ts';
 import { normalizeDesignCode, pngSize, printPixels, sanitizeSticker } from '@/packaging/rules.ts';
 import { isPaper } from '@/packaging/sheet.ts';
+import { recordOperation } from '@/data/operations-repository.ts';
 
 export async function GET(request: Request, { params }: { params: Promise<{ code: string }> }) {
+  const startedAt = Date.now();
   const status = await getAdminStatus();
   if (!status.allowed) return new Response('관리자만 내려받을 수 있습니다.', { status: 403 });
 
@@ -41,6 +43,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
       label: { code, orderNo: design.orderNo, productNo: design.productNo, quantity: count, test: q.get('test') === '1' },
       qrUrl: `${new URL(request.url).origin}/s/${code}`,
     });
+    await recordOperation('print_export', 'ok', startedAt);
     return new Response(pdf as BodyInit, {
       headers: {
         'Content-Type': 'application/pdf',
@@ -49,6 +52,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
       },
     });
   } catch (e) {
-    return new Response(`PDF를 만들지 못했습니다: ${e instanceof Error ? e.message : String(e)}`, { status: 422 });
+    await recordOperation('print_export', 'error', startedAt, 'pdf_build');
+    return new Response('PDF를 만들지 못했습니다. 운영 상태를 확인하고 다시 시도해 주세요.', { status: 422 });
   }
 }

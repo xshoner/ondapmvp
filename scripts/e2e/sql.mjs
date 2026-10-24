@@ -23,18 +23,18 @@ const expectError = async (name, fn, pattern) => {
 
 // Supabase가 미리 갖추고 있는 것만 흉내 낸다
 const SUPABASE_STUB = `
-  create role anon nologin; create role authenticated nologin;
+  create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls;
   create schema auth;
   create table auth.users (id uuid primary key, email text);
   create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'sub', '')::uuid $$;
   create function auth.jwt() returns jsonb language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
-  grant usage on schema auth to anon, authenticated;
+  grant usage on schema auth to anon, authenticated, service_role;
   grant execute on all functions in schema auth to anon, authenticated;
   create schema storage;
   create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
   create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text);
   alter table storage.objects enable row level security;
-  grant usage on schema public to anon, authenticated;
+  grant usage on schema public to anon, authenticated, service_role;
 `;
 await db.exec(SUPABASE_STUB);
 
@@ -143,6 +143,60 @@ check('의견: 관리자는 읽음 + 시각은 DB가 찍음', fb.c === true && f
 const [lg] = await q(`select bool_and(created_at < now() + interval '1 minute') as c from public.recommendation_logs`);
 check('추천 기록: 시각은 DB가 찍음', lg.c === true);
 
+
+// ---------- 8개 통합 개선: 권한·원자 갱신·중복 응답·조회 상한·복구 ----------
+await asAnon();
+await expectError('실적 집계 RPC: 익명 고객 거절', () => q(`select public.admin_stats('2020-02-01','2020-02-01',3)`), /permission denied/);
+await expectError('상품 스냅샷 RPC: 익명 고객 거절', () => q(`select public.sync_product_snapshot('[]',null)`), /permission denied/);
+await expectError('백업 RPC: 익명 고객 거절', () => q(`select public.export_application_snapshot()`), /permission denied/);
+const fid = '22222222-2222-4222-8222-222222222222';
+const payload = JSON.stringify({ event: 'wedding', relation: 'peer', budget_max: 50000, quantity: 10, result_product_nos: [11], helpful: true, reasons: [], model_version: 'v1' });
+await q(`select public.submit_feedback($1,$2::jsonb)`, [fid,payload]);
+await q(`select public.submit_feedback($1,$2::jsonb)`, [fid,payload]);
+await asAdmin();
+const [dedup] = await q(`select count(*)::int n from public.recommendation_feedback where request_id=$1`,[fid]);
+check('의견 저장 후 응답 유실·재시도도 한 건', dedup.n === 1);
+await expectError('일반 관리자도 서버 백업 RPC 직접 실행 불가', () => q(`select public.export_application_snapshot()`), /permission denied/);
+let [snapshot] = await q(`select jsonb_agg(to_jsonb(p)) as products,max(synced_at)::text as version from public.products p`);
+const changed = snapshot.products.map((p,i) => ({ ...p, price: p.price + (i === 0 ? 1 : 0) }));
+await q(`select public.sync_product_snapshot($1::jsonb,$2::timestamptz)`,[JSON.stringify(changed),snapshot.version]);
+await expectError('이전 버전으로 동시 갱신하면 거절', () => q(`select public.sync_product_snapshot($1::jsonb,$2::timestamptz)`,[JSON.stringify(changed),snapshot.version]), /다른 작업/);
+let [nowVersion] = await q(`select max(synced_at)::text as version from public.products`);
+await expectError('DB 자체도 대량 상품 누락 차단', () => q(`select public.sync_product_snapshot($1::jsonb,$2::timestamptz)`,[JSON.stringify(changed.slice(0,2)),nowVersion.version]), /20%/);
+const broken = changed.map((p,i) => i === 0 ? { ...p, price: -1 } : p);
+await expectError('잘못된 행이 있으면 전체 갱신 거절', () => q(`select public.sync_product_snapshot($1::jsonb,$2::timestamptz)`,[JSON.stringify(broken),nowVersion.version]), /잘못된 상품/);
+const [kept] = await q(`select count(*)::int n,max(synced_at)::text version from public.products`);
+check('실패한 갱신은 기존 상품 수·버전 유지', kept.n === changed.length && kept.version === nowVersion.version);
+await expectError('집계 기간 400일 초과 거절', () => q(`select public.admin_stats('2020-01-01','2022-01-01',3)`), /기간/);
+await db.exec('reset role');
+await db.exec(`alter table public.recommendation_logs disable trigger user; alter table public.designs disable trigger user;
+  insert into public.recommendation_logs(created_at,event,relation,budget_max,result_product_nos) select '2020-02-01 00:00:00+09','wedding','peer',50000,'{11,12,13}' from generate_series(1,25001);
+  insert into public.designs(code,created_at,product_no,product_name,quantity,style_name,sticker,status,order_no)
+    select 'OD-ZZZZ-'||translate(lpad(to_hex(g),4,'0'),'0123456789abcdef','ABCDEFGHJKLMNPQR'),'2020-02-01 00:00:00+09',27,'시험',1,'시험','{"shape":"circle","sizeCm":6}',case when g%2=0 then 'printed' else 'received' end,case when g%2=0 then 'TEST' else null end from generate_series(1,5501) g;
+  alter table public.recommendation_logs enable trigger user; alter table public.designs enable trigger user;`);
+await asAdmin();
+const [big] = await q(`select public.admin_stats('2020-02-01','2020-02-01',3) as s`);
+check('2만 추천·5천 접수 상한을 넘어도 정확한 합계', big.s.summary.totals.recommendations === 25001 && big.s.summary.totals.designs === 5501, JSON.stringify(big.s.summary.totals));
+check('일별과 전체 합계가 같음', big.s.summary.days[0].recommendations === 25001 && big.s.summary.days[0].designs === 5501);
+check('상한 없는 상품 순위·주문·인쇄 집계', big.s.summary.topProducts[0].first === 25001 && big.s.summary.totals.printed === 2750 && big.s.summary.totals.ordered === 2750);
+const [health] = await q(`select public.operational_health() as h`);
+check('운영 상태 RPC 버전·갱신·작업 기록', health.h.schemaVersion === '20261027' && health.h.events.some((e) => e.operation === 'catalog_sync'));
+await db.exec('reset role; begin; alter table public.design_images drop column targeting;');
+await expectError('운영 상태: DB 변경 일부가 빠지면 정상으로 표시하지 않음',()=>q(`select public.operational_health()`),/일부가 누락/);
+await db.exec('rollback');
+await db.exec(`reset role; select set_config('request.jwt.claims','{"role":"service_role"}',false);`);
+const [backup] = await q(`select public.export_application_snapshot() as s`);
+check('일관된 백업에 전체 접수·재주문·기록 포함', backup.s.tables.designs.length > 5501 && backup.s.tables.recommendation_logs.length > 25001);
+const { restoreSql } = await import('../../src/lib/backup.ts');
+const recovered = new PGlite();
+await recovered.exec(SUPABASE_STUB);
+await recovered.exec(readFileSync(join(root,'supabase/setup.sql'),'utf8'));
+await recovered.exec(`insert into auth.users values ('${ADMIN}','admin@example.com');`);
+await recovered.exec(restoreSql(backup.s));
+const [{ n: recoveredN }] = (await recovered.query(`select count(*)::int n from public.designs`)).rows;
+check('백업에서 새 DB로 복구해 접수 개수·재주문 원본 유지', recoveredN === backup.s.tables.designs.length);
+const [{ count: recoveredRefs }] = (await recovered.query(`select count(*)::int count from public.designs where source_code is not null`)).rows;
+check('복구 후 재주문 원본 연결 보존', recoveredRefs > 0);
 
 // supabase/setup.sql(새 프로젝트에 한 번에 붙여넣는 파일)도 빈 DB에서 그대로 도는지
 const fresh = new PGlite();

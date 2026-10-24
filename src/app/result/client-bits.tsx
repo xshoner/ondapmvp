@@ -1,8 +1,8 @@
 'use client';
 
 // 결과 화면의 작은 브라우저 기능: 지난 조건 기억(CR-01), 찜(CR-12), 조건 창 닫기(CR-04), 추천 의견(AS-07)
-import { useEffect, useState, useTransition } from 'react';
-import { feedbackSent, isPicked, rememberFeedback, rememberQuery, togglePick, type SavedPick } from '@/lib/device.ts';
+import { useEffect, useRef, useState, useTransition } from 'react';
+import { feedbackSent, isPicked, rememberFeedback, rememberQuery, togglePick, pendingFeedback, startFeedback, clearPendingFeedback, type SavedPick } from '@/lib/device.ts';
 import { FEEDBACK_REASONS, type FeedbackReason } from '@/lib/feedback.ts';
 import type { ResultQuery } from '@/lib/result-query.ts';
 import { sendFeedbackAction } from './actions.ts';
@@ -58,17 +58,29 @@ export function FeedbackBox({ query, productNos }: { query: ResultQuery; product
   const [step, setStep] = useState<'hidden' | 'ask' | 'why' | 'done'>('hidden');
   const [reasons, setReasons] = useState<FeedbackReason[]>([]);
   const [pending, start] = useTransition();
-  useEffect(() => setStep(feedbackSent(key) ? 'hidden' : 'ask'), [key]);
+  const [failure, setFailure] = useState(false);
+  const retry = useRef<{ key: string; id: string; helpful: boolean; reasons: FeedbackReason[] } | null>(null);
+  useEffect(() => {
+    const sent = feedbackSent(key), pending = sent ? null : pendingFeedback(key);
+    retry.current = pending;
+    setStep(sent ? 'hidden' : 'ask'); setFailure(Boolean(pending)); setReasons(pending?.reasons ?? []);
+  }, [key]);
 
   const send = (helpful: boolean) => start(async () => {
-    await sendFeedbackAction({ event: query.event, relation: query.relation, budget: query.budget, qty: query.qty, productNos, helpful, reasons: helpful ? [] : reasons })
-      .catch(() => {}); // 연결이 끊겨도 결과 화면은 그대로
-    rememberFeedback(key); // 저장이 안 됐어도 다시 묻지 않는다 (고객을 귀찮게 하지 않게)
+    setFailure(false);
+    if (retry.current?.key !== key) retry.current = startFeedback(key, helpful, reasons);
+    const intent = retry.current;
+    const result = await sendFeedbackAction({ event: query.event, relation: query.relation, budget: query.budget, qty: query.qty, productNos, helpful: intent.helpful, reasons: intent.reasons, requestId: intent.id })
+      .catch(() => ({ ok: false }));
+    if (!result.ok) { setFailure(true); return; }
+    rememberFeedback(key);
+    clearPendingFeedback(key);
     setStep('done');
   });
   const toggle = (r: FeedbackReason) => setReasons((rs) => (rs.includes(r) ? rs.filter((x) => x !== r) : [...rs, r]));
 
   if (step === 'hidden') return null;
+  if (failure) return <section className="feedback" role="alert"><p className="small">의견을 전달했는지 확인하지 못했어요. 입력은 남겨 두었어요.</p><button type="button" className="btn ghost small" disabled={pending} onClick={() => send(retry.current?.helpful ?? false)}>{pending ? '보내는 중' : '다시 보내기'}</button></section>;
   return (
     <section className="feedback" aria-live="polite">
       {step === 'done' ? (

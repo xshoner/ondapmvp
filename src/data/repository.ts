@@ -9,16 +9,33 @@ import { dataSource } from '../lib/supabase/env.ts';
 import { createClient } from '../lib/supabase/server.ts';
 import type { Cafe24Product, Catalog, EngineConfig, ProductAttributes, RecommendResult } from '../engine/types.ts';
 import type { FeedbackLog, FeedbackReason } from '../lib/feedback.ts';
+import { cache } from 'react';
+import { reportOperation } from '../lib/operations.ts';
+import { validateProductSnapshot } from '../cafe24/sync-rules.ts';
+import { recordOperation } from './operations-repository.ts';
 
 export type Expectations = local.Expectations;
 export type AttributeChange = local.AttributeChange;
 
-export async function getCatalog(): Promise<Catalog> {
+// React 캐시는 요청 안에서만 공유한다. 관리자 쿠키/가격을 다른 요청에 보관하지 않는다.
+export const getCatalog = cache(async function getCatalog(): Promise<Catalog> {
+  const startedAt = Date.now();
+  try {
+    const result = await readCatalog();
+    reportOperation('catalog_read', 'ok', startedAt);
+    return result;
+  } catch {
+    await recordOperation('catalog_read', 'error', startedAt, 'db_read');
+    throw new Error('상품 정보를 읽지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  }
+});
+
+async function readCatalog(): Promise<Catalog> {
   if (dataSource() === 'local') return local.loadCatalog();
   const db = await createClient();
   const [p, a, c] = await Promise.all([
-    readPages((from, to) => db.from('products').select('*').order('product_no').range(from, to) as DbPage<ProductRow>),
-    readPages((from, to) => db.from('product_attributes').select('*').order('product_no').range(from, to) as DbPage<AttributesRow>),
+    readPages((from, to) => db.from('products').select('product_no,name,price,display,selling,sold_out,image,detail_image,url').order('product_no').range(from, to) as DbPage<ProductRow>, 20000, true),
+    readPages((from, to) => db.from('product_attributes').select('product_no,region,category,scores,events,relations,excluded_events,meanings,tags,story,reviewed').order('product_no').range(from, to) as DbPage<AttributesRow>, 20000, true),
     db.from('engine_config').select('config').eq('id', 'active').maybeSingle(),
   ]);
   if (p.error) fail('상품 읽기', p.error);
@@ -98,15 +115,16 @@ export async function saveConfig(config: EngineConfig): Promise<void> {
 }
 
 // 카페24 동기화 결과로 상품 표를 맞춘다 (카페24에서 사라진 상품은 지운다. 지표는 남겨 둔다)
-export async function saveProducts(mallId: string, products: Cafe24Product[]): Promise<void> {
-  if (products.length === 0) return; // 빈 목록은 카페24 쪽 일시 오류일 수 있어 상품을 모두 지우지 않는다
-  if (dataSource() === 'local') return local.saveCafe24Products(mallId, products);
+export async function saveProducts(mallId: string, products: Cafe24Product[], expectedSyncedAt: string | null): Promise<void> {
+  validateProductSnapshot(products);
+  if (dataSource() === 'local') {
+    validateProductSnapshot(products, local.loadCatalog().products);
+    if (local.loadSyncInfo().syncedAt !== expectedSyncedAt) throw new Error('다른 작업에서 상품이 갱신됐습니다. 다시 가져와 주세요.');
+    return local.saveCafe24Products(mallId, products);
+  }
   const db = await createClient();
-  const now = new Date().toISOString();
-  const { error } = await db.from('products').upsert(products.map((p) => ({ ...productToRow(p), synced_at: now })));
-  if (error) fail('상품 저장', error);
-  const del = await db.from('products').delete().not('product_no', 'in', `(${products.map((p) => p.productNo).join(',')})`);
-  if (del.error) fail('사라진 상품 정리', del.error);
+  const { error } = await db.rpc('sync_product_snapshot', { p_products: products.map(productToRow), p_expected_synced_at: expectedSyncedAt });
+  if (error) fail('상품 일괄 갱신 (DB 변경 적용 여부도 확인해 주세요)', error);
 }
 
 export async function saveExpectation(key: string, productNo: number | null): Promise<void> {
@@ -120,10 +138,11 @@ export async function saveExpectation(key: string, productNo: number | null): Pr
 }
 
 // 고객 추천 기록. 실패해도 화면은 계속 보여준다
-export async function logRecommendation(result: RecommendResult, modelVersion: string): Promise<void> {
+export async function logRecommendation(result: RecommendResult, modelVersion: string, client?: Awaited<ReturnType<typeof createClient>>): Promise<void> {
   if (dataSource() === 'local') return;
+  const startedAt = Date.now();
   try {
-    const db = await createClient();
+    const db = client ?? await createClient();
     const { error } = await db.from('recommendation_logs').insert({
       event: result.input.event,
       relation: result.input.relation,
@@ -132,9 +151,10 @@ export async function logRecommendation(result: RecommendResult, modelVersion: s
       result_product_nos: result.results.map((r) => r.product.productNo),
       model_version: modelVersion,
     });
-    if (error) console.warn('[추천 기록] 저장 실패:', error.message);
+    if (error) await recordOperation('recommendation_log', 'error', startedAt, 'db_write');
+    else reportOperation('recommendation_log', 'ok', startedAt);
   } catch (e) {
-    console.warn('[추천 기록] 저장 실패:', e instanceof Error ? e.message : e);
+    await recordOperation('recommendation_log', 'error', startedAt, 'db_unavailable');
   }
 }
 
@@ -148,7 +168,7 @@ async function readPeriod(table: string, columns: string, range: { gte: string |
     if (range.gte) q = q.gte('created_at', range.gte);
     if (range.lt) q = q.lt('created_at', range.lt);
     return q as DbPage<Record<string, unknown>>;
-  });
+  }, 20000, true);
 }
 
 // 실적 대시보드용 추천 기록 (관리자만 읽기 가능)
@@ -166,15 +186,16 @@ export async function getRecommendationLogs(range: { gte: string | null; lt: str
 export interface NewFeedback {
   event: string; relation: string; budgetMax: number | null; quantity: number; resultProductNos: number[];
   helpful: boolean; reasons: FeedbackReason[]; modelVersion: string;
+  requestId: string;
 }
 
 export async function saveFeedback(f: NewFeedback): Promise<void> {
   if (dataSource() === 'local') return local.appendFeedback({ ...f, createdAt: new Date().toISOString() });
   const db = await createClient();
-  const { error } = await db.from('recommendation_feedback').insert({
+  const { error } = await db.rpc('submit_feedback', { p_request_id: f.requestId, p_payload: {
     event: f.event, relation: f.relation, budget_max: f.budgetMax, quantity: f.quantity,
     result_product_nos: f.resultProductNos, helpful: f.helpful, reasons: f.reasons, model_version: f.modelVersion,
-  });
+  } });
   if (error) fail('의견 저장', error);
 }
 

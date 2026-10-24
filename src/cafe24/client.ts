@@ -2,6 +2,7 @@
 // 앱이 쇼핑몰에 설치(운영자 동의)돼 있어야 동작한다. 미설치 시 403 Uninstalled app.
 
 import type { Cafe24Product } from '../engine/types.ts';
+import { validateProductSnapshot } from './sync-rules.ts';
 
 export interface Cafe24Config {
   mallId: string;
@@ -43,17 +44,26 @@ function headers(config: Cafe24Config): Record<string, string> {
   return h;
 }
 
-async function get<T>(config: Cafe24Config, path: string): Promise<T> {
-  const res = await fetch(`https://${config.mallId}.cafe24api.com/api/v2${path}`, { headers: headers(config) });
-  const body = (await res.json().catch(() => null)) as { error?: { code?: number; message?: string } } | null;
-  if (!res.ok) {
-    const msg = body?.error ? `${body.error.code ?? res.status} ${body.error.message ?? ''}` : res.statusText;
-    throw new Error(`카페24 API 오류 (${path}): ${msg}`);
+async function get<T>(config: Cafe24Config, path: string, deadline = Date.now() + 45000): Promise<T> {
+  if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(config.mallId)) throw new Error('쇼핑몰 ID 형식이 올바르지 않습니다.');
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw new Error('상품 조회 시간이 초과됐습니다. 기존 목록을 유지합니다.');
+    const res = await fetch(`https://${config.mallId}.cafe24api.com/api/v2${path}`, { headers: headers(config), cache: 'no-store', signal: AbortSignal.timeout(Math.min(12000, remaining)) });
+    if ([429, 500, 502, 503, 504].includes(res.status) && attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** attempt));
+      continue;
+    }
+    if (!res.ok) throw new Error(`카페24 상품 조회에 실패했습니다 (${res.status}).`);
+    const body = await res.json();
+    if (!body || typeof body !== 'object' || body.error) throw new Error('카페24 상품 응답을 확인할 수 없습니다.');
+    return body as T;
   }
-  return body as T;
+  throw new Error('카페24 상품 조회를 다시 시도해 주세요.');
 }
 
 function normalize(p: RawProduct, mallId: string): Cafe24Product {
+  if (!p || !['T', 'F'].includes(p.display) || !['T', 'F'].includes(p.selling) || (p.sold_out !== undefined && !['T', 'F'].includes(p.sold_out))) throw new Error('카페24 상품 상태 응답이 올바르지 않습니다.');
   return {
     productNo: p.product_no,
     name: p.product_name,
@@ -67,13 +77,22 @@ function normalize(p: RawProduct, mallId: string): Cafe24Product {
   };
 }
 
-export async function fetchAllProducts(config: Cafe24Config): Promise<Cafe24Product[]> {
+export async function fetchAllProducts(config: Cafe24Config, deadline = Date.now() + 45000): Promise<Cafe24Product[]> {
   const limit = 100;
   const all: Cafe24Product[] = [];
+  const startedAt = Date.now();
+  const beforeCount = await get<{ count: number }>(config, '/products/count', deadline);
+  if (!Number.isSafeInteger(beforeCount.count) || beforeCount.count < 1 || beforeCount.count > 20000) throw new Error('쇼핑몰 상품 수를 확인할 수 없어 갱신하지 않았습니다.');
+  if (beforeCount.count > 5000) throw new Error('상품 5,000개 초과는 별도 커서 동기화가 필요해 기존 목록을 유지합니다.');
   for (let offset = 0; ; offset += limit) {
-    const body = await get<{ products: RawProduct[] }>(config, `/products?limit=${limit}&offset=${offset}`);
+    if (Date.now() - startedAt > 50000 || offset >= 20000) throw new Error('상품 조회 제한을 넘겨 갱신하지 않았습니다.');
+    const body = await get<{ products: RawProduct[] }>(config, `/products?limit=${limit}&offset=${offset}`, deadline);
+    if (!Array.isArray(body.products) || body.products.length > limit) throw new Error('카페24 상품 페이지 응답이 올바르지 않습니다.');
     all.push(...body.products.map((p) => normalize(p, config.mallId)));
-    if (body.products.length < limit) break;
+    if (body.products.length < limit || all.length >= beforeCount.count) break;
   }
+  const afterCount = await get<{ count: number }>(config, '/products/count', deadline);
+  if (beforeCount.count !== afterCount.count || all.length !== afterCount.count) throw new Error('상품 조회 중 개수가 바뀌거나 일부 응답이 빠져 갱신하지 않았습니다. 다시 시도해 주세요.');
+  validateProductSnapshot(all);
   return all.sort((a, b) => a.productNo - b.productNo);
 }

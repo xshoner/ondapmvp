@@ -2,6 +2,7 @@
 // 화면이 깨지지 않게 모든 접근을 감싸고, 읽은 값은 모양을 다시 확인한다.
 
 import { MAX_QTY, parseBudget, type ResultQuery } from './result-query.ts';
+import { isFeedbackReason, type FeedbackReason } from './feedback.ts';
 
 export function readJson(key: string): unknown {
   try {
@@ -74,6 +75,24 @@ export function forgetLastQuery(): void {
 // ---------- 추천 의견을 보낸 결과 (같은 결과에 두 번 묻지 않는다) ----------
 
 const FEEDBACK_KEY = 'ondap_feedback_sent';
+const PENDING_FEEDBACK_KEY = 'ondap_feedback_pending';
+export interface PendingFeedback { key: string; id: string; helpful: boolean; reasons: FeedbackReason[]; at: number }
+function pendingFeedbackList(): PendingFeedback[] {
+  const v = readJson(PENDING_FEEDBACK_KEY);
+  if (!Array.isArray(v)) return [];
+  return v.filter((x): x is PendingFeedback => isObj(x) && typeof x.key === 'string' && typeof x.id === 'string'
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(x.id) && typeof x.helpful === 'boolean' && Array.isArray(x.reasons) && x.reasons.every(isFeedbackReason)
+    && typeof x.at === 'number' && x.at <= Date.now() && Date.now() - x.at < 7 * DAY).slice(0,50);
+}
+export function pendingFeedback(key: string): PendingFeedback | null { return pendingFeedbackList().find((x) => x.key === key) ?? null; }
+export function startFeedback(key: string, helpful: boolean, reasons: FeedbackReason[]): PendingFeedback {
+  const existing = pendingFeedback(key);
+  if (existing) return existing;
+  const intent = { key, id: crypto.randomUUID(), helpful, reasons: helpful ? [] : [...reasons], at: Date.now() };
+  writeJson(PENDING_FEEDBACK_KEY,[intent,...pendingFeedbackList()].slice(0,50));
+  return intent;
+}
+export function clearPendingFeedback(key: string): void { writeJson(PENDING_FEEDBACK_KEY,pendingFeedbackList().filter((x) => x.key !== key)); }
 
 export function feedbackSent(key: string): boolean {
   const v = readJson(FEEDBACK_KEY);

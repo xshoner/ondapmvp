@@ -11,6 +11,7 @@ export function fail(what: string, error: DbError | null): never {
 export async function readPages<T>(
   page: (from: number, to: number) => DbPage<T>,
   limit = 20000,
+  requireComplete = false,
 ): Promise<{ rows: T[]; error: DbError | null }> {
   const rows: T[] = [];
   for (let from = 0; from < limit; from += 1000) {
@@ -18,6 +19,11 @@ export async function readPages<T>(
     if (error) return { rows, error };
     rows.push(...(data ?? []));
     if (!data || data.length < 1000) break;
+  }
+  if (requireComplete && rows.length === limit) {
+    const extra = await page(limit, limit);
+    if (extra.error) return { rows, error: extra.error };
+    if (extra.data?.length) return { rows: [], error: { code: 'limit_exceeded', message: '조회 상한을 넘어 전체 자료를 확인하지 못했습니다.' } };
   }
   return { rows, error: null };
 }

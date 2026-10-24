@@ -1,11 +1,13 @@
 // 추천 결과 카드: 결과 화면과 관리자 '고객 카드 미리보기'가 같은 모양을 쓴다
 import type { ScoredProduct } from '@/engine/types.ts';
+import { ProductImage } from '../components/product-image.tsx';
+import { productOrderUrl } from '@/lib/order-link.ts';
 import { shippingFee, won } from '@/lib/result-query.ts';
 import { ScoreBreakdown } from '../components/score-breakdown.tsx';
 import { SavePickButton } from './client-bits.tsx';
 
 // preview: 관리자 '고객 카드 미리보기' (찜·빼기 없이 모양만)
-export function MainPick({ item, quantity, packagingHref, excludeHref, preview = false }: { item: ScoredProduct; quantity: number; packagingHref: string; excludeHref: string | null; preview?: boolean }) {
+export function MainPick({ item, quantity, packagingHref, excludeHref, preview = false, mobile = false }: { item: ScoredProduct; quantity: number; packagingHref: string; excludeHref: string | null; preview?: boolean; mobile?: boolean }) {
   const { product, attributes } = item;
   const image = product.detailImage ?? product.image;
   const subtotal = product.price * quantity;
@@ -13,7 +15,7 @@ export function MainPick({ item, quantity, packagingHref, excludeHref, preview =
   return (
     <article className="pick">
       <div className="pick-media">
-        {image ? <img src={image} alt={product.name} /> : <div style={{ aspectRatio: '4 / 3' }} />}
+        {image ? <ProductImage src={image} alt={product.name} main /> : <div style={{ aspectRatio: '4 / 3' }} />}
         {!preview && <SavePickButton variant="overlay" pick={{ productNo: product.productNo, name: product.name, price: product.price, image: product.image, url: product.url }} />}
         <a className="seal" href="/formality" aria-label={`격식지수 ${Math.round(item.matchScore)}점, 격식지수 설명 보기`} style={{ textDecoration: 'none' }}>
           <div>
@@ -56,7 +58,7 @@ export function MainPick({ item, quantity, packagingHref, excludeHref, preview =
         </details>
 
         <div className="pick-actions">
-          <a className="btn block" href={product.url} target="_blank" rel="noreferrer">이 상품 보러 가기</a>
+          <a className="btn block" href={productOrderUrl(product.url, quantity, null, mobile)} target="_blank" rel="noreferrer">이 상품 보러 가기</a>
           <a className="btn ghost block" href={packagingHref}>포장·스티커 꾸미기 <span className="small" style={{ fontWeight: 500, color: 'var(--muted)' }}>무료</span></a>
           {excludeHref && <a className="text-link small exclude-link" href={excludeHref}>이 상품은 빼고 다시 보기</a>}
         </div>
@@ -65,16 +67,16 @@ export function MainPick({ item, quantity, packagingHref, excludeHref, preview =
   );
 }
 
-export function OtherPick({ item, packagingHref, excludeHref }: { item: ScoredProduct; packagingHref: string; excludeHref: string | null }) {
+export function OtherPick({ item, packagingHref, excludeHref, quantity = 1, mobile = false }: { item: ScoredProduct; packagingHref: string; excludeHref: string | null; quantity?: number; mobile?: boolean }) {
   const { product } = item;
   return (
     <article className="alt">
-      <a href={product.url} target="_blank" rel="noreferrer" aria-label={`${product.name} 보러 가기`}>
-        {product.image ? <img src={product.image} alt="" /> : <span className="ph" />}
+      <a href={productOrderUrl(product.url, quantity, null, mobile)} target="_blank" rel="noreferrer" aria-label={`${product.name} 보러 가기`}>
+        {product.image ? <ProductImage src={product.image} alt="" /> : <span className="ph" />}
       </a>
       <div style={{ minWidth: 0 }}>
         <div className="tier" style={{ fontSize: 12 }}>{item.tier}</div>
-        <a className="alt-name" href={product.url} target="_blank" rel="noreferrer">{product.name}</a>
+        <a className="alt-name" href={productOrderUrl(product.url, quantity, null, mobile)} target="_blank" rel="noreferrer">{product.name}</a>
         <div className="alt-meta num">
           <span>{won(product.price)}</span>
           <span className="score">격식지수 {Math.round(item.matchScore)}</span>

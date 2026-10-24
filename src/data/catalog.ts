@@ -1,6 +1,6 @@
 // 로컬 JSON 데이터 읽기·쓰기. 4단계에서 Supabase로 교체할 지점.
 
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, existsSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import { dataDir } from '../lib/paths.ts';
 import type { Cafe24Product, Catalog, EngineConfig, ProductAttributes } from '../engine/types.ts';
@@ -29,7 +29,10 @@ export function loadSyncInfo(): { mallId: string; syncedAt: string } {
 }
 
 export function saveCafe24Products(mallId: string, products: Cafe24Product[]): void {
-  writeJson('cafe24-products.json', { mallId, syncedAt: new Date().toISOString(), products });
+  const path = join(dataDir, 'cafe24-products.json');
+  const temp = `${path}.${crypto.randomUUID()}.tmp`;
+  writeFileSync(temp, JSON.stringify({ mallId, syncedAt: new Date().toISOString(), products }, null, 2) + '\n');
+  renameSync(temp, path);
 }
 
 // 상품 지표를 저장한다(없으면 추가). 나머지 상품은 그대로 두고, 내용이 바뀐 것만 변경 이력에 남긴다.
@@ -59,6 +62,7 @@ export function loadFeedback(): (FeedbackLog & Record<string, unknown>)[] {
 }
 
 export function appendFeedback(f: FeedbackLog & Record<string, unknown>): void {
+  if (f.requestId && loadFeedback().some((x) => x.requestId === f.requestId)) return;
   writeJson(FEEDBACK_FILE, [...loadFeedback(), f].slice(-5000));
 }
 

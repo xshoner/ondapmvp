@@ -7,13 +7,19 @@ import { supabaseEnv } from './env.ts';
 
 export async function createClient() {
   const cookieStore = await cookies();
+  const requestCookies = cookieStore.getAll();
   const { url, key } = supabaseEnv();
   return createServerClient(url, key, {
     cookies: {
       getAll() {
-        return cookieStore.getAll();
+        return requestCookies;
       },
       setAll(cookiesToSet) {
+        for (const next of cookiesToSet) {
+          const index = requestCookies.findIndex((c) => c.name === next.name);
+          if (index < 0) requestCookies.push({ name: next.name, value: next.value });
+          else requestCookies[index] = { name: next.name, value: next.value };
+        }
         try {
           cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
         } catch {
@@ -21,5 +27,6 @@ export async function createClient() {
         }
       },
     },
+    global: { fetch: (url, init) => fetch(url, { ...init, signal: init?.signal ?? AbortSignal.timeout(10000) }) },
   });
 }

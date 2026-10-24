@@ -60,6 +60,22 @@ const feedbackCount = () => (existsSync(feedbackFile) ? JSON.parse(readFileSync(
     await b.waitFor(`document.querySelector('.feedback')?.textContent.includes('의견 고맙습니다')`);
     check('도움 됐어요는 이유 없이 저장', JSON.parse(readFileSync(feedbackFile, 'utf8')).at(-1).helpful === true && feedbackCount() === before + 2);
 
+    // 저장은 끝났지만 응답만 잃은 경우에도 같은 전송 ID로 한 번만 남는다.
+    await b.goto(`${BASE}/result?event=funeral&relation=peer&qty=25&budget=50000`);
+    await b.waitFor(`document.querySelector('.feedback button')`);
+    const retryBefore = feedbackCount();
+    await b.evaluate(`window.__originalFetch=window.fetch;window.__dropOnce=true;window.fetch=async function(input,init){const r=await window.__originalFetch(input,init);if(window.__dropOnce&&init?.method==='POST'){window.__dropOnce=false;throw new TypeError('E2E response lost')}return r;};return true`);
+    await b.click('.feedback button','도움 됐어요');
+    await b.waitFor(`document.querySelector('.feedback [type=button]')?.textContent.includes('다시 보내기')`);
+    check('의견 응답 유실 시 완료로 기억하지 않음',feedbackCount()===retryBefore+1 && !(await b.evaluate(`return localStorage.getItem('ondap_feedback_sent')?.includes('funeral|peer|50000|25')`)));
+    await b.goto(`${BASE}/result?event=funeral&relation=peer&qty=25&budget=50000`);
+    await b.waitFor(`document.querySelector('.feedback button')?.textContent==='다시 보내기'`);
+    check('새로고침 후에도 재시도 전송 ID 보존',true);
+    await b.click('.feedback button','다시 보내기');
+    await b.waitFor(`document.querySelector('.feedback')?.textContent.includes('의견 고맙습니다')`);
+    check('의견 재시도 후에도 한 건만 저장',feedbackCount()===retryBefore+1);
+    await b.evaluate(`if(window.__originalFetch)window.fetch=window.__originalFetch;return true`);
+
     // 비교표 '지역 상생'은 산지로 판단
     const depop = await b.evaluate(`return [...document.querySelectorAll('.compare tr')].find((r) => r.textContent.startsWith('지역 상생'))?.textContent ?? ''`);
     check('비교표 지역 상생 줄', depop.startsWith('지역 상생'), depop);

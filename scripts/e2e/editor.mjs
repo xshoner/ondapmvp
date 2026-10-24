@@ -22,9 +22,12 @@ const konva = `window.Konva?.stages?.[0]`;
   const b = await launch({ port: 9333, mobile: true });
   try {
     await b.goto(`${BASE}/packaging?product=49&qty=30&event=wedding&relation=business`);
-    await b.waitFor(`${konva} && ${konva}.find('Image').length > 0`, 30000);
-    check('편집기 열림 + 행사 추천 이미지 깔림', true);
+    await b.waitFor(`${konva} && ${konva}.find('Text').length > 0`, 30000);
+    await b.click('.style-grid button','모란');
+    const initial = await b.evaluate(`return ${konva}.find('Text').map((t)=>t.text()).join(' ')`);
+    check('편집기 열림 + 결혼 감사 답례 기본 문구 (기념일 이미지 없음)', initial.includes('감사') && !initial.includes('기념일'));
 
+    await b.click('[role=tab]', '이미지');
     await b.setFile('input[type=file]', photo);
     await b.waitFor(`${konva}.find('Image').some((n) => n.image()?.src?.startsWith('blob:'))`);
     check('사진 올리기', true);
@@ -80,7 +83,7 @@ const konva = `window.Konva?.stages?.[0]`;
 
     // 이름 기억 (다른 상품 새 편집에서)
     await b.goto(`${BASE}/packaging?product=27&qty=10&event=wedding&relation=business`);
-    await b.waitFor(`${konva} && ${konva}.find('Image').length > 0`, 30000);
+    await b.waitFor(`${konva} && ${konva}.find('Text').length > 0`, 30000);
     await b.click('[role=tab]', '문구');
     await b.sleep(300);
     await b.click('.text-choice', '결혼합니다');
@@ -101,6 +104,7 @@ const konva = `window.Konva?.stages?.[0]`;
   try {
     await b.goto(`${BASE}/packaging?product=49&qty=30&event=funeral&relation=senior`);
     await b.waitFor(`${konva} && (${konva}.find('Image').length > 0 || ${konva}.find('Text').length > 0)`, 30000);
+    await b.click('.style-grid button','송학');
     await b.sleep(800);
     await b.evaluate(`const c = document.querySelector('.name-check input'); if (c && !c.checked) c.click();`);
     await b.click('button', '디자인 저장하고');

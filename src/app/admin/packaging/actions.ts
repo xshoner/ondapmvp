@@ -7,6 +7,7 @@ import {
 import { MAX_ACTIVE, canActivate, isCategory, normalizeDesignCode } from '@/packaging/rules.ts';
 import type { DesignImage, DesignStatus, DesignText, PackagingStyle } from '@/packaging/types.ts';
 import { requireAdmin } from '@/lib/admin-guard.ts';
+import { cleanTargeting } from '@/packaging/presets.ts';
 
 // 모든 액션은 첫 줄에서 관리자인지 확인한다. Supabase 모드에서는 RLS가 한 번 더 막는다.
 // 권한 오류는 던지지 않고 {ok:false}로 돌려준다: 세션이 만료돼도 화면 전체가 오류 화면으로 바뀌지 않게
@@ -43,7 +44,7 @@ async function run(fn: () => Promise<void>): Promise<Result> {
 }
 
 function clean(kind: AssetKind, raw: Record<string, unknown>): PackagingStyle | DesignImage | DesignText {
-  const base = { id: String(raw.id ?? ''), active: raw.active !== false, sort: Math.round(Number(raw.sort) || 0) };
+  const base = { id: String(raw.id ?? ''), active: raw.active !== false, sort: Math.round(Number(raw.sort) || 0), targeting: cleanTargeting(raw.targeting) };
   const url = String(raw.imageUrl ?? '');
   if (kind !== 'texts' && !isAllowedImageUrl(url)) throw new Error('이미지가 없거나 허용되지 않은 주소입니다. 이 화면에서 파일을 올려 주세요.');
   if (kind === 'styles') {

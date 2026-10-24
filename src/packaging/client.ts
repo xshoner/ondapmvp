@@ -1,18 +1,11 @@
 // 브라우저 전용 도우미: 카페24 주문 주소 만들기, 이 기기에 저장한 디자인 목록
 import { isMobileUA, isObj } from '@/lib/device.ts';
+import { productOrderUrl } from '@/lib/order-link.ts';
 
 // 카페24 상품 주소에 코드·수량을 붙인다. 쇼핑몰 스킨의 public/cafe24/ondap-helper.js가 읽어 수량을 맞추고 주문서에 코드를 넣는다.
 // 휴대폰은 처음부터 모바일 쇼핑몰(/m/) 주소로 보낸다: PC 주소로 가면 카페24가 /m/으로 넘기면서 붙인 값을 버린다
 export function orderUrl(productUrl: string, code: string, quantity: number): string {
-  try {
-    const u = new URL(productUrl);
-    if (isMobileUA() && !u.pathname.startsWith('/m/')) u.pathname = `/m${u.pathname}`;
-    u.searchParams.set('ondap_code', code);
-    u.searchParams.set('ondap_qty', String(quantity));
-    return u.toString();
-  } catch {
-    return productUrl;
-  }
+  return productOrderUrl(productUrl, quantity, code, isMobileUA());
 }
 
 // 이 기기에 저장한 디자인 (최근 10개). 다른 기기에서는 코드로 조회한다

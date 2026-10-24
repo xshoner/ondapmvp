@@ -9,6 +9,7 @@ import { dataDir, projectRoot } from '../lib/paths.ts';
 import { dataSource } from '../lib/supabase/env.ts';
 import { createClient } from '../lib/supabase/server.ts';
 import { fail, readPages, type DbPage } from './db.ts';
+import { cleanTargeting } from '../packaging/presets.ts';
 import type { EventType } from '../engine/types.ts';
 import { isLate, kstRange, lateSince } from '../packaging/design-filter.ts';
 import type { Design, DesignDraft, DesignImage, DesignStatus, DesignText, PackagingAssets, PackagingStyle, StickerSpec } from '../packaging/types.ts';
@@ -52,9 +53,9 @@ function writeLocalDesigns(designs: Design[]): void {
 // ---------- Supabase 행 변환 ----------
 
 type Row = Record<string, any>;
-const styleFromRow = (r: Row): PackagingStyle => ({ id: r.id, name: r.name, description: r.description, imageUrl: r.image_url, active: r.active, sort: r.sort });
-const imageFromRow = (r: Row): DesignImage => ({ id: r.id, category: r.category, name: r.name, imageUrl: r.image_url, active: r.active, sort: r.sort });
-const textFromRow = (r: Row): DesignText => ({ id: r.id, category: r.category, text: r.text, active: r.active, sort: r.sort });
+const styleFromRow = (r: Row): PackagingStyle => ({ id: r.id, name: r.name, description: r.description, imageUrl: r.image_url, active: r.active, sort: r.sort, targeting: cleanTargeting(r.targeting) });
+const imageFromRow = (r: Row): DesignImage => ({ id: r.id, category: r.category, name: r.name, imageUrl: r.image_url, active: r.active, sort: r.sort, targeting: cleanTargeting(r.targeting) });
+const textFromRow = (r: Row): DesignText => ({ id: r.id, category: r.category, text: r.text, active: r.active, sort: r.sort, targeting: cleanTargeting(r.targeting) });
 const designFromRow = (r: Row): Design => ({
   code: r.code,
   createdAt: r.created_at,
@@ -76,7 +77,7 @@ const designFromRow = (r: Row): Design => ({
 });
 
 function assetToRow(kind: AssetKind, a: AssetRow): Record<string, unknown> {
-  const base = { active: a.active, sort: a.sort };
+  const base = { active: a.active, sort: a.sort, targeting: cleanTargeting(a.targeting) };
   if (kind === 'styles') { const s = a as PackagingStyle; return { ...base, name: s.name, description: s.description, image_url: s.imageUrl }; }
   if (kind === 'images') { const i = a as DesignImage; return { ...base, category: i.category, name: i.name, image_url: i.imageUrl }; }
   const t = a as DesignText;

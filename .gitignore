@@ -19,3 +19,5 @@ next-env.d.ts
 # 상품 지표 변경 이력 (로컬 모드)
 /data/attribute-history.json
 /data/feedback.json
+/data/operation-events.json
+/backups/

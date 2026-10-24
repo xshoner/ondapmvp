@@ -102,7 +102,8 @@ export async function fromStored(
   const sticker = sanitizeSticker(v) ?? { shape: 'circle', sizeCm: 6 };
   return {
     snap: {
-      styleId: ctx.styleIds.includes(String(v.styleId)) ? String(v.styleId) : (ctx.styleIds[0] ?? ''),
+      purpose: v.purpose === 'celebration' ? 'celebration' : 'return',
+      styleId: ctx.styleIds.includes(String(v.styleId)) ? String(v.styleId) : '',
       withSticker: v.withSticker !== false,
       shape: sticker.shape,
       sizeCm: sticker.sizeCm,

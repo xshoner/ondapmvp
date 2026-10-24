@@ -31,3 +31,13 @@
 - Front API는 앱 설치(운영자 동의) 필수. App URL·Redirect URI는 https 도메인만
 - 쇼핑몰 쪽 코드는 `public/cafe24/ondap-helper.js`(배포와 함께 바뀜)와 `cafe24/ondap-cta.html`. 주소를 바꾸면 `npm run cafe24:snippets -- https://주소`
 - 스킨 수정은 사용자가 카페24 편집기에서 한다. 저장 즉시 실서비스 반영
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

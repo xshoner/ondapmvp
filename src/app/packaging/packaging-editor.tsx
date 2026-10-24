@@ -23,6 +23,8 @@ import {
 } from './editor-store.ts';
 import type { CanvasApi, EditorImageLayer, EditorLayer, EditorSnapshot, TextRect } from './editor-types.ts';
 import { won } from '@/lib/result-query.ts';
+import { matchesTarget, presetText } from '@/packaging/presets.ts';
+import type { GiftPurpose } from '@/packaging/types.ts';
 
 const StickerCanvas = dynamic(() => import('./sticker-canvas.tsx'), {
   ssr: false,
@@ -86,14 +88,15 @@ export function PackagingEditor(props: Props) {
   const { product, styles, categoryNames, fontFamilies, events, from } = props;
   // 추천을 거치지 않고 들어오면 행사를 모르므로 화면에서 고르게 한다 (안 골라도 공통 이미지로 꾸밀 수 있다)
   const [event, setEvent] = useState<DesignCategory | null>(props.event);
+  const [purpose, setPurpose] = useState<GiftPurpose>('return');
   const [quantity, setQuantity] = useState(props.quantity);
   const eventName = event && event !== 'common' ? categoryNames[event] : null;
-  const images = useMemo(() => byRelevance(props.images, event), [props.images, event]);
+  const images = useMemo(() => byRelevance(props.images.filter((i) => matchesTarget(i, event, purpose, product.productNo)), event), [props.images, event, purpose, product.productNo]);
   const texts = useMemo(() => byRelevance(props.texts, event), [props.texts, event]);
-  const nearTexts = texts.filter((t) => t.category === event || t.category === 'common');
+  const nearTexts = texts.filter((t) => matchesTarget(t, event, purpose, product.productNo));
   const otherTexts = texts.filter((t) => !nearTexts.includes(t));
 
-  const [styleId, setStyleId] = useState(styles[0]?.id ?? '');
+  const [styleId, setStyleId] = useState(styles.find((s) => matchesTarget(s, props.event, 'return', product.productNo))?.id ?? '');
   const [withSticker, setWithSticker] = useState(true);
   const [shape, setShape] = useState<StickerShape>('circle');
   const [sizeCm, setSizeCm] = useState<StickerSizeCm>(6);
@@ -175,6 +178,7 @@ export function PackagingEditor(props: Props) {
     setResume(null);
     if (!r) return setBanner('저장해 둔 디자인을 읽지 못했어요. 새로 꾸며 주세요.');
     const d = r.snap;
+    setPurpose(d.purpose ?? 'return');
     restoring.current = true; // 불러온 것 자체는 되돌리기·자동 보관 대상이 아니다
     setSettled(Object.fromEntries(d.layers.flatMap((l) => (l.type === 'text' ? [[l.id, fillPlaceholders(l.text, d.fields)]] : []))));
     setStyleId(d.styleId);
@@ -210,19 +214,8 @@ export function PackagingEditor(props: Props) {
     }
     if (props.restoreCode) setBanner('이 기기에서 저장한 디자인을 찾지 못해 새로 꾸며요. 다른 기기에서 저장했다면 그 기기에서 다시 꾸며 주세요.');
     setResume(loadAutosave(product.productNo));
-    const first = images.find((i) => i.category === event);
-    if (first) {
-      const seq = ++pickSeq.current;
-      void loadNatural(first.imageUrl)
-        .then(({ w, h }) => {
-          if (seq !== pickSeq.current) return; // 그사이 고객이 다른 바탕을 골랐다
-          const l = coverLayer(first.imageUrl, w, h);
-          autoLayer.current = l;
-          setLayers((ls) => (ls.length ? ls : [l]));
-        })
-        .catch(() => {}); // 못 읽으면 빈 화면에서 고객이 고른다
-    } else if (nearTexts[0]) {
-      const l = textLayer(nearTexts[0].text);
+    {
+      const l = textLayer(presetText(event, purpose));
       autoLayer.current = l;
       setLayers((ls) => (ls.length ? ls : [l]));
       setTab('text');
@@ -240,13 +233,13 @@ export function PackagingEditor(props: Props) {
   }, [withSticker]);
 
   // 꾸미던 내용 자동 보관: 고객이 스티커에 손댄 뒤부터 (처음 깔린 그대로는 남기지 않는다)
-  const snapshot: EditorSnapshot = { styleId, withSticker, shape, sizeCm, background, layers, fields, event, quantity };
+  const snapshot: EditorSnapshot = { styleId, withSticker, shape, sizeCm, background, layers, fields, event, quantity, purpose };
   useEffect(() => {
     if (!canUndo && !autosaving.current) return;
     autosaving.current = true;
     autosaveTimer.current = setTimeout(() => autosave(product.productNo, snapshot), 800);
     return () => clearTimeout(autosaveTimer.current);
-  }, [canUndo, styleId, withSticker, shape, sizeCm, background, layers, fields, event, quantity]);
+  }, [canUndo, styleId, withSticker, shape, sizeCm, background, layers, fields, event, quantity, purpose]);
 
   const selected = layers.find((l) => l.id === selectedId) ?? null;
   const rendered = useMemo(
@@ -337,19 +330,24 @@ export function PackagingEditor(props: Props) {
   const chooseEvent = (id: EventType) => {
     setEvent(id);
     const untouched = layers.length === 0 || (layers.length === 1 && layers[0] === autoLayer.current);
-    const base = layers[0];
-    const first = props.images.find((i) => i.category === id);
-    if (first) {
-      if (untouched) setLayers([]);
-      if (untouched || !(base?.type === 'image' && base.uploaded)) void pickImage(first, true);
-    } else if (untouched) {
-      const t = props.texts.find((x) => x.category === id) ?? props.texts.find((x) => x.category === 'common');
-      if (t) {
-        const l = textLayer(t.text);
-        autoLayer.current = l;
-        setLayers([l]);
-      }
+    if (untouched) {
+      ++pickSeq.current;
+      const l = textLayer(presetText(id, purpose));
+      autoLayer.current = l;
+      setLayers([l]);
     }
+  };
+
+  const applyPreset = (nextPurpose: GiftPurpose = purpose) => {
+    if (layers.length && !(layers.length === 1 && layers[0] === autoLayer.current) && !window.confirm('직접 꾸민 내용을 기본 문구로 바꿀까요?')) return;
+    ++pickSeq.current;
+    const l = textLayer(presetText(event, nextPurpose));
+    autoLayer.current = l;
+    setPurpose(nextPurpose);
+    setLayers([l]); setBackground('#ffffff'); setSelectedId(null); setTab('text');
+    setWithSticker(true);
+    const matching = styles.find((s) => matchesTarget(s, event, nextPurpose, product.productNo));
+    if (matching) setStyleId(matching.id);
   };
 
   const onUpload = async (file: File | undefined) => {
@@ -435,6 +433,7 @@ export function PackagingEditor(props: Props) {
         preview = URL.createObjectURL(blob);
         draft = {
           background,
+          purpose,
           fields,
           layers: layers.map((l) => {
             if (l.type !== 'image') return l;
@@ -564,11 +563,18 @@ export function PackagingEditor(props: Props) {
 
       <section className="step">
         <h2 className="step-label"><span className="step-no">1</span>포장지</h2>
+        <div className="chips" role="group" aria-label="선물의 목적">
+          <button type="button" className="chip" aria-pressed={purpose === 'return'} onClick={() => applyPreset('return')}>감사 답례</button>
+          <button type="button" className="chip" aria-pressed={purpose === 'celebration'} onClick={() => applyPreset('celebration')}>{event === 'funeral' ? '위로 선물' : '축하 선물'}</button>
+        </div>
+        <p className="small muted">{purpose === 'return' ? '함께해 주신 분께 감사하는 문구로 시작해요.' : '축하·위로의 마음을 전하는 문구로 시작해요.'} 포장지를 고르고 문구를 확인해 주세요.</p>
+        <button type="button" className="btn ghost small" onClick={() => applyPreset()}>기본 문구로 빠르게 꾸미기</button>
+        {!styleId && <p className="small" role="status">포장지를 하나 골라 주세요.</p>}
         <div className="style-grid">
-          {styles.map((s) => (
+          {styles.filter((s) => !s.targeting?.productNos?.length || s.targeting.productNos.includes(product.productNo)).map((s) => (
             <button key={s.id} type="button" className="thumb" aria-pressed={s.id === styleId} onClick={() => setStyleId(s.id)}>
               {/* 화면에는 썸네일만 필요: 원본(최대 1200px) 대신 줄인 그림을 받는다 */}
-              <Image src={s.imageUrl} alt="" width={240} height={240} sizes="(max-width: 480px) 30vw, 150px" priority />
+              <Image src={s.imageUrl} alt="" width={240} height={240} sizes="(max-width: 480px) 30vw, 150px" />
               <span>{s.name}</span>
             </button>
           ))}
@@ -696,6 +702,7 @@ export function PackagingEditor(props: Props) {
               )}
 
               <div className="field-label" style={{ marginTop: 16 }}>추천 이미지</div>
+              {!images.length && <p className="small muted">이 목적에 맞게 확인된 이미지가 아직 없어요. 기본 문구나 내 사진으로 꾸밀 수 있어요.</p>}
               <div className="sticker-grid">
                 {images.map((img) => (
                   <button key={img.id} type="button" className="thumb" onClick={() => void pickImage(img)}
@@ -707,6 +714,7 @@ export function PackagingEditor(props: Props) {
               </div>
 
               <div className="field-label" style={{ marginTop: 16 }}>바탕색</div>
+              <details className="small"><summary>다른 이미지 직접 고르기</summary><p className="muted">다른 행사·목적의 이미지도 있어요. 담긴 문구를 확인해 주세요.</p><div className="sticker-grid">{props.images.filter((img) => !images.includes(img)).map((img) => <button key={img.id} type="button" className="thumb" onClick={() => void pickImage(img)} aria-label={img.name}><Image src={img.imageUrl} alt={img.name} width={200} height={200} sizes="110px" loading="lazy" /><span>{img.name}</span></button>)}</div></details>
               <div className="row" style={{ gap: 8 }}>
                 {BACKGROUNDS.map((c) => (
                   <button key={c} type="button" className="swatch" style={{ background: c }} aria-pressed={background === c} aria-label={`바탕색 ${c}`} onClick={() => setBackground(c)} />
