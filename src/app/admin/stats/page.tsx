@@ -1,5 +1,5 @@
-import { getCatalog, getFeedback, getRecommendationLogs } from '@/data/repository.ts';
-import { listDesigns } from '@/data/packaging-repository.ts';
+import { getCatalog } from '@/data/repository.ts';
+import { getStats, validStatsPeriod } from '@/stats/repository.ts';
 import { FEEDBACK_REASONS, summarizeFeedback } from '@/lib/feedback.ts';
 import { kstLabel } from '@/lib/kst.ts';
 import { kstRange } from '@/packaging/design-filter.ts';
@@ -28,24 +28,19 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
   const to = custom ? (sp.to as string) : today;
   const range = kstRange({ from, to });
 
-  const [catalog, recs, designs, feedback] = await Promise.all([
-    getCatalog(),
-    getRecommendationLogs(range),
-    listDesigns({ from, to, limit: 5000 }),
-    getFeedback(range),
-  ]);
-  const s = summarize(
-    recs,
-    designs.map((d) => ({ createdAt: d.createdAt, status: d.status, orderNo: d.orderNo, hasSticker: Boolean(d.sticker) })),
-    { from, to },
-  );
+  if (!validStatsPeriod(from, to)) return <section className="panel"><h1>조회 기간을 확인해 주세요</h1><p>올바른 날짜로 최대 400일까지 조회할 수 있습니다.</p><a href="/admin/stats">최근 30일 보기</a></section>;
+  const catalog = await getCatalog();
+  let stats;
+  try { stats = await getStats(from, to); }
+  catch { return <section className="panel" role="alert"><h1>전체 실적을 확인할 수 없습니다</h1><p>일부 자료를 전체 합계로 표시하지 않았습니다. DB 연결과 변경 적용 상태를 확인해 주세요.</p><a href="/admin/health">운영 상태 확인</a></section>; }
+  const s = stats.summary;
   const { config } = catalog;
   const productName = new Map(catalog.products.map((p) => [p.productNo, p.name]));
   const share = (a: number, b: number, of: string) => (b ? `${of}의 ${Math.round((a / b) * 100)}%` : `${of} 기록 없음`);
   const eventName = (id: string) => config.events[id as keyof typeof config.events]?.name ?? id;
   const relationName = (id: string) => config.relations[id as keyof typeof config.relations]?.name ?? id;
-  const unmet = unmetDemand(recs, new Map(catalog.products.map((p) => [p.productNo, p.price])), config.resultCount);
-  const fb = feedback && summarizeFeedback(feedback);
+  const unmet = stats.unmet;
+  const fb = stats.feedback;
 
   return (
     <div style={{ display: 'grid', gap: 20 }}>
@@ -150,7 +145,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
         <section className="panel">
           <h2 className="panel-title">찾았지만 없던 것</h2>
           <p className="small muted" style={{ margin: '0 0 10px' }}>
-            추천을 {config.resultCount}개 채우지 못했거나, 예산 안에 없어 예산을 넘겨 보여 준 조건입니다. 상품을 들일 때 참고하세요.
+            추천을 {config.resultCount}개 채우지 못했거나, 현재 상품 가격 기준으로 예산을 넘는 조건입니다. 과거 가격 변경 전의 정확한 초과 여부와는 다를 수 있습니다.
           </p>
           {unmet.length === 0 ? (
             <p className="small muted" style={{ margin: 0 }}>이 기간에는 모든 조건을 예산 안에서 채웠습니다.</p>

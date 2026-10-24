@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
+import { after } from 'next/server';
 import { getCatalog, logRecommendation } from '@/data/repository.ts';
 import { recommend } from '@/engine/recommend.ts';
 import { eventIds, isEvent, isRelation, relationIds } from '@/engine/labels.ts';
@@ -58,8 +59,16 @@ export default async function ResultPage({ searchParams }: { searchParams: Searc
   const quantity = q.qty;
 
   const result = recommend(catalog, { event, relation, budgetMax: q.budget ?? undefined, quantity, exclude: q.exclude });
+  const userAgent = (await headers()).get('user-agent');
+  const mobile = /Mobi|Android|iPhone|iPad/i.test(userAgent ?? '');
   // '빼고 다시'는 같은 고객의 다시 보기, 미리보기 수집 봇(카카오톡·검색엔진 등)은 사람이 아니라 세지 않는다
-  if (q.exclude.length === 0 && !isBot((await headers()).get('user-agent'))) await logRecommendation(result, config.modelVersion);
+  if (q.exclude.length === 0 && !isBot(userAgent)) {
+    // cookies()는 after 밖에서 읽는다. 응답 후에도 Next가 저장 완료를 기다린다.
+    const { createClient } = await import('@/lib/supabase/server.ts');
+    const { dataSource } = await import('@/lib/supabase/env.ts');
+    const db = dataSource() === 'supabase' ? await createClient() : undefined;
+    after(() => logRecommendation(result, config.modelVersion, db));
+  }
   const [main, ...others] = result.results;
   const eventName = config.events[event].name;
   const calm = event === 'funeral'; // 장례는 축하 느낌(인주색 도장·찍히는 움직임)을 빼고 차분하게
@@ -98,7 +107,7 @@ export default async function ResultPage({ searchParams }: { searchParams: Searc
       </section>
 
       {main ? (
-        <MainPick item={main} quantity={quantity} packagingHref={packagingHref(main.product.productNo)} excludeHref={excludeHref(main.product.productNo)} />
+        <MainPick item={main} quantity={quantity} mobile={mobile} packagingHref={packagingHref(main.product.productNo)} excludeHref={excludeHref(main.product.productNo)} />
       ) : (
         <section className="card" style={{ padding: 22, marginTop: 24 }}>
           <h2 style={{ fontSize: 18 }}>조건에 맞는 상품이 없습니다</h2>
@@ -122,7 +131,7 @@ export default async function ResultPage({ searchParams }: { searchParams: Searc
             </>
           )}
           <div className="alt-list">
-            {others.map((x) => <OtherPick key={x.product.productNo} item={x} packagingHref={packagingHref(x.product.productNo)} excludeHref={excludeHref(x.product.productNo)} />)}
+            {others.map((x) => <OtherPick key={x.product.productNo} item={x} quantity={quantity} mobile={mobile} packagingHref={packagingHref(x.product.productNo)} excludeHref={excludeHref(x.product.productNo)} />)}
           </div>
         </section>
       )}

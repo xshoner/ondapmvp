@@ -27,17 +27,20 @@
     try { return new URL(document.currentScript.src).origin; } catch (e) { return 'https://ondapmvp.vercel.app'; }
   })();
 
-  function load() {
+  function loadAll() {
     try {
-      var v = JSON.parse(localStorage.getItem(KEY) || 'null');
-      if (v && CODE.test(v.code) && Date.now() - v.at < TTL && !(v.filledAt && Date.now() - v.filledAt > AFTER_FILL_TTL)) {
-        v.qty = Math.min(100000, Math.max(1, Number(v.qty) || 1)); // 화면 문구에 들어가므로 숫자로 고정
-        return v;
-      }
+      var stored = JSON.parse(localStorage.getItem(KEY) || 'null');
+      var list = stored && stored.version === 2 ? stored.entries : stored ? [stored] : [];
+      return Array.isArray(list) ? list.filter(function (v) {
+        return v && /^\d+$/.test(String(v.productNo)) && (v.code === null || CODE.test(v.code)) && Number.isFinite(v.at) && Date.now() >= v.at && Date.now() - v.at < TTL && !(v.filledAt && Date.now() - v.filledAt > AFTER_FILL_TTL);
+      }).slice(0, 30).map(function (v) { v.qty = Math.min(100000, Math.max(1, Math.round(Number(v.qty) || 1))); return v; }) : [];
     } catch (e) { /* 저장소를 못 쓰는 브라우저 */ }
-    return null;
+    return [];
   }
-  function save(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) { /* 무시 */ } }
+  function save(v) {
+    var list = loadAll().filter(function (old) { return old.productNo !== v.productNo || (v.code && old.code && old.code !== v.code); });
+    try { localStorage.setItem(KEY, JSON.stringify({ version: 2, entries: [v].concat(list).slice(0, 30) })); } catch (e) { /* 무시 */ }
+  }
   function clear() { try { localStorage.removeItem(KEY); } catch (e) { /* 무시 */ } }
 
   function fire(el) {
@@ -131,7 +134,7 @@
     var no = productNoHere(); // 짧은 상품 주소(/product/이름/11/)에서도 번호를 찾는다
     if (state.productNo && no && state.productNo !== no) return; // 다른 상품
     var qtyText = '';
-    if (fromLink && state.qty > 1) {
+    if (fromLink) {
       var qty = document.querySelector('#quantity');
       if (qty && qty.offsetParent !== null) {
         keepQuantity(qty, state.qty);
@@ -140,8 +143,7 @@
         qtyText = ' 옵션을 고르고 수량 <b>' + state.qty + '개</b>를 선택해 주세요.';
       }
     }
-    banner('포장 디자인 ' + badge(state.code) + ' 접수 완료.' + qtyText +
-      '<br>‘바로 구매’(모바일은 ‘구매하기’)를 누르면 주문서에 코드가 자동으로 들어가요.');
+    banner(state.code ? '포장 디자인 ' + badge(state.code) + ' 접수 완료.' + qtyText + '<br>옵션을 확인하고 구매해 주세요. 주문서에서 상품·수량·코드를 다시 확인해요.' : '온답에서 고른 상품이에요.' + qtyText + '<br>필요한 옵션을 고르고 주문 수량을 확인해 주세요.');
   }
 
   function productNoHere() {
@@ -158,7 +160,7 @@
     })[0];
     var anchor = buy && (buy.closest('.xans-product-action') || buy.parentElement);
     if (!anchor) return;
-    var again = state && state.productNo === no;
+    var again = state && state.code && state.productNo === no;
     var link = document.createElement('a');
     link.id = 'ondap-pack-btn';
     link.style.cssText = [
@@ -181,7 +183,7 @@
 
   function onLoginPage(state) {
     if (!/noMember=1/.test(location.search)) return;
-    banner('회원가입 없이 아래 <b>‘비회원 구매’</b>로도 주문할 수 있어요.<br>포장 디자인 ' + badge(state.code) + '는 주문서에 자동으로 들어가요.');
+    banner('회원가입 없이 아래 <b>‘비회원 구매’</b>로도 주문할 수 있어요.' + (state.code ? '<br>포장 디자인 ' + badge(state.code) + '를 주문서에서 확인해 주세요.' : ''));
   }
 
   // 항목 이름이 적힌 제목 칸(th·dt·label)을 찾고, 같은 줄(tr·li·dl)의 입력칸을 모은다. 스킨마다 구조가 달라 이름으로 찾는다.
@@ -241,49 +243,101 @@
     }).catch(function () { /* 온답에 닿지 않으면 처음 띠를 그대로 둔다 */ });
   }
 
-  function onOrderForm(state) {
-    waitFor(function () { return forProduct(findCodeFields(), state.productNo); }, function (fields) {
-      if (fields) {
-        if (!state.filledAt) save(Object.assign({}, state, { filledAt: Date.now() }));
-        fields.forEach(function (field) {
-          if (!field.value.trim()) {
-            field.value = state.code;
-            fire(field);
-          }
+  function orderRows(productNo) {
+    return [].slice.call(document.querySelectorAll('.prdBox')).filter(function (box) {
+      var chk = box.querySelector('input[name^="chk_order_cancel_list"]');
+      var links = [].slice.call(box.querySelectorAll('a[href]'));
+      return (chk && String(chk.value).split(':')[0] === productNo) || links.some(function (a) {
+        try { var u = new URL(a.href, location.href); var m = u.pathname.match(/\/product\/[^/]+\/(\d+)/); return (u.searchParams.get('product_no') || (m && m[1])) === productNo; } catch(e) { return false; }
+      });
+    });
+  }
+
+  // 코드가 있다는 이유만으로 채우지 않는다. 요약 조회·단일 주문행·동일 수량을 확인한 뒤 한 칸만 쓴다.
+  function onOrderFormAll(states) {
+    var messages = {};
+    var show = function (state, message) { messages[state.productNo + ':' + state.code] = message; banner(Object.keys(messages).map(function (key) { return messages[key]; }).join('<hr>')); };
+    states.forEach(function (state) {
+      if (!state.code || !orderRows(state.productNo).length) return;
+      var same = states.filter(function (s) { return s.productNo === state.productNo && s.code; });
+      var manual = function (reason) { show(state, '포장 디자인 ' + badge(state.code) + ': <b>' + reason + '</b> 상품·옵션별 코드를 직접 확인해 주세요. 자동 입력하지 않았어요.'); };
+      if (same.length > 1 || orderRows(state.productNo).length !== 1) return manual('같은 상품의 옵션 또는 디자인이 여러 개예요.');
+      waitFor(function () { return forProduct(findCodeFields(), state.productNo); }, function (fields) {
+        if (!fields || fields.length !== 1 || (!/\|\d+\]$/.test(fields[0].name || '') && document.querySelectorAll('.prdBox').length !== 1)) return manual('주문 항목을 정확히 구분할 수 없어요.');
+        var field = fields[0];
+        if (field.value.trim() && field.value.trim() !== state.code) return manual('이미 다른 코드가 적혀 있어요.');
+        if (!window.fetch) return manual('디자인 상태를 확인할 수 없어요.');
+        var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        var timeout = setTimeout(function () { if (controller) controller.abort(); }, 8000);
+        fetch(APP + '/api/design/' + state.code, controller ? { signal: controller.signal } : {}).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+          if (!d || d.code !== state.code || String(d.productNo) !== state.productNo) return manual('디자인과 상품을 확인할 수 없어요.');
+          if (d.status !== 'received') return manual('취소됐거나 이미 주문 처리된 디자인이에요. 새 코드를 받아 주세요.');
+          var qty = orderQuantity(state.productNo);
+          if (qty === null || qty !== Number(d.quantity)) return manual('주문 수량과 디자인 수량이 달라요.');
+          // 기다리는 사이 고객이 바꾼 입력도 덮어쓰지 않는다.
+          if (field.value.trim() && field.value.trim() !== state.code) return manual('이미 다른 코드가 적혀 있어요.');
+          field.value = state.code; fire(field);
+          field.dataset.ondapAutoCode = state.code;
           field.style.outline = '2px solid #1f4436';
-        });
-        // 안내 띠에는 검증된 코드만 넣는다 (입력칸 값은 고객이 바꿀 수 있으므로 HTML에 쓰지 않음)
-        banner('주문서 ‘' + LABEL + '’ 칸에 포장 디자인 코드 ' + badge(state.code) + '를 넣어 두었어요. 이대로 주문하시면 돼요.');
-        describe(state);
-      } else if (!findCodeFields()) {
-        // 항목 칸 자체가 없을 때만 복사 안내 (칸은 있는데 다른 상품 주문이면 조용히 넘어감)
-        banner('포장 디자인 ' + badge(state.code) + '를 주문서 요청 칸에 적어 주세요.', [copyButton(state.code)]);
-      }
+          if (!state.filledAt) save(Object.assign({}, state, { filledAt: Date.now() }));
+          var sticker = d.sticker ? Number(d.sticker.sizeCm) + 'cm ' + (d.sticker.shape === 'circle' ? '원형' : '사각') + ' 스티커' : '스티커 없음';
+          show(state, '포장 디자인 ' + badge(state.code) + ' · ' + esc(d.styleName) + ' · ' + sticker + ' · ' + qty + '개<br>주문서 ‘' + LABEL + '’ 칸에 코드를 넣어 두었어요. 이대로 주문하시면 돼요.');
+          // 주문서가 수량/옵션/행을 바꾸면 자동으로 쓴 코드만 회수한다. 고객 입력은 지우지 않는다.
+          var invalidated = false;
+          var checkCurrent = function () {
+            if (invalidated) return;
+            var currentFields = forProduct(findCodeFields(), state.productNo);
+            if (field.isConnected && currentFields && currentFields.length === 1 && currentFields[0] === field && orderRows(state.productNo).length === 1 && orderQuantity(state.productNo) === Number(d.quantity) && field.value.trim() === state.code) return;
+            invalidated = true;
+            if (field.dataset.ondapAutoCode === state.code && field.value === state.code) { field.value = ''; delete field.dataset.ondapAutoCode; fire(field); }
+            show(state, '포장 디자인 ' + badge(state.code) + ': <b>주문 내용이 바뀌었어요.</b> 자동 입력한 코드는 회수했어요. 상품·옵션·수량과 코드를 다시 확인해 주세요.');
+            if (observer) observer.disconnect();
+            document.removeEventListener('input', onInput, true); document.removeEventListener('change', onInput, true);
+          };
+          var onInput = function (e) {
+            if (e.target === field && (e.isTrusted || field.value !== state.code)) delete field.dataset.ondapAutoCode;
+            if (e.target === field || (e.target.closest && e.target.closest('.prdBox'))) checkCurrent();
+          };
+          var observer = typeof MutationObserver !== 'undefined' ? new MutationObserver(function (records) {
+            var relevant = records.some(function (r) {
+              var target = r.target.nodeType === 1 ? r.target : r.target.parentElement;
+              if (target && target.closest && target.closest('.prdBox')) return true;
+              return [].slice.call(r.addedNodes).concat([].slice.call(r.removedNodes)).some(function (n) { return n.nodeType === 1 && (n.matches('.prdBox') || n.querySelector('.prdBox')); });
+            });
+            if (relevant) checkCurrent();
+          }) : null;
+          if (observer) observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+          document.addEventListener('input', onInput, true); document.addEventListener('change', onInput, true);
+        }).catch(function () { manual('디자인 상태를 확인할 수 없어요.'); }).finally(function () { clearTimeout(timeout); });
+      });
     });
   }
 
   function run() {
     var params = new URLSearchParams(location.search);
     var linkCode = (params.get('ondap_code') || '').toUpperCase();
-    var fromLink = CODE.test(linkCode);
+    var fromLink = CODE.test(linkCode) || params.get('ondap_order') === '1';
+    var incoming = null;
     if (fromLink) {
-      save({
-        code: linkCode,
+      if (linkCode && !CODE.test(linkCode)) return;
+      incoming = {
+        code: linkCode || null,
         qty: Math.min(100000, Math.max(1, parseInt(params.get('ondap_qty'), 10) || 1)),
-        productNo: (params.get('product_no') || '').replace(/\D/g, ''),
+        productNo: productNoHere(),
         at: Date.now(),
-      });
+      };
+      if (incoming.productNo) save(incoming);
     }
-    var state = load();
+    var states = loadAll();
+    var matching = states.filter(function (s) { return s.productNo === productNoHere(); });
+    var state = incoming || (matching.length === 1 ? matching[0] : null);
     var path = location.pathname;
     var productPage = /\/product\/detail\.html|\/product\/[^/]+\/\d+/.test(path);
     if (productPage) addPackagingButton(state);
-    if (!state) return;
-
     if (/order_result\.html/.test(path)) return clear();
-    if (productPage) return onProductPage(state, fromLink);
-    if (/\/member\/login\.html/.test(path)) return onLoginPage(state);
-    if (/\/order\/orderform\.html/.test(path)) return onOrderForm(state);
+    if (productPage && state) return onProductPage(state, fromLink);
+    if (/\/member\/login\.html/.test(path) && states[0]) return onLoginPage(states[0]);
+    if (/\/order\/orderform\.html/.test(path)) return onOrderFormAll(states);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);

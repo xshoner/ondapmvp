@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { sans, serif } from './fonts.ts';
 import './globals.css';
 import { siteUrl } from '@/lib/site.ts';
+import { WebVitals } from './components/web-vitals.tsx';
 
 export const viewport: Viewport = { themeColor: '#1f4436' };
 
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko" className={`${sans.variable} ${serif.variable}`}>
-      <body>{children}</body>
+      <body>{children}<WebVitals /></body>
     </html>
   );
 }

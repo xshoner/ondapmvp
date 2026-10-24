@@ -2,16 +2,26 @@
 // 준비: 로컬 모드(ONDAP_DATA_SOURCE=local)로 `npm run dev` → 다른 창에서 `npm run e2e` (특정 묶음만: `npm run e2e -- ops editor`)
 // data/는 시작할 때 임시 폴더에 복사해 두고, 시험용 접수를 깐 뒤, 끝나면(실패해도) 원래대로 되돌린다
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync, realpathSync, readdirSync, readFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve, dirname, basename } from 'node:path';
 import { writeFixtures } from './fixtures.mjs';
 
 const root = join(import.meta.dirname, '..', '..');
 const base = process.env.E2E_BASE ?? 'http://127.0.0.1:3000';
-const ALL = ['result', 'features', 'editor', 'helper', 'ops']; // ops는 접수 상태를 바꾸므로 마지막
+const ALL = ['result', 'features', 'editor', 'helper', 'ops', 'integrated']; // 각 묶음은 시험 접수로 다시 시작한다.
 const pick = process.argv.slice(2);
 const suites = pick.length ? ALL.filter((s) => pick.includes(s)) : ALL;
+
+// Node 24/Windows의 fs.cpSync가 한글 경로에서 네이티브 종료되는 환경도 지원한다.
+function copyTree(from, to) {
+  mkdirSync(to, { recursive: true });
+  for (const entry of readdirSync(from, { withFileTypes: true })) {
+    if (entry.isSymbolicLink()) throw new Error('시험 데이터의 심볼릭 링크는 복사하지 않습니다.');
+    if (entry.isDirectory()) copyTree(join(from,entry.name),join(to,entry.name));
+    else writeFileSync(join(to,entry.name),readFileSync(join(from,entry.name)));
+  }
+}
 
 // 로컬 모드 개발 서버인지: 관리자 화면이 로그인 없이 열려야 한다 (Supabase 모드는 로그인으로, 운영 빌드는 404)
 const admin = await fetch(`${base}/admin`, { redirect: 'manual' }).catch(() => null);
@@ -22,7 +32,9 @@ if (admin?.status !== 200) {
 
 const data = join(root, 'data');
 const backup = mkdtempSync(join(tmpdir(), 'ondap-e2e-data-'));
-cpSync(data, backup, { recursive: true });
+// 삭제·복원 대상은 이 저장소의 data와 이번에 만든 임시 백업으로 한정한다.
+if (realpathSync(data) !== join(realpathSync(root), 'data') || dirname(resolve(backup)) !== resolve(tmpdir()) || !basename(backup).startsWith('ondap-e2e-data-')) throw new Error('검증 데이터 경로가 안전 범위를 벗어났습니다.');
+copyTree(data, backup);
 console.log(`data/ 를 ${backup} 에 복사해 두었습니다 (끝나면 되돌립니다)\n`);
 const failed = [];
 try {
@@ -42,7 +54,7 @@ try {
   }
 } finally {
   rmSync(data, { recursive: true, force: true });
-  cpSync(backup, data, { recursive: true });
+  copyTree(backup, data);
   if (existsSync(join(data, 'config'))) rmSync(backup, { recursive: true, force: true });
   console.log('data/ 를 원래대로 되돌렸습니다.');
 }

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import {
-  getAttributeHistory, getCatalog, getRecommendationLogs, saveAttributes, saveConfig, saveExpectation, saveProducts, type AttributeChange,
+  getAttributeHistory, getCatalog, getRecommendationLogs, getSyncInfo, saveAttributes, saveConfig, saveExpectation, saveProducts, type AttributeChange,
 } from '@/data/repository.ts';
 import { diffProducts, syncSummary } from '@/cafe24/sync-diff.ts';
 import { soldOutFavorites, type FavoriteAlert } from '@/stats/summary.ts';
@@ -11,6 +11,8 @@ import { generateJson } from '@/ai/gemini.ts';
 import { cafe24ConfigFromEnv, fetchAllProducts } from '@/cafe24/client.ts';
 import type { Cafe24Product, EngineConfig, ProductAttributes } from '@/engine/types.ts';
 import { requireAdmin } from '@/lib/admin-guard.ts';
+import { validateProductSnapshot } from '@/cafe24/sync-rules.ts';
+import { recordOperation } from '@/data/operations-repository.ts';
 
 // 모든 액션은 첫 줄에서 requireAdmin()으로 확인한다. Supabase 모드에서는 DB의 RLS가 한 번 더 막는다.
 
@@ -93,17 +95,26 @@ export interface SyncReport {
 // 카페24 상품을 다시 가져오고, 무엇이 바뀌었는지 요약한다
 export async function syncCafe24Action(): Promise<{ ok: true; message: string; report: SyncReport } | { ok: false; message: string }> {
   await requireAdmin();
+  const startedAt = Date.now();
   try {
     const config = cafe24ConfigFromEnv(process.env as Record<string, string>);
     const before = (await getCatalog()).products;
+    const expected = (await getSyncInfo()).syncedAt;
     const products = await fetchAllProducts(config);
     if (products.length === 0) return { ok: false, message: '카페24에서 상품을 하나도 받지 못해 아무것도 바꾸지 않았습니다. 잠시 후 다시 시도해 주세요.' };
-    await saveProducts(config.mallId, products);
+    validateProductSnapshot(products, before);
+    await saveProducts(config.mallId, products, expected);
+    await recordOperation('catalog_sync', 'ok', startedAt);
     revalidatePath('/', 'layout');
     const d = diffProducts(before, products);
     const brief = (p: Cafe24Product) => ({ productNo: p.productNo, name: p.name });
     const since = new Date(Date.now() - 30 * 86400000).toISOString();
-    const alerts = d.stopped.length ? soldOutFavorites(await getRecommendationLogs({ gte: since, lt: null }), d.stopped) : [];
+    let alerts: FavoriteAlert[] = [];
+    let alertsUnavailable = false;
+    if (d.stopped.length) {
+      try { alerts = soldOutFavorites(await getRecommendationLogs({ gte: since, lt: null }), d.stopped); }
+      catch { alertsUnavailable = true; await recordOperation('catalog_read', 'error', startedAt, 'recommendation_alerts_unavailable'); }
+    }
     const report: SyncReport = {
       count: products.length,
       summary: syncSummary(d),
@@ -114,8 +125,9 @@ export async function syncCafe24Action(): Promise<{ ok: true; message: string; r
       removed: d.removed.map(brief),
       alerts,
     };
-    return { ok: true, message: `상품 ${products.length}개를 가져왔습니다. ${report.summary}.`, report };
+    return { ok: true, message: `상품 ${products.length}개를 가져왔습니다. ${report.summary}.${alertsUnavailable ? ' 최근 추천 경고 집계는 확인하지 못했습니다.' : ''}`, report };
   } catch (e) {
+    await recordOperation('catalog_sync', 'error', startedAt, 'sync_rejected');
     return { ok: false, message: e instanceof Error ? e.message : String(e) };
   }
 }

@@ -4,8 +4,15 @@ import type { EventType } from '../engine/types.ts';
 
 // 추천 이미지·문구 분류: 엔진의 행사 8종 + 공통
 export type DesignCategory = EventType | 'common';
+export type GiftPurpose = 'return' | 'celebration';
+export interface AssetTargeting {
+  events: DesignCategory[];
+  purposes: (GiftPurpose | 'neutral')[];
+  productNos: number[]; // 비어 있으면 상품 제한 없음. 실물 규격 보증을 뜻하지 않는다.
+}
 
 export interface PackagingStyle {
+  targeting?: AssetTargeting;
   id: string;
   name: string;
   description: string;
@@ -15,6 +22,7 @@ export interface PackagingStyle {
 }
 
 export interface DesignImage {
+  targeting?: AssetTargeting;
   id: string;
   category: DesignCategory;
   name: string;
@@ -24,6 +32,7 @@ export interface DesignImage {
 }
 
 export interface DesignText {
+  targeting?: AssetTargeting;
   id: string;
   category: DesignCategory;
   // {받는분} {보내는분} {날짜} 자리표시자를 쓸 수 있다
@@ -77,6 +86,7 @@ export interface TextLayer extends LayerBase {
 export type Layer = ImageLayer | TextLayer;
 
 export interface DesignDraft {
+  purpose?: GiftPurpose;
   background: string;
   layers: Layer[];
   fields: { recipient: string; sender: string; date: string };

@@ -26,7 +26,10 @@
     "handoff:restore": "node scripts/handoff-restore.mjs",
     "e2e": "node scripts/e2e/run.mjs",
     "e2e:db": "node scripts/e2e/sql.mjs",
-    "e2e:pdf": "node scripts/e2e/pdf-qr.mjs"
+    "e2e:pdf": "node scripts/e2e/pdf-qr.mjs",
+    "ops:check": "node scripts/ops-check.ts",
+    "ops:backup": "node scripts/ops-backup.ts",
+    "ops:verify-backup": "node scripts/ops-verify-backup.ts"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

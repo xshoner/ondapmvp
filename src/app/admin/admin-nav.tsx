@@ -9,6 +9,7 @@ const LINKS = [
   { href: '/admin/verify', label: '알고리즘 검증' },
   { href: '/admin/packaging', label: '포장 디자인' },
   { href: '/admin/stats', label: '실적' },
+  { href: '/admin/health', label: '운영 상태' },
 ];
 
 export function AdminNav({ email }: { email: string | null }) {

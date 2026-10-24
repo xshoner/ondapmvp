@@ -4,11 +4,12 @@
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { CATEGORY_ORDER, MAX_ACTIVE } from '@/packaging/rules.ts';
-import type { DesignCategory, PackagingAssets } from '@/packaging/types.ts';
+import type { AssetTargeting, DesignCategory, PackagingAssets } from '@/packaging/types.ts';
+import { cleanTargeting } from '@/packaging/presets.ts';
 import { deleteAssetAction, saveAssetAction, uploadAssetAction } from './actions.ts';
 
 type Kind = 'styles' | 'images' | 'texts';
-type Item = { id: string; active: boolean; sort: number; name?: string; description?: string; imageUrl?: string; category?: DesignCategory; text?: string };
+type Item = { id: string; active: boolean; sort: number; name?: string; description?: string; imageUrl?: string; category?: DesignCategory; text?: string; targeting?: AssetTargeting };
 
 type Props = { kind: Kind; assets: PackagingAssets; categoryNames: Record<string, string> };
 
@@ -190,6 +191,7 @@ function AssetCard({ kind, item, categoryNames }: { kind: Kind; item: Item; cate
         {kind === 'styles' && (
           <input type="text" value={draft.description ?? ''} maxLength={200} onChange={(e) => setDraft({ ...draft, description: e.target.value })} aria-label="설명" />
         )}
+        <TargetingEditor value={draft.targeting} categoryNames={categoryNames} onChange={(targeting) => setDraft({ ...draft, targeting })} />
         <div className="row" style={{ gap: 8 }}>
           <label className="small row" style={{ gap: 4 }}>
             <input type="checkbox" checked={draft.active} disabled={pending} onChange={(e) => { const next = { ...draft, active: e.target.checked }; setDraft(next); save(next); }} />
@@ -212,4 +214,14 @@ function AssetCard({ kind, item, categoryNames }: { kind: Kind; item: Item; cate
       </div>
     </div>
   );
+}
+
+function TargetingEditor({ value, categoryNames, onChange }: { value?: AssetTargeting; categoryNames: Record<string, string>; onChange(value: AssetTargeting): void }) {
+  const target = cleanTargeting(value);
+  return <details className="small"><summary>추천 적용 대상</summary>
+    <p className="muted">목적과 행사를 확인한 자료만 추천에 사용합니다. 상품 제한은 실물 포장 규격 확인과 별개입니다.</p>
+    <label>목적 <select aria-label="추천 목적" value={target.purposes[0] ?? ''} onChange={(e) => onChange({ ...target, purposes: e.target.value ? [e.target.value as 'return' | 'celebration' | 'neutral'] : [] })}><option value="">미확인 (직접 선택만)</option><option value="return">감사 답례</option><option value="celebration">축하·위로 선물</option><option value="neutral">두 목적 모두</option></select></label>
+    <div className="chips">{CATEGORY_ORDER.map((id) => <label key={id} className="small"><input type="checkbox" checked={target.events.includes(id)} onChange={(e) => onChange({ ...target, events: e.target.checked ? [...target.events, id] : target.events.filter((x) => x !== id) })} />{categoryNames[id]}</label>)}</div>
+    <label>적용 상품번호 (쉼표 구분, 비우면 제한 없음)<input aria-label="적용 상품번호" type="text" defaultValue={target.productNos.join(',')} onBlur={(e) => onChange({ ...target, productNos: e.target.value.split(',').map((x) => Number(x.trim())).filter((n) => Number.isSafeInteger(n) && n > 0) })} /></label>
+  </details>;
 }

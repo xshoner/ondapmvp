@@ -210,6 +210,7 @@ export function sanitizeDraft(v: unknown): DesignDraft {
   }
   return {
     background: HEX.test(String(o.background)) ? String(o.background) : '#ffffff',
+    ...(o.purpose === 'return' || o.purpose === 'celebration' ? { purpose: o.purpose } : {}),
     layers,
     fields: { recipient: str(f.recipient, 30), sender: str(f.sender, 30), date: str(f.date, 30) },
   };

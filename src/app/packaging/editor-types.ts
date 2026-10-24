@@ -16,6 +16,7 @@ export type TextRect = Box & { text: string; fontSize: number };
 
 // 편집 상태 한 벌: 자동 보관과 '내 디자인 다시 꾸미기'가 함께 쓴다
 export interface EditorSnapshot {
+  purpose?: 'return' | 'celebration';
   styleId: string;
   withSticker: boolean;
   shape: StickerShape;

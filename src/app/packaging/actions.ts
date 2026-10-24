@@ -10,6 +10,8 @@ import { isEvent } from '@/engine/labels.ts';
 import type { Cafe24Product } from '@/engine/types.ts';
 import { clientIp, createRateLimiter } from '@/lib/rate-limit.ts';
 import { clampQty } from '@/lib/result-query.ts';
+import { cleanTargeting } from '@/packaging/presets.ts';
+import { recordOperation } from '@/data/operations-repository.ts';
 import { MAX_PRINT_BYTES, generateDesignCode, normalizeDesignCode, pngSize, printPixels, sanitizeDraft, sanitizeSticker } from '@/packaging/rules.ts';
 
 // 같은 접속 주소에서 10분에 20번까지 (보통 고객은 한두 번 저장한다)
@@ -55,6 +57,7 @@ async function toCustomer(d: DesignSummary, products?: Cafe24Product[]): Promise
 }
 
 export async function lookupDesignAction(raw: string): Promise<LookupResult> {
+  const startedAt = Date.now();
   if (!allowLookup(clientIp(await headers()))) return { ok: false, message: '조회를 너무 자주 했어요. 잠시 후 다시 시도해 주세요.' };
   const code = normalizeDesignCode(String(raw ?? ''));
   if (!code) return { ok: false, message: '코드 형식이 맞지 않아요. 예: OD-7QDF-3P6M' };
@@ -63,7 +66,7 @@ export async function lookupDesignAction(raw: string): Promise<LookupResult> {
     if (!d) return { ok: false, message: '해당 코드의 디자인을 찾지 못했어요. 코드를 다시 확인해 주세요.' };
     return { ok: true, design: await toCustomer(d) };
   } catch (e) {
-    console.error('[포장 디자인] 조회 실패:', e instanceof Error ? e.message : e);
+    await recordOperation('design_lookup', 'error', startedAt, 'db_read');
     return { ok: false, message: '지금은 조회할 수 없어요. 잠시 후 다시 시도해 주세요.' };
   }
 }
@@ -118,6 +121,7 @@ export async function reorderDesignAction(raw: string, rawQuantity: unknown): Pr
 export type SaveDesignResult = { ok: true; code: string } | { ok: false; message: string };
 
 export async function saveDesignAction(form: FormData): Promise<SaveDesignResult> {
+  const startedAt = Date.now();
   if (!allowSave(clientIp(await headers()))) {
     return { ok: false, message: '저장을 너무 자주 했어요. 잠시 후 다시 시도해 주세요.' };
   }
@@ -128,13 +132,15 @@ export async function saveDesignAction(form: FormData): Promise<SaveDesignResult
 
     const catalog = await getCatalog();
     const product = catalog.products.find((p) => p.productNo === Number(meta.productNo));
-    if (!product) return { ok: false, message: '상품을 찾을 수 없습니다.' };
+    if (!product || !product.display || !product.selling || product.soldOut) return { ok: false, message: '지금 주문할 수 없는 상품입니다. 상품을 다시 골라 주세요.' };
     const quantity = clampQty(meta.quantity);
     const event = isEvent(catalog.config, meta.event) ? meta.event : null;
 
     const { styles } = await getPackagingAssets();
     const style = styles.find((s) => s.id === String(meta.styleId));
     if (!style) return { ok: false, message: '포장 스타일을 다시 골라 주세요.' };
+    const targets = cleanTargeting(style.targeting).productNos;
+    if (targets.length && !targets.includes(product.productNo)) return { ok: false, message: '이 상품에 적용할 수 없는 포장입니다. 포장지를 다시 골라 주세요.' };
 
     const sticker = sanitizeSticker(meta.sticker);
     let print: Uint8Array | null = null;
@@ -162,11 +168,14 @@ export async function saveDesignAction(form: FormData): Promise<SaveDesignResult
     };
     for (let attempt = 0; attempt < 3; attempt++) {
       const code = generateDesignCode();
-      if ((await createDesign({ ...base, code }, print)) === 'ok') return { ok: true, code };
+      if ((await createDesign({ ...base, code }, print)) === 'ok') {
+        await recordOperation('design_save', 'ok', startedAt);
+        return { ok: true, code };
+      }
     }
     return { ok: false, message: '코드를 만들지 못했습니다. 다시 시도해 주세요.' };
   } catch (e) {
-    console.error('[포장 디자인] 저장 실패:', e instanceof Error ? e.message : e);
+    await recordOperation('design_save', 'error', startedAt, 'storage_or_db');
     return { ok: false, message: '저장하지 못했습니다. 잠시 후 다시 시도해 주세요.' };
   }
 }
