@@ -132,9 +132,9 @@ export function GiftFinderForm({ events, relations, initial }: { events: Option[
         <h2 className="step-label"><span className="step-no">4</span><label htmlFor="qty">수량</label><span className="hint">받는 분 수만큼</span></h2>
         <div className="row" style={{ gap: 10 }}>
           <div className="stepper">
-            <button type="button" aria-label="수량 줄이기" onClick={() => setQty(quantity - (quantity > 10 ? 10 : 1))}>−</button>
+            <button type="button" aria-label="수량 줄이기" onClick={() => setQty(quantity - 1)}>−</button>
             <QtyInput id="qty" value={quantity} onValue={setQty} />
-            <button type="button" aria-label="수량 늘리기" onClick={() => setQty(quantity + (quantity >= 10 ? 10 : 1))}>+</button>
+            <button type="button" aria-label="수량 늘리기" onClick={() => setQty(quantity + 1)}>+</button>
           </div>
           <div className="chips quick-add">
             {QUICK_ADD.map((n) => (

@@ -32,12 +32,12 @@ const feedbackCount = () => (existsSync(feedbackFile) ? JSON.parse(readFileSync(
     await b.evaluate(`document.querySelector('button[aria-label="수량 늘리기"]').click()`);
     await b.sleep(150);
     const plus = await b.evaluate(`return document.querySelector('#qty').value`);
-    check('첫 화면 수량: 지우면 빈 칸, 30을 치면 30 (+ 누르면 40)', emptied === '' && typed === '30' && plus === '40', JSON.stringify({ emptied, typed, plus }));
+    check('첫 화면 수량: 지우면 빈 칸, 30을 치면 30 (+ 누르면 31)', emptied === '' && typed === '30' && plus === '31', JSON.stringify({ emptied, typed, plus }));
     await b.evaluate(`const q = document.querySelector('#qty'); q.focus();`);
     await selectAllAndDelete(b);
     await b.evaluate(`document.querySelector('#qty').blur()`);
     await b.sleep(150);
-    check('첫 화면 수량: 비운 채 벗어나면 마지막 값으로', (await b.evaluate(`return document.querySelector('#qty').value`)) === '40');
+    check('첫 화면 수량: 비운 채 벗어나면 마지막 값으로', (await b.evaluate(`return document.querySelector('#qty').value`)) === '31');
 
     // 추천 의견
     const before = feedbackCount();
