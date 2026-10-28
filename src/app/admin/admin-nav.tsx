@@ -7,6 +7,7 @@ const LINKS = [
   { href: '/admin', label: '상품 지표' },
   { href: '/admin/weights', label: '가중치 설정' },
   { href: '/admin/verify', label: '알고리즘 검증' },
+  { href: '/admin/formality', label: '격식지수 v2' },
   { href: '/admin/packaging', label: '포장 디자인' },
   { href: '/admin/stats', label: '실적' },
   { href: '/admin/health', label: '운영 상태' },

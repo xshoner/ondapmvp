@@ -9,7 +9,7 @@ import { writeFixtures } from './fixtures.mjs';
 
 const root = join(import.meta.dirname, '..', '..');
 const base = process.env.E2E_BASE ?? 'http://127.0.0.1:3000';
-const ALL = ['result', 'features', 'editor', 'helper', 'ops', 'integrated']; // 각 묶음은 시험 접수로 다시 시작한다.
+const ALL = ['result', 'features', 'editor', 'helper', 'ops', 'integrated', 'formality']; // 각 묶음은 시험 접수로 다시 시작한다.
 const pick = process.argv.slice(2);
 const suites = pick.length ? ALL.filter((s) => pick.includes(s)) : ALL;
 

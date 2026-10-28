@@ -15,6 +15,7 @@
     "test": "node --test \"test/**/*.test.ts\"",
     "report": "node scripts/report.ts",
     "recommend": "node scripts/recommend.ts",
+    "formality:sample": "node scripts/formality-preview.ts",
     "typecheck": "tsc --noEmit",
     "db:seed-sql": "node scripts/db-seed-sql.ts",
     "db:pull": "node scripts/db-pull.ts",
