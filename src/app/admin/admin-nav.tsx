@@ -25,6 +25,7 @@ export function AdminNav({ email }: { email: string | null }) {
         {email && (
           <form action={signOutAction} className="row" style={{ gap: 10 }}>
             <span>{email}</span>
+            <a href="/admin/password">비밀번호 변경</a>
             <button type="submit" className="btn ghost small">로그아웃</button>
           </form>
         )}
