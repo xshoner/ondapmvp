@@ -79,20 +79,29 @@ function normalize(p: RawProduct, mallId: string): Cafe24Product {
 
 export async function fetchAllProducts(config: Cafe24Config, deadline = Date.now() + 45000): Promise<Cafe24Product[]> {
   const limit = 100;
-  const all: Cafe24Product[] = [];
   const startedAt = Date.now();
-  const beforeCount = await get<{ count: number }>(config, '/products/count', deadline);
-  if (!Number.isSafeInteger(beforeCount.count) || beforeCount.count < 1 || beforeCount.count > 20000) throw new Error('쇼핑몰 상품 수를 확인할 수 없어 갱신하지 않았습니다.');
-  if (beforeCount.count > 5000) throw new Error('상품 5,000개 초과는 별도 커서 동기화가 필요해 기존 목록을 유지합니다.');
-  for (let offset = 0; ; offset += limit) {
-    if (Date.now() - startedAt > 50000 || offset >= 20000) throw new Error('상품 조회 제한을 넘겨 갱신하지 않았습니다.');
-    const body = await get<{ products: RawProduct[] }>(config, `/products?limit=${limit}&offset=${offset}`, deadline);
-    if (!Array.isArray(body.products) || body.products.length > limit) throw new Error('카페24 상품 페이지 응답이 올바르지 않습니다.');
-    all.push(...body.products.map((p) => normalize(p, config.mallId)));
-    if (body.products.length < limit || all.length >= beforeCount.count) break;
+  const beforeCount = await get<{ count: number | null }>(config, '/products/count', deadline);
+  if (beforeCount.count !== null && (!Number.isSafeInteger(beforeCount.count) || beforeCount.count < 1 || beforeCount.count > 5000)) throw new Error('쇼핑몰 상품 수를 확인할 수 없거나 5,000개를 넘어 갱신하지 않았습니다.');
+  async function readProducts(): Promise<Cafe24Product[]> {
+    const all: Cafe24Product[] = [];
+    for (let offset = 0; ; offset += limit) {
+      if (Date.now() - startedAt > 50000 || offset > 5000) throw new Error('상품 조회 제한을 넘겨 갱신하지 않았습니다.');
+      const body = await get<{ products: RawProduct[] }>(config, `/products?limit=${limit}&offset=${offset}`, deadline);
+      if (!Array.isArray(body.products) || body.products.length > limit) throw new Error('카페24 상품 페이지 응답이 올바르지 않습니다.');
+      all.push(...body.products.map((p) => normalize(p, config.mallId)));
+      if (all.length > 5000) throw new Error('상품 조회 제한을 넘겨 갱신하지 않았습니다.');
+      if (body.products.length < limit) break;
+    }
+    validateProductSnapshot(all);
+    return all.sort((a, b) => a.productNo - b.productNo);
   }
-  const afterCount = await get<{ count: number }>(config, '/products/count', deadline);
-  if (beforeCount.count !== afterCount.count || all.length !== afterCount.count) throw new Error('상품 조회 중 개수가 바뀌거나 일부 응답이 빠져 갱신하지 않았습니다. 다시 시도해 주세요.');
-  validateProductSnapshot(all);
-  return all.sort((a, b) => a.productNo - b.productNo);
+  const all = await readProducts();
+  if (beforeCount.count === null) {
+    const again = await readProducts();
+    if (JSON.stringify(all) !== JSON.stringify(again)) throw new Error('상품 조회 중 목록이 바뀌어 갱신하지 않았습니다. 다시 시도해 주세요.');
+  } else {
+    const afterCount = await get<{ count: number | null }>(config, '/products/count', deadline);
+    if (beforeCount.count !== afterCount.count || all.length !== afterCount.count) throw new Error('상품 조회 중 개수가 바뀌거나 일부 응답이 빠져 갱신하지 않았습니다. 다시 시도해 주세요.');
+  }
+  return all;
 }

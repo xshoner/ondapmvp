@@ -46,6 +46,18 @@ test('카페24 페이지 일부 누락·조회 중 개수 변경은 적용할 �
   } finally { globalThis.fetch = original; }
 });
 
+test('카페24 상품 수가 null이면 목록을 두 번 대조하고 일치할 때만 반환한다', async () => {
+  const original = globalThis.fetch;
+  const raw = { product_no: 51, product_name: '새 상품', price: '10000', display: 'T', selling: 'T' };
+  let pages = 0;
+  try {
+    globalThis.fetch = async (input) => new Response(JSON.stringify(String(input).endsWith('/count') ? { count: null } : { products: [{ ...raw, product_no: ++pages }] }));
+    await assert.rejects(fetchAllProducts({ mallId: 'test', clientId: 'test' }), /목록이 바뀌어/);
+    globalThis.fetch = async (input) => new Response(JSON.stringify(String(input).endsWith('/count') ? { count: null } : { products: [raw] }));
+    assert.equal((await fetchAllProducts({ mallId: 'test', clientId: 'test' }))[0].productNo, 51);
+  } finally { globalThis.fetch = original; }
+});
+
 test('포장 추천은 확인되지 않은 목적·다른 상품·다른 행사를 추천하지 않는다', () => {
   assert.equal(matchesTarget({ category: 'wedding' }, 'wedding', 'return', 12), false);
   const targeting = cleanTargeting({ events: ['wedding'], purposes: ['return'], productNos: [12] });
