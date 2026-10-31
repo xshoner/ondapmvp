@@ -1,17 +1,19 @@
 'use server';
 
-import { requireAdmin } from '@/lib/admin-guard.ts';
-import { dataSource } from '@/lib/supabase/env.ts';
-import { cafe24ConfigFromEnv, fetchAllProducts, fetchProductDescription } from '@/cafe24/client.ts';
-import { getCatalog, getFormalityData, getSyncInfo, saveFormalityEvidenceItem, saveLocalFormalityProducts, saveProducts } from '@/data/repository.ts';
-import { validateProductSnapshot } from '@/cafe24/sync-rules.ts';
-import { generateJson } from '@/ai/gemini.ts';
-import { initialPolicy, productRarity, RARE_FACTORS, type FormalityInput, type RareFactor } from '@/engine/eligibility.ts';
-import { assessPilotEvent, groundedFactors, evidenceFromIntake, LEVELS, type IntakeFactors } from '@/engine/formality-intake.ts';
-import type { Cafe24Product } from '@/engine/types.ts';
+import { requireAdmin } from '../../../lib/admin-guard.ts';
+import { dataSource } from '../../../lib/supabase/env.ts';
+import { cafe24ConfigFromEnv, fetchAllProducts, fetchProductDescription } from '../../../cafe24/client.ts';
+import { getCatalog, getFormalityData, getSyncInfo, saveFormalityEvidenceItem, saveLocalFormalityProducts, saveProducts } from '../../../data/repository.ts';
+import { validateProductSnapshot } from '../../../cafe24/sync-rules.ts';
+import { generateJson } from '../../../ai/gemini.ts';
+import { initialPolicy, productRarity, RARE_FACTORS, type FormalityInput, type RareFactor } from '../../../engine/eligibility.ts';
+import { assessPilotEvent, evidenceFromIntake, findTopEventScenarios, groundedFactors, LEVELS, type IntakeFactors, type RecommendedScenario } from '../../../engine/formality-intake.ts';
+import type { Cafe24Product } from '../../../engine/types.ts';
 
 export type Item = { description: string; factors: IntakeFactors; reviewed: boolean; rarity: number | null };
 export type Pilot = { products: Cafe24Product[]; items: Record<string, Item> };
+export type SaveResult = { ok: true; item: Item } | { ok: false; error: string };
+export type DescriptionResult = { ok: true; text: string } | { ok: false; error: string };
 
 // 관리자 인증 필수 (로컬 모드는 개발 서버/로컬 허용, Supabase 모드는 admins 등록 계정)
 async function guard() {
@@ -44,17 +46,18 @@ export async function importPilotProducts(): Promise<Pilot> {
   }
 }
 
-export async function loadDescription(no: number): Promise<string> {
+export async function loadDescription(no: number): Promise<DescriptionResult> {
   await guard();
   const data = await getFormalityData();
   const p = data.products.find((x) => x.productNo === no);
-  if (!p) throw new Error('목록에 없는 상품입니다.');
+  if (!p) return { ok: false, error: '목록에 없는 상품입니다.' };
   try {
     const config = cafe24ConfigFromEnv(process.env as Record<string, string>);
-    return await fetchProductDescription(config, no);
+    const text = await fetchProductDescription(config, no);
+    return { ok: true, text };
   } catch (e) {
     const msg = e instanceof Error ? e.message : '상세 설명을 불러오지 못했습니다.';
-    throw new Error(`카페24 상세 설명 조회 실패: ${msg}`);
+    return { ok: false, error: `카페24 상세 설명 조회 실패: ${msg}` };
   }
 }
 
@@ -112,42 +115,85 @@ export async function suggestIntake(no: number, description: string): Promise<In
   }
 }
 
-export async function savePilotItem(no: number, description: string, factors: IntakeFactors, reviewed: boolean): Promise<Item> {
+export async function savePilotItem(no: number, description: string, factors: IntakeFactors, reviewed: boolean): Promise<SaveResult> {
   await guard();
   const data = await getFormalityData();
   const p = data.products.find((x) => x.productNo === no);
-  if (!p) throw new Error('목록에 없는 상품입니다.');
+  if (!p) return { ok: false, error: '목록에 없는 상품입니다.' };
   if (typeof description !== 'string' || description.length > 12000 || typeof reviewed !== 'boolean') {
-    throw new Error('입력 내용을 확인해 주세요.');
+    return { ok: false, error: '입력 내용을 확인해 주세요.' };
   }
 
   const clean: IntakeFactors = {};
   for (const key of Object.keys(RARE_FACTORS) as RareFactor[]) {
     const f = factors?.[key];
     if (!f) continue;
-    if (!Object.hasOwn(LEVELS, f.level) || typeof f.basis !== 'string' || !f.basis.trim() || f.basis.length > 2000) {
-      throw new Error('선택한 항목의 수준과 근거를 확인해 주세요.');
+    if (!Object.hasOwn(LEVELS, f.level)) continue;
+    const basis = typeof f.basis === 'string' ? f.basis.trim() : '';
+    if (basis.length > 2000) return { ok: false, error: `‘${RARE_FACTORS[key].name}’ 근거는 2000자 이하여야 합니다.` };
+
+    if (reviewed) {
+      if (!basis) {
+        return {
+          ok: false,
+          error: `‘${RARE_FACTORS[key].name}’ 항목의 수준을 선택했으나 확인 근거가 비어 있습니다. 근거를 입력하거나 ‘미확인 (평가 제외)’으로 변경해 주세요.`,
+        };
+      }
+      clean[key] = { level: f.level, basis };
+    } else {
+      clean[key] = { level: f.level, basis };
     }
-    clean[key] = { level: f.level, basis: f.basis.trim() };
   }
 
   const catalog = await getCatalog();
-  if (reviewed && Object.keys(evidenceFromIntake(no, clean, true).factors).length < 2) {
-    throw new Error('확정하려면 근거가 있는 항목을 두 개 이상 입력해 주세요.');
+  const validEvidence = evidenceFromIntake(no, clean, reviewed);
+  const count = Object.keys(validEvidence.factors).length;
+
+  if (reviewed && count < 2) {
+    return {
+      ok: false,
+      error: `격식지수를 판정하려면 확인 근거가 입력된 속성이 2개 이상 필요합니다. (현재 ${count}개 확인됨)`,
+    };
   }
 
-  const rarity = reviewed ? productRarity(evidenceFromIntake(no, clean, true), initialPolicy(catalog)).value : null;
+  const rarity = reviewed ? productRarity(validEvidence, initialPolicy(catalog)).value : null;
   const item: Item = { description, factors: clean, reviewed, rarity };
 
-  await saveFormalityEvidenceItem({
-    productNo: no,
-    description,
-    factors: clean,
-    reviewed,
-    rarity,
-  });
+  try {
+    await saveFormalityEvidenceItem({
+      productNo: no,
+      description,
+      factors: clean,
+      reviewed,
+      rarity,
+    });
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : '저장 중 오류가 발생했습니다.',
+    };
+  }
 
-  return item;
+  return { ok: true, item };
+}
+
+export async function getTopEventScenariosAction(no: number): Promise<RecommendedScenario[]> {
+  await guard();
+  const data = await getFormalityData();
+  const p = data.products.find((x) => x.productNo === no);
+  if (!p) return [];
+  const item = data.items[String(no)];
+  if (!item || !item.reviewed) return [];
+  const catalog = await getCatalog();
+  const excluded = catalog.attributes.find((a) => a.productNo === no)?.excludedEvents ?? [];
+
+  return findTopEventScenarios(
+    p,
+    evidenceFromIntake(no, item.factors, item.reviewed),
+    initialPolicy(catalog),
+    excluded,
+    3,
+  );
 }
 
 export async function testPilotEvent(no: number, input: Pick<FormalityInput, 'event' | 'relation' | 'sender' | 'purpose'>) {
