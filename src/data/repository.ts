@@ -305,13 +305,13 @@ export async function saveLocalFormalityProducts(products: Cafe24Product[]): Pro
 }
 
 // 상품 근거(희소 속성·설명·검수 상태) 단건 저장
-export async function saveFormalityEvidenceItem(item: FormalityEvidenceItem): Promise<void> {
+export async function saveFormalityEvidenceItem(item: FormalityEvidenceItem): Promise<{ reviewedAt: string | null; reviewedBy: string | null }> {
   if (dataSource() === 'local') {
     const catalog = await getCatalog();
     const pilot = readLocalPilot(catalog.products);
     pilot.items[String(item.productNo)] = item;
     writeLocalPilot(pilot);
-    return;
+    return { reviewedAt: item.reviewedAt ?? null, reviewedBy: item.reviewedBy ?? null };
   }
   const db = await createClient();
   const email = (await db.auth.getClaims()).data?.claims?.email as string | undefined;
@@ -321,12 +321,13 @@ export async function saveFormalityEvidenceItem(item: FormalityEvidenceItem): Pr
     factors: item.factors,
     reviewed: item.reviewed,
     rarity_score: item.rarity,
-    reviewed_by: item.reviewed ? (email ?? 'admin') : null,
-    reviewed_at: item.reviewed ? (item.reviewedAt || new Date().toISOString()) : null,
+    reviewed_by: item.reviewed ? (email ?? 'admin') : (item.reviewedBy ?? null),
+    reviewed_at: item.reviewed ? (item.reviewedAt || new Date().toISOString()) : (item.reviewedAt ?? null),
     updated_at: new Date().toISOString(),
   };
   const { error } = await db.from('product_evidence').upsert(row);
   if (error) fail('상품 근거 저장', error);
+  return { reviewedAt: row.reviewed_at, reviewedBy: row.reviewed_by };
 }
 
 // v2 검증실(lab)에서 사용할 검수 근거 목록 변환

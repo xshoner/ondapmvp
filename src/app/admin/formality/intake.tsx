@@ -8,10 +8,29 @@ import { importPilotProducts, loadDescription, savePilotItem, suggestIntake } fr
 import { EventTest } from './event-test.tsx';
 import './intake.css';
 
-type Item = { description: string; factors: IntakeFactors; reviewed: boolean; rarity: number | null };
+type Item = {
+  description: string;
+  factors: IntakeFactors;
+  reviewed: boolean;
+  rarity: number | null;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+};
 type Pilot = { products: Cafe24Product[]; items: Record<string, Item> };
-const empty = (): Item => ({ description: '', factors: {}, reviewed: false, rarity: null });
+const empty = (): Item => ({ description: '', factors: {}, reviewed: false, rarity: null, reviewedAt: null });
 const keys = Object.keys(RARE_FACTORS) as RareFactor[];
+
+function formatReviewedAt(iso?: string | null): string {
+  if (!iso || typeof iso !== 'string') return '기록 없음';
+  try {
+    const time = new Date(iso).getTime();
+    if (isNaN(time)) return '기록 없음';
+    const d = new Date(time + 9 * 3600 * 1000);
+    return d.toISOString().slice(0, 16).replace('T', ' ');
+  } catch {
+    return '기록 없음';
+  }
+}
 
 export function Intake({ initial, eventTest = true, mode }: { initial: Pilot; eventTest?: boolean; mode: 'local' | 'supabase' }) {
   const [pilot, setPilot] = useState(initial);
@@ -69,7 +88,7 @@ export function Intake({ initial, eventTest = true, mode }: { initial: Pilot; ev
   const unreviewedCount = pilot.products.length - reviewedCount;
 
   const update = (next: Item) => {
-    setDraft({ ...next, reviewed: false, rarity: null });
+    setDraft({ ...next, reviewed: false, rarity: null, reviewedAt: draftRef.current.reviewedAt ?? null });
     setDirty(true);
     setMessage('');
   };
@@ -444,21 +463,52 @@ export function Intake({ initial, eventTest = true, mode }: { initial: Pilot; ev
                   <div>
                     <p className="small muted">상품번호 {selectedProduct.productNo} · {selectedProduct.price.toLocaleString('ko-KR')}원</p>
                     <h2 style={{ margin: '2px 0 4px', fontSize: 18 }}>{selectedProduct.name}</h2>
-                    <div className="row" style={{ gap: 8, alignItems: 'center' }}>
-                      {draft.reviewed ? (
+                    <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      {draft.reviewed && !dirty ? (
                         <span className="intake-badge intake-badge-reviewed" style={{ fontSize: 12 }}>✓ 운영자 검수 완료</span>
+                      ) : dirty ? (
+                        <span className="intake-badge intake-badge-unreviewed" style={{ fontSize: 12 }}>⚠ 수정 중 (저장되지 않음)</span>
                       ) : (
                         <span className="intake-badge intake-badge-unreviewed" style={{ fontSize: 12 }}>✗ 미검수 (근거 확인 필요)</span>
                       )}
+                      <span className="small muted" style={{ fontSize: 12 }}>
+                        {draft.reviewed && !dirty
+                          ? `검수 완료 일시: ${formatReviewedAt(draft.reviewedAt)}`
+                          : draft.reviewedAt
+                            ? `(이전 검수 완료: ${formatReviewedAt(draft.reviewedAt)})`
+                            : '검수 일시: 기록 없음'}
+                      </span>
                       {dirty && <span className="small" style={{ color: 'var(--red, #d32f2f)' }}>⚠ 저장되지 않은 수정이 있습니다</span>}
                     </div>
                   </div>
                 </div>
 
-                <div className="intake-result">
-                  <span>상품 희소 속성값</span>
-                  <strong>{draft.rarity == null ? '미산출' : `${Math.round(draft.rarity * 100)}점`}</strong>
-                  <small>{completed}개 항목 근거 입력 · {draft.reviewed ? '확인 완료' : '확인 전'}</small>
+                <div
+                  className={
+                    draft.reviewed && !dirty
+                      ? 'intake-result intake-result-reviewed'
+                      : dirty
+                        ? 'intake-result intake-result-dirty'
+                        : 'intake-result intake-result-uncalculated'
+                  }
+                >
+                  <span className="intake-result-label">상품 희소 속성값</span>
+                  <strong className="intake-result-score">
+                    {draft.rarity == null
+                      ? '미산출'
+                      : dirty
+                        ? `${Math.round(draft.rarity * 100)}점 (수정 중)`
+                        : `${Math.round(draft.rarity * 100)}점`}
+                  </strong>
+                  <small className="intake-result-sub">
+                    {draft.reviewed && !dirty
+                      ? `운영자 검수 완료 · ${completed}/5개 반영`
+                      : dirty
+                        ? `수정 중 · 재판정 필요 (${completed}개 입력)`
+                        : completed < 2
+                          ? `근거 2개 이상 필요 (현재 ${completed}개)`
+                          : `판정 전 (${completed}개 입력)`}
+                  </small>
                 </div>
               </section>
 
@@ -587,7 +637,7 @@ export function Intake({ initial, eventTest = true, mode }: { initial: Pilot; ev
                               <span className="intake-badge intake-badge-missing">미확인</span>
                             )}
                           </div>
-                          <p className="small muted">{RARE_FACTORS[key].guide}</p>
+                          <p className="small muted">{RARE_FACTORS[key].guide.replace('0~3:', '일반:').replace('4~7:', '일부 특징:').replace('8~10:', '뚜렷한 특징:')}</p>
                         </div>
 
                         <label>
@@ -603,7 +653,7 @@ export function Intake({ initial, eventTest = true, mode }: { initial: Pilot; ev
                           >
                             <option value="">미확인 (평가 제외)</option>
                             {Object.entries(LEVELS).map(([value, entry]) => (
-                              <option key={value} value={value}>{entry.label} ({entry.score}점)</option>
+                              <option key={value} value={value}>{entry.label}</option>
                             ))}
                           </select>
                         </label>

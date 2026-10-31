@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { assessPilotEvent, evidenceFromIntake, findTopEventScenarios, groundedFactors, isOccasionPurposeCompatible } from '../src/engine/formality-intake.ts';
+import { assessPilotEvent, evidenceFromIntake, findTopEventScenarios, groundedFactors, isOccasionPurposeCompatible, LEVELS } from '../src/engine/formality-intake.ts';
 import { initialPolicy, productRarity } from '../src/engine/eligibility.ts';
 import { catalog, product } from './fixtures.ts';
 import { fetchProductDescription } from '../src/cafe24/client.ts';
@@ -156,4 +156,19 @@ test('속성 수정 후 재판정 시 희소값이 정확하게 다시 계산되
   const ev4 = evidenceFromIntake(1, incompleteFactors, true);
   // 유효 근거가 1개뿐이므로 희소값 산출 불가(null)
   assert.equal(productRarity(ev4, policy).value, null);
+});
+
+test('수준 선택지에서 점수 문구가 제거되어도 4단계 수준과 내부 점수는 그대로 유지된다', () => {
+  const levelKeys = Object.keys(LEVELS);
+  assert.deepEqual(levelKeys, ['low', 'medium', 'high']);
+  assert.equal(LEVELS.low.score, 2);
+  assert.equal(LEVELS.medium.score, 5);
+  assert.equal(LEVELS.high.score, 8);
+  assert.equal(LEVELS.low.label, '일반적인 수준');
+  assert.equal(LEVELS.medium.label, '일부 특징이 있음');
+  assert.equal(LEVELS.high.label, '뚜렷한 특징이 있음');
+  // 라벨에 (2점), (5점), (8점) 문구가 포함되어 있지 않음
+  for (const entry of Object.values(LEVELS) as { label: string }[]) {
+    assert.doesNotMatch(entry.label, /\d+점/);
+  }
 });

@@ -145,16 +145,6 @@ export function EventTest({ productNo, ready }: { productNo: number; ready: bool
               <div
                 key={`${sc.event}-${sc.relation}-${sc.sender}-${sc.purpose}`}
                 className="top-scenario-card"
-                style={{
-                  border: '1px solid var(--line-strong, #ccc)',
-                  borderRadius: 8,
-                  padding: 12,
-                  background: 'var(--surface, #fff)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  gap: 8,
-                }}
               >
                 <div>
                   <div className="row" style={{ gap: 6, marginBottom: 4, alignItems: 'center' }}>

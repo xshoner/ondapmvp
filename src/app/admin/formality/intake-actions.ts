@@ -10,7 +10,14 @@ import { initialPolicy, productRarity, RARE_FACTORS, type FormalityInput, type R
 import { assessPilotEvent, evidenceFromIntake, findTopEventScenarios, groundedFactors, LEVELS, type IntakeFactors, type RecommendedScenario } from '../../../engine/formality-intake.ts';
 import type { Cafe24Product } from '../../../engine/types.ts';
 
-export type Item = { description: string; factors: IntakeFactors; reviewed: boolean; rarity: number | null };
+export type Item = {
+  description: string;
+  factors: IntakeFactors;
+  reviewed: boolean;
+  rarity: number | null;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+};
 export type Pilot = { products: Cafe24Product[]; items: Record<string, Item> };
 export type SaveResult = { ok: true; item: Item } | { ok: false; error: string };
 export type DescriptionResult = { ok: true; text: string } | { ok: false; error: string };
@@ -124,6 +131,8 @@ export async function savePilotItem(no: number, description: string, factors: In
     return { ok: false, error: '입력 내용을 확인해 주세요.' };
   }
 
+  const existing = data.items[String(no)];
+
   const clean: IntakeFactors = {};
   for (const key of Object.keys(RARE_FACTORS) as RareFactor[]) {
     const f = factors?.[key];
@@ -157,16 +166,34 @@ export async function savePilotItem(no: number, description: string, factors: In
   }
 
   const rarity = reviewed ? productRarity(validEvidence, initialPolicy(catalog)).value : null;
-  const item: Item = { description, factors: clean, reviewed, rarity };
+
+  // 검수 완료(reviewed === true) 시점에만 새 완료 시각으로 갱신
+  // 임시 저장(reviewed === false) 시에는 이전 검수 일시를 보존(없으면 null)
+  const now = new Date().toISOString();
+  const reviewedAt = reviewed ? now : (existing?.reviewedAt ?? null);
+  const reviewedBy = reviewed ? (existing?.reviewedBy ?? 'admin') : (existing?.reviewedBy ?? null);
+
+  const item: Item = {
+    description,
+    factors: clean,
+    reviewed,
+    rarity,
+    reviewedAt,
+    reviewedBy,
+  };
 
   try {
-    await saveFormalityEvidenceItem({
+    const saved = await saveFormalityEvidenceItem({
       productNo: no,
       description,
       factors: clean,
       reviewed,
       rarity,
+      reviewedAt,
+      reviewedBy,
     });
+    item.reviewedAt = saved.reviewedAt;
+    item.reviewedBy = saved.reviewedBy;
   } catch (e) {
     return {
       ok: false,

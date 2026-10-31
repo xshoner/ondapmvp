@@ -22,9 +22,16 @@
 .intake-main { min-width: 0; display: grid; gap: 16px; }
 .intake-head { display: flex; justify-content: space-between; gap: 20px; align-items: center; }
 .intake-head p { margin: 0 0 4px; }
-.intake-result { min-width: 155px; padding: 14px 18px; background: var(--pine-weak, #e8f3ed); color: var(--pine-deep, #1b4d3e); border-radius: 8px; display: grid; flex-shrink: 0; }
-.intake-result span, .intake-result small { font-size: 12px; }
-.intake-result strong { font-size: 25px; }
+.intake-result { min-width: 175px; padding: 14px 18px; border-radius: 10px; display: grid; gap: 4px; flex-shrink: 0; transition: all 0.2s ease; }
+.intake-result-label { font-size: 12px; font-weight: 600; opacity: 0.9; }
+.intake-result-score { font-size: 26px; font-weight: 800; line-height: 1.15; }
+.intake-result-sub { font-size: 12px; opacity: 0.85; }
+
+/* 점수 상태별 스타일: 입체감과 분리감 부여 (단순 합격/불합격 단정 금지) */
+.intake-result-uncalculated { background: var(--surface-sunken, #f8f9fa); color: var(--text-muted, #64748b); border: 1.5px solid var(--line, #e2e8f0); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04); }
+.intake-result-dirty { background: #fffbeb; color: #92400e; border: 1.5px solid #f59e0b; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.12); }
+.intake-result-reviewed { background: linear-gradient(135deg, #e8f3ed 0%, #dcf0e5 100%); color: var(--pine-deep, #1b4d3e); border: 1.5px solid var(--pine-deep, #1b4d3e); box-shadow: 0 4px 14px rgba(27, 77, 62, 0.14); }
+
 .intake-section-title { align-items: start; gap: 16px; }
 .intake-section p { margin: 5px 0 12px; }
 .intake-factors { display: grid; }
@@ -32,6 +39,46 @@
 .intake-factor label { display: grid; gap: 4px; }
 .intake-factor p { margin: 3px 0 0; }
 .intake-basis { grid-column: 1 / -1; }
+
+/* 확인한 내용 및 출처 (원문 근거) 입력란 가독성 및 복사 편의 개선 */
+.intake-basis textarea {
+  width: 100%;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #ffffff;
+  color: #1e293b;
+  font-size: 13.5px;
+  line-height: 1.55;
+  min-height: 64px;
+  resize: vertical;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.intake-basis textarea:focus {
+  outline: none;
+  border-color: var(--pine-deep, #1b4d3e);
+  box-shadow: 0 0 0 3px rgba(27, 77, 62, 0.12);
+  background: #ffffff;
+}
+
+/* 행사 적합성 추천 예시 카드 입체감 */
+.top-scenario-card {
+  border: 1.5px solid #d1ded6;
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.top-scenario-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(27, 77, 62, 0.12);
+  border-color: var(--pine-deep, #1b4d3e);
+}
 .intake-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 16px; }
 .event-test-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 16px 0; }
 .event-test-fields label { display: grid; gap: 4px; }

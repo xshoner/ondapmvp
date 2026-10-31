@@ -1,0 +1,291 @@
+/* 격식지수 v2 검증실 전용 스타일 */
+
+.lab-source-banner {
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.lab-source-sample {
+  background: #f1f5f9;
+  border: 1.5px solid #cbd5e1;
+  color: #334155;
+}
+.lab-source-catalog {
+  background: linear-gradient(135deg, #e8f3ed 0%, #e0efe6 100%);
+  border: 1.5px solid var(--pine-deep, #1b4d3e);
+  color: var(--pine-deep, #1b4d3e);
+}
+
+.lab-source-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-right: 8px;
+}
+.lab-source-sample .lab-source-badge {
+  background: #cbd5e1;
+  color: #1e293b;
+}
+.lab-source-catalog .lab-source-badge {
+  background: var(--pine-deep, #1b4d3e);
+  color: #ffffff;
+}
+
+.lab-step-panel {
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+.lab-step-panel h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lab-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px 16px;
+  margin-top: 14px;
+}
+.lab-fields-grid label {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.lab-fields-grid select,
+.lab-fields-grid input[type="number"],
+.lab-fields-grid input[type="text"] {
+  width: 100%;
+  border: 1px solid var(--line-strong, #cbd5e1);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--surface, #ffffff);
+  font-size: 13.5px;
+}
+
+/* 2단계: 행사 격식 점수 및 추천 후보 요약 */
+.lab-event-summary {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) 1fr;
+  gap: 20px;
+  background: var(--surface-sunken, #f8fafc);
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  align-items: center;
+}
+.lab-event-score-card {
+  display: grid;
+  gap: 4px;
+}
+.lab-event-score-card strong {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--pine-deep, #1b4d3e);
+  line-height: 1.1;
+}
+
+.lab-candidates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin: 14px 0;
+}
+.lab-candidate-card {
+  border: 1.5px solid #d1ded6;
+  border-radius: 10px;
+  padding: 16px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.lab-candidate-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(27, 77, 62, 0.12);
+  border-color: var(--pine-deep, #1b4d3e);
+}
+.lab-rank-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--pine-weak, #e8f3ed);
+  color: var(--pine-deep, #1b4d3e);
+}
+.lab-candidate-title {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: #1e293b;
+  margin: 6px 0 2px;
+}
+
+/* 3단계: 전체 상품 판정 결과 비교 표 */
+.lab-filter-bar {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+.lab-filter-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.lab-filter-chip {
+  border: 1px solid var(--line, #cbd5e1);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  background: var(--surface, #ffffff);
+  cursor: pointer;
+  color: var(--text, #334155);
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+.lab-filter-chip:hover {
+  background: var(--surface-sunken, #f1f5f9);
+}
+.lab-filter-chip.active {
+  background: var(--pine-deep, #1b4d3e);
+  border-color: var(--pine-deep, #1b4d3e);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* 표 겹침 방지 컨테이너 및 전용 테이블 */
+.lab-table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--line, #cbd5e1);
+  border-radius: 8px;
+  margin: 12px 0;
+  background: var(--surface, #ffffff);
+  max-width: 100%;
+}
+.lab-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+.lab-table th {
+  position: static !important; /* globals.css의 sticky 충돌 방지 */
+  background: var(--surface-sunken, #f8fafc) !important;
+  color: var(--text-muted, #475569) !important;
+  font-weight: 600;
+  padding: 10px 14px;
+  border-bottom: 2px solid var(--line, #cbd5e1);
+  white-space: nowrap;
+}
+.lab-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line, #e2e8f0);
+  vertical-align: middle;
+}
+/* 첫 번째 열(상품명): nowrap 해제 및 가독 너비 보장 */
+.lab-table td:first-child {
+  white-space: normal !important;
+  min-width: 180px;
+  max-width: 320px;
+  word-break: keep-all;
+  font-weight: 600;
+  color: #1e293b;
+}
+.lab-table tr:hover td {
+  background: #f8fafc;
+}
+
+/* 상태 배지 */
+.lab-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.lab-badge-eligible {
+  background: var(--green-weak, #eaf5ea);
+  color: var(--green, #2e7d32);
+  border: 1px solid #c8e6c9;
+}
+.lab-badge-ineligible {
+  background: var(--red-weak, #fdf0f0);
+  color: var(--red, #d32f2f);
+  border: 1px solid #ffcdd2;
+}
+.lab-badge-reviewed {
+  background: var(--pine-weak, #e8f3ed);
+  color: var(--pine-deep, #1b4d3e);
+}
+.lab-badge-unreviewed {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+/* 고급 시험 기능 패널 */
+.lab-advanced-panel {
+  border: 1px dashed var(--line-strong, #cbd5e1);
+  border-radius: 10px;
+  padding: 16px 20px;
+  background: #fafafa;
+  margin-top: 24px;
+}
+.lab-advanced-panel summary {
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  color: #475569;
+  padding: 4px 0;
+}
+.lab-advanced-panel summary:hover {
+  color: var(--pine-deep, #1b4d3e);
+}
+.lab-simulation-warning {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  margin: 12px 0 16px;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .lab-event-summary {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .lab-fields-grid {
+    grid-template-columns: 1fr;
+  }
+}
