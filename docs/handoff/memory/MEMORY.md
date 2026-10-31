@@ -2,7 +2,3 @@
 - [온답 인프라 식별자·함정](reference-ondap-infra.md) — Vercel/Supabase ID, MCP 계정 불일치, SSO 보호, 127.0.0.1
 - [카페24 검증 결과](reference-cafe24-front-api.md) — 앱 설치 필수, localhost 불가, 호출 한도, 모바일 진열 번호
 - [한국어 응답·비밀값 취급](feedback-korean-and-credentials.md) — 항상 한국어, 채팅으로 받은 비밀번호는 저장 안 함
-- [개선 보고서·PRD (2026-10)](project-improvement-roadmap-2026-10.md) — 두 문서 링크, A/B/C 과제·P1 요구사항 번호, 인구감소지역 92곳
-- [GitHub 푸시 계정](reference-github-push-account.md) — 저장소는 xshoner 소유, 활성 계정 안 바꾸고 명령에만 xshoner 토큰
-- [화면 검증이 멈출 때](reference-headless-verify.md) — 숨겨진 브라우저 창은 rAF 정지 → headless Chrome CDP로 검증
-- [기능 상태와 DB 실행 여부](project-ops-features-2026-10-22.md) — 10/22 전부 배포(7e808cd), 20261025·20261026 운영 적용 완료(10/23), 키 교체 권고는 별도

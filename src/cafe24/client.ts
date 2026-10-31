@@ -105,3 +105,13 @@ export async function fetchAllProducts(config: Cafe24Config, deadline = Date.now
   }
   return all;
 }
+
+// 상세 설명은 목록 응답에 포함되지 않으므로 선택한 상품만 별도로 조회한다.
+export async function fetchProductDescription(config: Cafe24Config, productNo: number): Promise<string> {
+  if (!Number.isSafeInteger(productNo) || productNo <= 0) throw new Error('상품번호를 확인해 주세요.');
+  const body = await get<{ product: { product_no: number; simple_description?: string; summary_description?: string; description?: string; origin_place_value?: string } }>(config, `/products/${productNo}`);
+  const p = body.product;
+  if (!p || p.product_no !== productNo) throw new Error('카페24 상품 상세를 확인할 수 없습니다.');
+  const plain = (s: unknown) => typeof s === 'string' ? s.replace(/<!--[\s\S]*?-->/g, ' ').replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ').replace(/<[^>]*>/g, ' ').replace(/&nbsp;|&#160;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#39;/gi, "'").replace(/\s+/g, ' ').trim() : '';
+  return [p.origin_place_value && `원산지: ${plain(p.origin_place_value)}`, plain(p.summary_description), plain(p.simple_description), plain(p.description)].filter(Boolean).join('\n').slice(0, 12000);
+}

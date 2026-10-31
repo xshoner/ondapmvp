@@ -198,6 +198,25 @@ check('백업에서 새 DB로 복구해 접수 개수·재주문 원본 유지',
 const [{ count: recoveredRefs }] = (await recovered.query(`select count(*)::int count from public.designs where source_code is not null`)).rows;
 check('복구 후 재주문 원본 연결 보존', recoveredRefs > 0);
 
+// 격식지수 v2 테이블 RLS 및 관리자 접근 검증
+await asAnon();
+await expectError('격식지수 v2: 익명 고객은 상품 근거를 읽을 수 없음', () => q(`select * from public.product_evidence`), /permission denied/);
+await expectError('격식지수 v2: 익명 고객은 정책을 읽을 수 없음', () => q(`select * from public.formality_policies`), /permission denied/);
+await asAdmin();
+await q(`insert into public.product_evidence (product_no, reviewed, rarity_score, factors, description) values (27, true, 0.85, '{"skill":{"score":8,"basis":"전승"}}', '장인 설명')`);
+const [evRow] = await q(`select product_no, reviewed, rarity_score from public.product_evidence where product_no = 27`);
+check('격식지수 v2: 관리자는 상품 근거를 저장하고 조회할 수 있음', evRow.product_no === 27 && evRow.reviewed === true && Math.abs(Number(evRow.rarity_score) - 0.85) < 0.0001);
+const [beforeRemoval] = await q(`select jsonb_agg(to_jsonb(p)) as products,max(synced_at)::text as version from public.products p`);
+await q(`select public.sync_product_snapshot($1::jsonb,$2::timestamptz)`, [JSON.stringify(beforeRemoval.products.filter(p => p.product_no !== 27)), beforeRemoval.version]);
+const [remainingEvidence] = await q(`select count(*)::int n from public.product_evidence where product_no = 27`);
+check('상품이 목록에서 빠져도 동기화가 성공하고 검수 근거는 보존됨', remainingEvidence.n === 1);
+await db.exec(`reset role; select set_config('request.jwt.claims','{"role":"service_role"}',false);`);
+const [formalityBackup] = await q(`select public.export_application_snapshot() as s`);
+check('백업에 상품 근거와 정책 포함', formalityBackup.s.schemaVersion === '20261031' && formalityBackup.s.tables.product_evidence.some(x => x.product_no === 27) && Array.isArray(formalityBackup.s.tables.formality_policies));
+await recovered.exec(restoreSql(formalityBackup.s));
+const [{ n: restoredEvidence }] = (await recovered.query(`select count(*)::int n from public.product_evidence where product_no = 27`)).rows;
+check('시험 DB 복구에 상품 근거 포함', restoredEvidence === 1);
+
 // supabase/setup.sql(새 프로젝트에 한 번에 붙여넣는 파일)도 빈 DB에서 그대로 도는지
 const fresh = new PGlite();
 await fresh.exec(SUPABASE_STUB);

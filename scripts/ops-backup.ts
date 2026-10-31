@@ -17,7 +17,7 @@ const json = JSON.stringify(snapshot);
 writeFileSync(join(target, 'snapshot.json'), json, { flag: 'wx', mode: 0o600 });
 const sourceUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const files = referencedFiles(snapshot,sourceUrl);
-const manifest: { schemaVersion: string; sourceUrl: string; snapshotSha256: string; files: { path: string; sha256: string; bytes: number }[] } = { schemaVersion: '20261027', sourceUrl, snapshotSha256: sha256(json), files: [] };
+const manifest: { schemaVersion: string; sourceUrl: string; snapshotSha256: string; files: { path: string; sha256: string; bytes: number }[] } = { schemaVersion: snapshot.schemaVersion, sourceUrl, snapshotSha256: sha256(json), files: [] };
 for (const file of files) {
   if (!safeBackupPath(file)) throw new Error('안전하지 않은 저장소 경로입니다. 백업을 중단했습니다.');
   const [bucket, ...path] = file.split('/');

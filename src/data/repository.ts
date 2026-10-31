@@ -220,3 +220,117 @@ export async function getMonthlyRecommendationCount(): Promise<number | null> {
     return null;
   }
 }
+
+// --------------------------------------------------------------------------
+// 격식지수 v2 (특허출원 구조): 상품 근거(5대 희소 속성) 및 정책 저장소
+// --------------------------------------------------------------------------
+import type { IntakeFactors } from '../engine/formality-intake.ts';
+import { evidenceFromIntake } from '../engine/formality-intake.ts';
+import type { FormalityPolicy, ProductEvidence } from '../engine/eligibility.ts';
+import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { dataDir } from '../lib/paths.ts';
+
+export interface FormalityEvidenceItem {
+  productNo: number;
+  description: string;
+  factors: IntakeFactors;
+  reviewed: boolean;
+  rarity: number | null;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  updatedAt?: string;
+}
+
+export interface FormalityData {
+  products: Cafe24Product[];
+  items: Record<string, FormalityEvidenceItem>;
+}
+
+const PILOT_FILE = join(dataDir, 'formality-pilot.json');
+
+function readLocalPilot(catalogProducts: Cafe24Product[]): FormalityData {
+  if (!existsSync(PILOT_FILE)) return { products: catalogProducts, items: {} };
+  try {
+    const value = JSON.parse(readFileSync(PILOT_FILE, 'utf8')) as FormalityData;
+    if (!Array.isArray(value.products) || !value.items || typeof value.items !== 'object') {
+      throw new Error('잘못된 형식');
+    }
+    return value;
+  } catch {
+    throw new Error('로컬 시험 파일을 읽을 수 없습니다. 기존 파일을 확인해 주세요.');
+  }
+}
+
+function writeLocalPilot(value: FormalityData) {
+  const temp = `${PILOT_FILE}.${crypto.randomUUID()}.tmp`;
+  writeFileSync(temp, JSON.stringify(value, null, 2) + '\n');
+  renameSync(temp, PILOT_FILE);
+}
+
+// 상품 평가 데이터 로드 (로컬은 JSON, 운영은 Supabase products + product_evidence)
+export async function getFormalityData(): Promise<FormalityData> {
+  const catalog = await getCatalog();
+  if (dataSource() === 'local') {
+    return readLocalPilot(catalog.products);
+  }
+  const db = await createClient();
+  const { rows, error } = await readPages((from, to) => db
+    .from('product_evidence')
+    .select('product_no, description, factors, reviewed, rarity_score, reviewed_by, reviewed_at, updated_at')
+    .order('product_no').range(from, to), 20000, true);
+  if (error) fail('상품 근거 조회 (DB 변경 적용 여부도 확인해 주세요)', error);
+  const items: Record<string, FormalityEvidenceItem> = {};
+  for (const row of rows) {
+    const no = row.product_no as number;
+    items[String(no)] = {
+      productNo: no,
+      description: (row.description as string) ?? '',
+      factors: (row.factors as IntakeFactors) ?? {},
+      reviewed: Boolean(row.reviewed),
+      rarity: row.rarity_score !== null ? Number(row.rarity_score) : null,
+      reviewedBy: (row.reviewed_by as string | null) ?? null,
+      reviewedAt: (row.reviewed_at as string | null) ?? null,
+      updatedAt: (row.updated_at as string | null) ?? undefined,
+    };
+  }
+  return { products: catalog.products, items };
+}
+
+export async function saveLocalFormalityProducts(products: Cafe24Product[]): Promise<void> {
+  if (dataSource() !== 'local') throw new Error('로컬 상품 시험에서만 사용할 수 있습니다.');
+  const pilot = readLocalPilot((await getCatalog()).products);
+  validateProductSnapshot(products, pilot.products);
+  writeLocalPilot({ ...pilot, products });
+}
+
+// 상품 근거(희소 속성·설명·검수 상태) 단건 저장
+export async function saveFormalityEvidenceItem(item: FormalityEvidenceItem): Promise<void> {
+  if (dataSource() === 'local') {
+    const catalog = await getCatalog();
+    const pilot = readLocalPilot(catalog.products);
+    pilot.items[String(item.productNo)] = item;
+    writeLocalPilot(pilot);
+    return;
+  }
+  const db = await createClient();
+  const email = (await db.auth.getClaims()).data?.claims?.email as string | undefined;
+  const row = {
+    product_no: item.productNo,
+    description: item.description,
+    factors: item.factors,
+    reviewed: item.reviewed,
+    rarity_score: item.rarity,
+    reviewed_by: item.reviewed ? (email ?? 'admin') : null,
+    reviewed_at: item.reviewed ? (item.reviewedAt || new Date().toISOString()) : null,
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await db.from('product_evidence').upsert(row);
+  if (error) fail('상품 근거 저장', error);
+}
+
+// v2 검증실(lab)에서 사용할 검수 근거 목록 변환
+export async function getFormalityEvidenceList(): Promise<ProductEvidence[]> {
+  const data = await getFormalityData();
+  return Object.entries(data.items).map(([no, item]) => evidenceFromIntake(Number(no), item.factors, item.reviewed));
+}

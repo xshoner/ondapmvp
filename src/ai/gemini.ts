@@ -3,7 +3,7 @@
 // 모델: ONDAP_AI_MODEL(기본 gemini-3.6-flash) → 실패하면 ONDAP_AI_FALLBACK_MODEL(기본 gemini-flash-latest, 빈 값이면 끔)
 // 일시 오류(429·500·503·504)는 잠깐 기다렸다 다시 시도하고, 그래도 안 되면 대체 모델로 넘어간다.
 
-import { ApiError, GoogleGenAI } from '@google/genai';
+import { ApiError, GoogleGenAI, ThinkingLevel } from '@google/genai';
 
 const DEFAULT_AI_MODEL = 'gemini-3.6-flash';
 const DEFAULT_FALLBACK_MODEL = 'gemini-flash-latest';
@@ -60,7 +60,7 @@ export async function callWithRetry(
       } catch (e) {
         const status = statusOf(e);
         last = { status, model, timedOut: isTimeout(e) };
-        log(`[ondap_ai] ${model} 시도 ${i + 1}/${attempts} 실패: ${status ?? '-'} ${e instanceof Error ? e.message.slice(0, 300) : String(e)}`);
+        log(`[ondap_ai] ${model} 시도 ${i + 1}/${attempts} 실패: ${status ?? '-'}${isTimeout(e) ? ' 시간 초과' : ''}`);
         if (status === null || !RETRYABLE.has(status)) break; // 재시도해도 소용없는 오류 → 다음 모델
         if (i < attempts - 1) await sleep(base * 2 ** i);
       }
@@ -83,7 +83,7 @@ export async function generateJson(args: { system: string; user: string; schema:
         systemInstruction: args.system,
         responseMimeType: 'application/json',
         responseJsonSchema: args.schema,
-        temperature: 0.2,
+        ...(m === 'gemini-3.8-flash' ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : { temperature: 0.2 }),
         maxOutputTokens: 4096,
         abortSignal: AbortSignal.timeout(CALL_TIMEOUT_MS),
       },

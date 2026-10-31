@@ -13,7 +13,7 @@ function Num({ label, value, min, max, step = 1, onValue }: { label: string; val
   return <input aria-label={label} type="number" min={min} max={max} step={step} value={Number.isFinite(value) ? value : ''} onChange={(e) => { if (e.target.value !== '') onValue(Number(e.target.value)); }} style={{ width: 90 }} />;
 }
 
-export function FormalityWorkbench({ catalog }: { catalog: Catalog }) {
+export function FormalityWorkbench({ catalog, pilotEvidence = [] }: { catalog: Catalog; pilotEvidence?: ProductEvidence[] }) {
   const samples = useMemo(() => formalitySamples(catalog), [catalog]);
   const [workspace, setWorkspace] = useState<FormalityWorkspace>(() => samples.workspace);
   const [input, setInput] = useState<FormalityInput>({ ...SAMPLE_INPUT });
@@ -57,15 +57,23 @@ export function FormalityWorkbench({ catalog }: { catalog: Catalog }) {
     } catch (e) { setMessage(e instanceof Error ? e.message : '내보내지 못했습니다.'); }
   }
   return <>
-    <header className="page-head"><h1>격식지수 v2 검증실</h1><p>행사의 격식과 상품의 차별성을 따로 계산하고, 기준을 통과한 상품만 평가합니다.</p></header>
-    <p className="notice">{workspace.source === 'sample' ? '가상 샘플 3개로 검증 중입니다. 이름·가격·경력·생산량·점수는 모두 예시입니다.' : '현재 카탈로그로 검증 중입니다. 실제 근거를 입력하고 검수한 상품만 후보가 됩니다.'} 기준 수치는 검수 전 가안입니다. 고객 추천에는 적용되지 않습니다.</p>
+    <header className="page-head spread" style={{ alignItems: 'flex-start' }}>
+      <div>
+        <h1>격식지수 v2 검증실</h1>
+        <p>특허출원 구조(행사 분석부 → 상품 속성 평가부 → 매칭 필터부 → 상품 추천부)에 따른 전체 시뮬레이션 및 기준표 검증입니다.</p>
+      </div>
+      <div className="row" style={{ gap: 8 }}>
+        <a className="btn ghost small" href="/admin/formality">← 상품 평가·시험으로 돌아가기</a>
+      </div>
+    </header>
+    <p className="notice">{workspace.source === 'sample' ? '가상 샘플 3개로 검증 중입니다. 이름·가격·경력·생산량·점수는 모두 예시입니다.' : `현재 카탈로그(로컬 검수 상품 ${pilotEvidence.filter((e) => e.reviewed).length}건 포함)로 검증 중입니다. 실제 근거를 입력하고 검수한 상품만 후보가 됩니다.`} 기준 수치는 검수 전 가안입니다. 고객 추천에는 적용되지 않습니다.</p>
     <section className="panel" style={{ marginBottom: 20 }}>
       <h2>검증 자료</h2>
       <p className="small muted">자료를 전환하면 입력 중인 기준·근거가 초기화됩니다. 보관하려면 먼저 파일로 내보내세요. 이 화면은 DB에 저장하지 않으며 새로고침하면 초기화됩니다. 개인정보·비공개 서류는 근거 칸에 넣지 마세요.</p>
       <div className="row" style={{ gap: 12, flexWrap: 'wrap' }}>
         <label>자료 <select aria-label="검증 자료" value={workspace.source} onChange={(e) => {
           const source = e.target.value as FormalityWorkspace['source'];
-          setWorkspace(source === 'sample' ? structuredClone(samples.workspace) : { format: 'ondap-formality-v2', source, policy: initialPolicy(catalog), evidence: [] });
+          setWorkspace(source === 'sample' ? structuredClone(samples.workspace) : { format: 'ondap-formality-v2', source, policy: initialPolicy(catalog), evidence: structuredClone(pilotEvidence) });
           setSelectedNo((source === 'sample' ? samples.catalog : catalog).products[0]?.productNo ?? 0); setMessage('');
         }}><option value="sample">가상 샘플 3개</option><option value="catalog">현재 카탈로그</option></select></label>
         <button className="btn ghost small" onClick={() => download()}>기준·근거 파일로 내보내기</button>

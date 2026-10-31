@@ -17,8 +17,11 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
     <>
       <header className="page-head spread" style={{ alignItems: 'flex-end' }}>
         <div>
-          <h1>상품 지표</h1>
-          <p>상품마다 격식지수 지표와 어울리는 자리를 입력하고, 검토를 마치면 확정합니다. 저장하면 추천 결과에 바로 반영됩니다.</p>
+          <h1>상품 지표 (v1 운영)</h1>
+          <p>
+            현재 운영 고객 추천(v0.1)에 즉시 반영되는 상품 지표입니다. 특허출원 구조 기반 새 격식지수 평가는{' '}
+            <a className="text-link" href="/admin/formality">격식지수 v2</a> 메뉴에서 진행할 수 있습니다.
+          </p>
         </div>
         <div className="row" style={{ gap: 8 }}>
           <a className="btn ghost small" href="/admin/bulk">엑셀로 한꺼번에</a>

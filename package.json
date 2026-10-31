@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "next dev -H 127.0.0.1",
+    "dev:pilot": "node scripts/formality-pilot.mjs",
     "build": "next build",
     "start": "next start",
     "sync": "node scripts/sync-products.ts",

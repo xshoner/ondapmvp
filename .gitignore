@@ -20,4 +20,5 @@ next-env.d.ts
 /data/attribute-history.json
 /data/feedback.json
 /data/operation-events.json
+/data/formality-pilot.json
 /backups/

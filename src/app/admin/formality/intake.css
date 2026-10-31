@@ -1,0 +1,26 @@
+.intake-layout { display: grid; grid-template-columns: minmax(230px, 310px) minmax(0, 1fr); gap: 20px; align-items: start; }
+.intake-list { position: sticky; top: 16px; }
+.intake-search { display: grid; gap: 4px; margin: 18px 0 10px; }
+.intake-search input, .intake-section textarea, .intake-factor select { width: 100%; border: 1px solid var(--line-strong); border-radius: 8px; padding: 10px; background: var(--surface); }
+.intake-product-list { max-height: 60vh; overflow-y: auto; display: grid; gap: 4px; }
+.intake-product { text-align: left; border: 0; border-radius: 8px; background: transparent; padding: 10px; cursor: pointer; display: grid; gap: 2px; }
+.intake-product.active { background: var(--pine-weak); color: var(--pine-deep); }
+.intake-product small { color: var(--muted); }
+.intake-main { min-width: 0; display: grid; gap: 16px; }
+.intake-head { display: flex; justify-content: space-between; gap: 20px; align-items: center; }
+.intake-head p { margin: 0 0 4px; }
+.intake-result { min-width: 155px; padding: 14px 18px; background: var(--pine-weak); color: var(--pine-deep); border-radius: 8px; display: grid; }
+.intake-result span, .intake-result small { font-size: 12px; }
+.intake-result strong { font-size: 25px; }
+.intake-section-title { align-items: start; gap: 16px; }
+.intake-section p { margin: 5px 0 12px; }
+.intake-factors { display: grid; }
+.intake-factor { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(160px, 220px); gap: 8px 20px; padding: 16px 0; border-top: 1px solid var(--line); }
+.intake-factor label { display: grid; gap: 4px; }
+.intake-factor p { margin: 3px 0 0; }
+.intake-basis { grid-column: 1 / -1; }
+.intake-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 16px; }
+.event-test-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 16px 0; }
+.event-test-fields label { display: grid; gap: 4px; }
+.event-test-fields select { width: 100%; border: 1px solid var(--line-strong); border-radius: 8px; padding: 10px; background: var(--surface); }
+@media (max-width: 900px) { .intake-layout { grid-template-columns: 1fr; } .intake-list { position: static; } .intake-product-list { max-height: 220px; } .intake-head { align-items: start; flex-direction: column; } .intake-section-title { flex-direction: column; } .intake-factor { grid-template-columns: 1fr; } .intake-basis { grid-column: auto; } }

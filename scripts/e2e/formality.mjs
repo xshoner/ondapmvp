@@ -9,7 +9,7 @@ const select = async (label, value) => {
   await b.evaluate(`const e=document.querySelector(${JSON.stringify(`select[aria-label="${label}"]`)}); e.value=${JSON.stringify(value)};e.dispatchEvent(new Event('change',{bubbles:true}));`);
 };
 try {
-  await b.goto(`${BASE}/admin/formality`);
+  await b.goto(`${BASE}/admin/formality/lab`);
   await b.waitFor(`document.body.innerText.includes('행사 격식지수 85점')`, 60000);
   check('가상 자료 표시·고격식 85점·두 후보·제외 후 미평가', await b.evaluate(`return document.body.innerText.includes('가상 샘플 3개') && document.body.innerText.includes('0.860') && document.body.innerText.includes('0.740') && document.body.innerText.includes('0.280') && document.body.innerText.includes('기준을 충족한 상품은 2개') && document.body.innerText.includes('평가하지 않음')`));
   await select('행사', 'birthday'); await select('관계', 'family'); await select('발신 주체', 'personal');
@@ -46,7 +46,7 @@ try {
   await b.waitFor(`document.querySelector('[role="status"]')?.textContent.includes('설정 형식')`);
   check('손상된 파일은 현재 기준을 덮어쓰지 않음',await b.evaluate(`return document.querySelector('input[aria-label="기준 버전"]').value==='v2-draft-1'&&document.querySelectorAll('ol li').length===3`));
   await select('검증 자료','catalog');
-  await b.waitFor(`document.body.innerText.includes('현재 카탈로그로 검증 중')`);
+  await b.waitFor(`document.body.innerText.includes('현재 카탈로그(로컬 검수 상품')`);
   check('실상품 근거는 가상 점수로 채워지지 않음', await b.evaluate(`return document.querySelectorAll('ol li').length===0 && !document.body.innerText.includes('[가상]') && !document.querySelector('input[aria-label="상품 근거 검수 확인"]').checked`));
   await b.send('Emulation.setDeviceMetricsOverride',{width:375,height:812,deviceScaleFactor:1,mobile:true});
   check('모바일에서도 제목·설정 입력 노출',await b.evaluate(`return !!document.querySelector('h1')&&!!document.querySelector('select[aria-label="행사"]')`));
