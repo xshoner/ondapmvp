@@ -1,8 +1,70 @@
-import type { ScoredProduct } from '@/engine/types.ts';
+import type { ScoredProduct } from '../../engine/types.ts';
+import type { RecommendationItem } from '../../recommendation/contracts.ts';
 
-// 격식지수가 어떻게 나왔는지: 지표별 기여 점수 + 보너스
-export function ScoreBreakdown({ item }: { item: ScoredProduct }) {
-  if (item.model === 'v2') return <p className="small muted">상품 희소값 {item.baseIndex}점. 행사 기준과 예산을 충족한 상품을 판매가가 낮은 순으로 표시합니다.</p>;
+// 격식지수 및 핵심 추천 세부 점수 분해 컴포넌트
+export function ScoreBreakdown({ item }: { item: ScoredProduct | RecommendationItem }) {
+  // core-contract-v1 (새 추천 엔진 항목)
+  if ('recommendationScore' in item) {
+    const isLegacy = item.assessmentMethod === 'legacy-level';
+    const isMixed = item.assessmentMethod === 'mixed';
+
+    return (
+      <div style={{ display: 'grid', gap: 10, fontSize: 13 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--paper-deep, #F6F4EF)', padding: '6px 10px', borderRadius: 6 }}>
+          <span style={{ color: 'var(--ink-soft, #555)' }}>종합 추천점수 (S)</span>
+          <b style={{ color: 'var(--pine, #2D5A43)', fontSize: 16 }}>{item.recommendationScore.toFixed(1)}점</b>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 6, fontSize: 12 }}>
+          <div style={{ padding: '6px 8px', border: '1px solid var(--line, #E6E1D8)', borderRadius: 4 }}>
+            <span style={{ color: 'var(--muted, #777)' }}>행사 적합도(E)</span>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>{item.eventFitScore.toFixed(1)}점</div>
+          </div>
+          <div style={{ padding: '6px 8px', border: '1px solid var(--line, #E6E1D8)', borderRadius: 4 }}>
+            <span style={{ color: 'var(--muted, #777)' }}>가격 실속(V)</span>
+            <div style={{ fontWeight: 600, fontSize: 14, color: item.priceValueScore === null ? 'var(--muted, #888)' : 'inherit' }}>
+              {item.priceValueScore !== null ? `${item.priceValueScore.toFixed(1)}점` : '미평가(예산 미입력)'}
+            </div>
+          </div>
+          <div style={{ padding: '6px 8px', border: '1px solid var(--line, #E6E1D8)', borderRadius: 4 }}>
+            <span style={{ color: 'var(--muted, #777)' }}>상품 희소값(R)</span>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>{item.rarityValue.toFixed(1)}점</div>
+          </div>
+          <div style={{ padding: '6px 8px', border: '1px solid var(--line, #E6E1D8)', borderRadius: 4 }}>
+            <span style={{ color: 'var(--muted, #777)' }}>유효 근거 수</span>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>{item.evidenceCount} / 5개</div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 11 }}>
+          <span style={{ color: 'var(--muted, #888)' }}>평가 방식:</span>
+          {isLegacy ? (
+            <span style={{ padding: '1px 6px', background: '#FFFBEB', color: '#B45309', borderRadius: 4, fontWeight: 500 }}>
+              과거 방식 평가 (low/medium/high)
+            </span>
+          ) : isMixed ? (
+            <span style={{ padding: '1px 6px', background: '#F3E8FF', color: '#7E22CE', borderRadius: 4, fontWeight: 500 }}>
+              혼합 평가
+            </span>
+          ) : (
+            <span style={{ padding: '1px 6px', background: '#ECFDF5', color: '#047857', borderRadius: 4 }}>
+              신규 수치형 평가
+            </span>
+          )}
+          {item.rubricVersions?.length > 0 && (
+            <span style={{ color: 'var(--muted, #888)', marginLeft: 'auto' }}>
+              기준: {item.rubricVersions.join(', ')}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // 레거시 ScoredProduct
+  if (item.model === 'v2') {
+    return <p className="small muted">상품 희소값 {item.baseIndex}점. 행사 기준과 예산을 충족한 상품을 판매가가 낮은 순으로 표시합니다.</p>;
+  }
   const bonusTotal = item.bonuses.reduce((s, b) => s + b.points, 0);
   const maxPoints = Math.max(...item.indicators.map((c) => c.points), 1);
   return (

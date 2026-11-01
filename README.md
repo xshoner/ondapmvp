@@ -1,5 +1,7 @@
 # 온답 추천 엔진 MVP
 
+> **다음 작업 시작 전 필독:** [인계 기록 START-HERE.md](START-HERE.md). 이 브랜치는 추천 재설계 작업 중이며 운영 배포본이 아닙니다.
+
 행사 정보(행사 유형·관계·예산)를 넣으면 격식지수로 답례품 3개를 추천하는 엔진입니다. 상품은 카페24 쇼핑몰에서 가져옵니다.
 
 > 새 환경에 같은 서비스를 복제: **[docs/CLONE.md](docs/CLONE.md)** (코드 → DB `supabase/setup.sql` 한 번 → Vercel → 카페24, `npm run doctor`로 점검)

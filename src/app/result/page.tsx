@@ -287,7 +287,7 @@ function CompareTable({ items, quantity, config }: { items: ScoredProduct[]; qua
         </table>
       </div>
       <p className="small muted" style={{ marginTop: 8, textAlign: 'right', fontSize: 12 }}>
-        ※ 모바일에서는 표를 좌우로 스크롤하여 3개 상품을 비교할 수 있습니다.
+        ※ 모바일에서는 표를 좌우로 스크롤하여 추천 상품을 비교할 수 있습니다.
       </p>
     </details>
   );

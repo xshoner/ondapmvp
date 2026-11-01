@@ -162,7 +162,7 @@ export function GiftFinderForm({ events, relations, initial }: { events: Option[
             : '전체 예산을 넣어 주세요'}
         </p>
         <button type="button" className="btn block" disabled={!ready || pending} onClick={submit}>
-          {pending ? '고르는 중…' : '답례품 세 가지 추천받기'}
+          {pending ? '고르는 중…' : '답례품 추천받기'}
         </button>
       </div>
     </div>

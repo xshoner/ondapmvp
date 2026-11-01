@@ -1,0 +1,64 @@
+/* Antigravity recommendation-ui dedicated styles */
+
+.customer-recommendation-view {
+  box-sizing: border-box;
+}
+
+.customer-recommendation-view * {
+  box-sizing: border-box;
+}
+
+.pick-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  background: #FFFFFF;
+}
+
+.pick-card:hover {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+.disclosure > summary {
+  list-style: none;
+}
+
+.disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.disclosure > summary::after {
+  content: ' ▾';
+  font-size: 11px;
+  color: var(--muted, #888);
+}
+
+.disclosure[open] > summary::after {
+  content: ' ▴';
+}
+
+.compare-table th,
+.compare-table td {
+  border: 1px solid var(--line, #E6E1D8);
+}
+
+/* 375px 모바일 화면 최적화 */
+@media (max-width: 480px) {
+  .customer-recommendation-view {
+    padding: 12px 8px !important;
+  }
+
+  .dev-preview-container {
+    padding: 10px 8px !important;
+  }
+
+  .admin-workbench {
+    grid-template-columns: 1fr !important;
+  }
+
+  .pick-card h2 {
+    font-size: 18px !important;
+  }
+
+  .seal-score {
+    font-size: 18px !important;
+  }
+}

@@ -1,0 +1,1358 @@
+{
+  "fixtureVersion": "core-contract-v1",
+  "fictional": true,
+  "warning": "실상품·실제 평가·운영 정책이 아닌 UI 개발용 가상 자료입니다. 운영 DB에 저장하지 마세요.",
+  "rubric": {
+    "version": "numeric-draft-1",
+    "status": "draft",
+    "factors": {
+      "skill": {
+        "name": "생산자 숙련도",
+        "guide": "제작 경험·전승·숙련에 관한 확인 자료를 검토합니다.",
+        "anchors": [
+          {
+            "score": 0,
+            "description": "해당 특징이 없다고 확인한 자료가 있을 때만 사용합니다. 자료 없음은 미평가입니다."
+          },
+          {
+            "score": 2,
+            "description": "일반적인 생산 경험이라는 자료"
+          },
+          {
+            "score": 5,
+            "description": "지속된 전문 생산 경험과 제작 방식"
+          },
+          {
+            "score": 8,
+            "description": "숙련·전승·성과와 현재 상품 제작의 직접적 연결"
+          },
+          {
+            "score": 10,
+            "description": "8점 기준을 넘어서는 차별적 근거를 담당자가 비교 확인한 경우에만 사용합니다. 특정 인증·연수만으로 자동 부여하지 않습니다."
+          }
+        ]
+      },
+      "locality": {
+        "name": "지역적 희소성",
+        "guide": "생산 가능한 산지·생산자 범위를 확인합니다.",
+        "anchors": [
+          {
+            "score": 0,
+            "description": "해당 특징이 없다고 확인한 자료가 있을 때만 사용합니다. 자료 없음은 미평가입니다."
+          },
+          {
+            "score": 2,
+            "description": "여러 지역에서 보편적으로 생산됨"
+          },
+          {
+            "score": 5,
+            "description": "특정 산지의 생산 특징이 확인됨"
+          },
+          {
+            "score": 8,
+            "description": "생산 가능한 산지·생산자가 매우 제한된 자료"
+          },
+          {
+            "score": 10,
+            "description": "8점 기준을 넘어서는 차별적 근거를 담당자가 비교 확인한 경우에만 사용합니다. 특정 인증·연수만으로 자동 부여하지 않습니다."
+          }
+        ]
+      },
+      "distribution": {
+        "name": "유통 제한성",
+        "guide": "실제 생산량·공급 주기·판매처를 확인합니다.",
+        "anchors": [
+          {
+            "score": 0,
+            "description": "해당 특징이 없다고 확인한 자료가 있을 때만 사용합니다. 자료 없음은 미평가입니다."
+          },
+          {
+            "score": 2,
+            "description": "상시 대량 공급·광범위 유통"
+          },
+          {
+            "score": 5,
+            "description": "일부 판매처 또는 계절 공급"
+          },
+          {
+            "score": 8,
+            "description": "한정 생산량과 유통 범위가 구체적으로 확인됨"
+          },
+          {
+            "score": 10,
+            "description": "8점 기준을 넘어서는 차별적 근거를 담당자가 비교 확인한 경우에만 사용합니다. 특정 인증·연수만으로 자동 부여하지 않습니다."
+          }
+        ]
+      },
+      "history": {
+        "name": "역사성",
+        "guide": "제조 이력과 현재 제작 방식의 연속성을 확인합니다.",
+        "anchors": [
+          {
+            "score": 0,
+            "description": "해당 특징이 없다고 확인한 자료가 있을 때만 사용합니다. 자료 없음은 미평가입니다."
+          },
+          {
+            "score": 2,
+            "description": "보편적인 현대 제조 방식"
+          },
+          {
+            "score": 5,
+            "description": "일정 기간 유지된 제조 이력"
+          },
+          {
+            "score": 8,
+            "description": "긴 전승 이력과 현재 제조 방식의 연결이 확인됨"
+          },
+          {
+            "score": 10,
+            "description": "8점 기준을 넘어서는 차별적 근거를 담당자가 비교 확인한 경우에만 사용합니다. 특정 인증·연수만으로 자동 부여하지 않습니다."
+          }
+        ]
+      },
+      "story": {
+        "name": "지역 스토리",
+        "guide": "지역 문화·인물·장소와 상품의 연결 근거를 확인합니다.",
+        "anchors": [
+          {
+            "score": 0,
+            "description": "해당 특징이 없다고 확인한 자료가 있을 때만 사용합니다. 자료 없음은 미평가입니다."
+          },
+          {
+            "score": 2,
+            "description": "상품과 지역의 연계가 약하다고 확인됨"
+          },
+          {
+            "score": 5,
+            "description": "구체적인 지역 연결 자료"
+          },
+          {
+            "score": 8,
+            "description": "지역 문화·장소와 상품의 직접적인 연결 자료가 충분함"
+          },
+          {
+            "score": 10,
+            "description": "8점 기준을 넘어서는 차별적 근거를 담당자가 비교 확인한 경우에만 사용합니다. 특정 인증·연수만으로 자동 부여하지 않습니다."
+          }
+        ]
+      }
+    }
+  },
+  "policy": {
+    "policy": {
+      "version": "core-draft-1",
+      "eventBase": {
+        "funeral": 70,
+        "wedding": 70,
+        "longevity": 80,
+        "birth": 50,
+        "promotion": 80,
+        "opening": 60,
+        "thanks": 60,
+        "birthday": 40,
+        "ceremony": 70,
+        "conference": 70,
+        "anniversary": 70,
+        "holiday": 70
+      },
+      "relationShift": {
+        "senior": 15,
+        "business": 10,
+        "peer": -10,
+        "family": -15
+      },
+      "senderShift": {
+        "unknown": 0,
+        "personal": 0,
+        "company": 3,
+        "organization": 3,
+        "public": 5
+      },
+      "purposeShift": {
+        "unknown": 0,
+        "return": 0,
+        "celebration": 0,
+        "condolence": 0,
+        "commemoration": 0,
+        "promotion": -5
+      },
+      "rarityWeights": {
+        "skill": 1,
+        "locality": 1,
+        "distribution": 1,
+        "history": 1,
+        "story": 1
+      },
+      "minimumEvidenceCount": 2,
+      "rarityBands": [
+        {
+          "from": 0,
+          "min": 0,
+          "max": 100
+        },
+        {
+          "from": 40,
+          "min": 30,
+          "max": 100
+        },
+        {
+          "from": 60,
+          "min": 50,
+          "max": 100
+        },
+        {
+          "from": 80,
+          "min": 70,
+          "max": 100
+        }
+      ],
+      "scoreWeights": {
+        "eventFit": 70,
+        "priceValue": 30
+      }
+    },
+    "updatedAt": "2026-11-01T00:00:00.000Z"
+  },
+  "products": [
+    {
+      "productNo": 900001,
+      "name": "[가상] 비교 상품 900001",
+      "price": 22000,
+      "display": true,
+      "selling": true,
+      "soldOut": false,
+      "imageUrl": null,
+      "productUrl": "https://example.com/products/900001"
+    },
+    {
+      "productNo": 900002,
+      "name": "[가상] 비교 상품 900002",
+      "price": 18000,
+      "display": true,
+      "selling": true,
+      "soldOut": false,
+      "imageUrl": null,
+      "productUrl": "https://example.com/products/900002"
+    },
+    {
+      "productNo": 900003,
+      "name": "[가상] 비교 상품 900003",
+      "price": 30000,
+      "display": true,
+      "selling": true,
+      "soldOut": false,
+      "imageUrl": null,
+      "productUrl": "https://example.com/products/900003"
+    }
+  ],
+  "workspace": {
+    "products": [
+      {
+        "productNo": 900001,
+        "name": "[가상] 비교 상품 900001",
+        "price": 22000,
+        "display": true,
+        "selling": true,
+        "soldOut": false,
+        "imageUrl": null,
+        "productUrl": "https://example.com/products/900001"
+      },
+      {
+        "productNo": 900002,
+        "name": "[가상] 비교 상품 900002",
+        "price": 18000,
+        "display": true,
+        "selling": true,
+        "soldOut": false,
+        "imageUrl": null,
+        "productUrl": "https://example.com/products/900002"
+      },
+      {
+        "productNo": 900003,
+        "name": "[가상] 비교 상품 900003",
+        "price": 30000,
+        "display": true,
+        "selling": true,
+        "soldOut": false,
+        "imageUrl": null,
+        "productUrl": "https://example.com/products/900003"
+      }
+    ],
+    "assessments": [
+      {
+        "productNo": 900001,
+        "description": "실제 상품·인증·생산자 정보가 아닌 테스트 자료입니다.",
+        "factors": {
+          "skill": {
+            "score": 8,
+            "basis": "[가상] skill 확인 근거",
+            "method": "numeric",
+            "rubricVersion": "numeric-draft-1"
+          },
+          "locality": {
+            "score": 8,
+            "basis": "[가상] locality 확인 근거",
+            "method": "numeric",
+            "rubricVersion": "numeric-draft-1"
+          },
+          "distribution": {
+            "score": 8,
+            "basis": "[가상] distribution 확인 근거",
+            "method": "numeric",
+            "rubricVersion": "numeric-draft-1"
+          },
+          "history": {
+            "score": 8,
+            "basis": "[가상] history 확인 근거",
+            "method": "numeric",
+            "rubricVersion": "numeric-draft-1"
+          },
+          "story": {
+            "score": 8,
+            "basis": "[가상] story 확인 근거",
+            "method": "numeric",
+            "rubricVersion": "numeric-draft-1"
+          }
+        },
+        "reviewed": true,
+        "updatedAt": "2026-11-01T00:00:00.000Z",
+        "reviewedAt": "2026-11-01T00:00:00.000Z"
+      },
+      {
+        "productNo": 900002,
+        "description": "실제 상품·인증·생산자 정보가 아닌 테스트 자료입니다.",
+        "factors": {
+          "skill": {
+            "score": 9,
+            "basis": "[가상] skill 확인 근거",
+            "method": "numeric",
+            "rubricVersion": "numeric-draft-1"
+          },
+          "locality": {
+            "score": 9,
+            "basis": "[가상] locality 확인 근거",
+            "method": "numeric",
+            "rubricVersion": "numeric-draft-1"
+          },
+          "distribution": {
+            "score": 9,
+            "basis": "[가상] distribution 확인 근거",
+            "method": "numeric",
+            "rubricVersion": "numeric-draft-1"
+          },
+          "history": {
+            "score": 9,
+            "basis": "[가상] history 확인 근거",
+            "method": "numeric",
+            "rubricVersion": "numeric-draft-1"
+          },
+          "story": {
+            "score": 9,
+            "basis": "[가상] story 확인 근거",
+            "method": "numeric",
+            "rubricVersion": "numeric-draft-1"
+          }
+        },
+        "reviewed": true,
+        "updatedAt": "2026-11-01T00:00:00.000Z",
+        "reviewedAt": "2026-11-01T00:00:00.000Z"
+      },
+      {
+        "productNo": 900003,
+        "description": "실제 상품·인증·생산자 정보가 아닌 테스트 자료입니다.",
+        "factors": {
+          "skill": {
+            "score": 7,
+            "basis": "[가상] skill 확인 근거",
+            "method": "numeric",
+            "rubricVersion": "numeric-draft-1"
+          },
+          "locality": {
+            "score": 8,
+            "basis": "[가상] locality 확인 근거",
+            "method": "numeric",
+            "rubricVersion": "numeric-draft-1"
+          },
+          "distribution": {
+            "score": null,
+            "basis": "",
+            "method": "numeric",
+            "rubricVersion": null
+          },
+          "history": {
+            "score": null,
+            "basis": "",
+            "method": "numeric",
+            "rubricVersion": null
+          },
+          "story": {
+            "score": null,
+            "basis": "",
+            "method": "numeric",
+            "rubricVersion": null
+          }
+        },
+        "reviewed": true,
+        "updatedAt": "2026-11-01T00:00:00.000Z",
+        "reviewedAt": "2026-11-01T00:00:00.000Z"
+      }
+    ],
+    "policy": {
+      "policy": {
+        "version": "core-draft-1",
+        "eventBase": {
+          "funeral": 70,
+          "wedding": 70,
+          "longevity": 80,
+          "birth": 50,
+          "promotion": 80,
+          "opening": 60,
+          "thanks": 60,
+          "birthday": 40,
+          "ceremony": 70,
+          "conference": 70,
+          "anniversary": 70,
+          "holiday": 70
+        },
+        "relationShift": {
+          "senior": 15,
+          "business": 10,
+          "peer": -10,
+          "family": -15
+        },
+        "senderShift": {
+          "unknown": 0,
+          "personal": 0,
+          "company": 3,
+          "organization": 3,
+          "public": 5
+        },
+        "purposeShift": {
+          "unknown": 0,
+          "return": 0,
+          "celebration": 0,
+          "condolence": 0,
+          "commemoration": 0,
+          "promotion": -5
+        },
+        "rarityWeights": {
+          "skill": 1,
+          "locality": 1,
+          "distribution": 1,
+          "history": 1,
+          "story": 1
+        },
+        "minimumEvidenceCount": 2,
+        "rarityBands": [
+          {
+            "from": 0,
+            "min": 0,
+            "max": 100
+          },
+          {
+            "from": 40,
+            "min": 30,
+            "max": 100
+          },
+          {
+            "from": 60,
+            "min": 50,
+            "max": 100
+          },
+          {
+            "from": 80,
+            "min": 70,
+            "max": 100
+          }
+        ],
+        "scoreWeights": {
+          "eventFit": 70,
+          "priceValue": 30
+        }
+      },
+      "updatedAt": "2026-11-01T00:00:00.000Z"
+    },
+    "rubric": {
+      "version": "numeric-draft-1",
+      "status": "draft",
+      "factors": {
+        "skill": {
+          "name": "생산자 숙련도",
+          "guide": "제작 경험·전승·숙련에 관한 확인 자료를 검토합니다.",
+          "anchors": [
+            {
+              "score": 0,
+              "description": "해당 특징이 없다고 확인한 자료가 있을 때만 사용합니다. 자료 없음은 미평가입니다."
+            },
+            {
+              "score": 2,
+              "description": "일반적인 생산 경험이라는 자료"
+            },
+            {
+              "score": 5,
+              "description": "지속된 전문 생산 경험과 제작 방식"
+            },
+            {
+              "score": 8,
+              "description": "숙련·전승·성과와 현재 상품 제작의 직접적 연결"
+            },
+            {
+              "score": 10,
+              "description": "8점 기준을 넘어서는 차별적 근거를 담당자가 비교 확인한 경우에만 사용합니다. 특정 인증·연수만으로 자동 부여하지 않습니다."
+            }
+          ]
+        },
+        "locality": {
+          "name": "지역적 희소성",
+          "guide": "생산 가능한 산지·생산자 범위를 확인합니다.",
+          "anchors": [
+            {
+              "score": 0,
+              "description": "해당 특징이 없다고 확인한 자료가 있을 때만 사용합니다. 자료 없음은 미평가입니다."
+            },
+            {
+              "score": 2,
+              "description": "여러 지역에서 보편적으로 생산됨"
+            },
+            {
+              "score": 5,
+              "description": "특정 산지의 생산 특징이 확인됨"
+            },
+            {
+              "score": 8,
+              "description": "생산 가능한 산지·생산자가 매우 제한된 자료"
+            },
+            {
+              "score": 10,
+              "description": "8점 기준을 넘어서는 차별적 근거를 담당자가 비교 확인한 경우에만 사용합니다. 특정 인증·연수만으로 자동 부여하지 않습니다."
+            }
+          ]
+        },
+        "distribution": {
+          "name": "유통 제한성",
+          "guide": "실제 생산량·공급 주기·판매처를 확인합니다.",
+          "anchors": [
+            {
+              "score": 0,
+              "description": "해당 특징이 없다고 확인한 자료가 있을 때만 사용합니다. 자료 없음은 미평가입니다."
+            },
+            {
+              "score": 2,
+              "description": "상시 대량 공급·광범위 유통"
+            },
+            {
+              "score": 5,
+              "description": "일부 판매처 또는 계절 공급"
+            },
+            {
+              "score": 8,
+              "description": "한정 생산량과 유통 범위가 구체적으로 확인됨"
+            },
+            {
+              "score": 10,
+              "description": "8점 기준을 넘어서는 차별적 근거를 담당자가 비교 확인한 경우에만 사용합니다. 특정 인증·연수만으로 자동 부여하지 않습니다."
+            }
+          ]
+        },
+        "history": {
+          "name": "역사성",
+          "guide": "제조 이력과 현재 제작 방식의 연속성을 확인합니다.",
+          "anchors": [
+            {
+              "score": 0,
+              "description": "해당 특징이 없다고 확인한 자료가 있을 때만 사용합니다. 자료 없음은 미평가입니다."
+            },
+            {
+              "score": 2,
+              "description": "보편적인 현대 제조 방식"
+            },
+            {
+              "score": 5,
+              "description": "일정 기간 유지된 제조 이력"
+            },
+            {
+              "score": 8,
+              "description": "긴 전승 이력과 현재 제조 방식의 연결이 확인됨"
+            },
+            {
+              "score": 10,
+              "description": "8점 기준을 넘어서는 차별적 근거를 담당자가 비교 확인한 경우에만 사용합니다. 특정 인증·연수만으로 자동 부여하지 않습니다."
+            }
+          ]
+        },
+        "story": {
+          "name": "지역 스토리",
+          "guide": "지역 문화·인물·장소와 상품의 연결 근거를 확인합니다.",
+          "anchors": [
+            {
+              "score": 0,
+              "description": "해당 특징이 없다고 확인한 자료가 있을 때만 사용합니다. 자료 없음은 미평가입니다."
+            },
+            {
+              "score": 2,
+              "description": "상품과 지역의 연계가 약하다고 확인됨"
+            },
+            {
+              "score": 5,
+              "description": "구체적인 지역 연결 자료"
+            },
+            {
+              "score": 8,
+              "description": "지역 문화·장소와 상품의 직접적인 연결 자료가 충분함"
+            },
+            {
+              "score": 10,
+              "description": "8점 기준을 넘어서는 차별적 근거를 담당자가 비교 확인한 경우에만 사용합니다. 특정 인증·연수만으로 자동 부여하지 않습니다."
+            }
+          ]
+        }
+      }
+    }
+  },
+  "assessments": {
+    "numeric": {
+      "productNo": 900001,
+      "description": "실제 상품·인증·생산자 정보가 아닌 테스트 자료입니다.",
+      "factors": {
+        "skill": {
+          "score": 8,
+          "basis": "[가상] skill 확인 근거",
+          "method": "numeric",
+          "rubricVersion": "numeric-draft-1"
+        },
+        "locality": {
+          "score": 8,
+          "basis": "[가상] locality 확인 근거",
+          "method": "numeric",
+          "rubricVersion": "numeric-draft-1"
+        },
+        "distribution": {
+          "score": 8,
+          "basis": "[가상] distribution 확인 근거",
+          "method": "numeric",
+          "rubricVersion": "numeric-draft-1"
+        },
+        "history": {
+          "score": 8,
+          "basis": "[가상] history 확인 근거",
+          "method": "numeric",
+          "rubricVersion": "numeric-draft-1"
+        },
+        "story": {
+          "score": 8,
+          "basis": "[가상] story 확인 근거",
+          "method": "numeric",
+          "rubricVersion": "numeric-draft-1"
+        }
+      },
+      "reviewed": true,
+      "updatedAt": "2026-11-01T00:00:00.000Z",
+      "reviewedAt": "2026-11-01T00:00:00.000Z"
+    },
+    "legacy": {
+      "productNo": 900001,
+      "description": "[가상] 과거 수준형 자료",
+      "factors": {
+        "skill": {
+          "score": 8,
+          "basis": "[가상] 과거 숙련 근거",
+          "method": "legacy-level",
+          "rubricVersion": "legacy-level-v1"
+        },
+        "locality": {
+          "score": 8,
+          "basis": "[가상] 과거 지역 근거",
+          "method": "legacy-level",
+          "rubricVersion": "legacy-level-v1"
+        },
+        "distribution": {
+          "score": null,
+          "basis": "",
+          "method": "numeric",
+          "rubricVersion": null
+        },
+        "history": {
+          "score": null,
+          "basis": "",
+          "method": "numeric",
+          "rubricVersion": null
+        },
+        "story": {
+          "score": null,
+          "basis": "",
+          "method": "numeric",
+          "rubricVersion": null
+        }
+      },
+      "reviewed": true,
+      "updatedAt": null,
+      "reviewedAt": null
+    },
+    "mixed": {
+      "productNo": 900001,
+      "description": "[가상] 과거 수준형 자료",
+      "factors": {
+        "skill": {
+          "score": 8,
+          "basis": "[가상] 과거 숙련 근거",
+          "method": "legacy-level",
+          "rubricVersion": "legacy-level-v1"
+        },
+        "locality": {
+          "score": 8,
+          "basis": "[가상] 과거 지역 근거",
+          "method": "legacy-level",
+          "rubricVersion": "legacy-level-v1"
+        },
+        "distribution": {
+          "score": null,
+          "basis": "",
+          "method": "numeric",
+          "rubricVersion": null
+        },
+        "history": {
+          "score": null,
+          "basis": "",
+          "method": "numeric",
+          "rubricVersion": null
+        },
+        "story": {
+          "score": 9,
+          "basis": "[가상] 새 이야기 근거",
+          "method": "numeric",
+          "rubricVersion": "numeric-draft-1"
+        }
+      },
+      "reviewed": true,
+      "updatedAt": null,
+      "reviewedAt": null
+    }
+  },
+  "recommendations": [
+    {
+      "id": "three",
+      "response": {
+        "contractVersion": "core-contract-v1",
+        "policyVersion": "core-draft-1",
+        "request": {
+          "event": "wedding",
+          "relation": "business",
+          "quantity": 10,
+          "budget": {
+            "mode": "per_item",
+            "amount": 50000
+          },
+          "excludedProductNos": [],
+          "sender": "unknown",
+          "purpose": "unknown"
+        },
+        "items": [
+          {
+            "productNo": 900001,
+            "name": "[가상] 비교 상품 900001",
+            "unitPrice": 22000,
+            "itemSubtotal": 220000,
+            "imageUrl": null,
+            "productUrl": "https://example.com/products/900001",
+            "eventFormality": 80,
+            "rarityValue": 80,
+            "evidenceCount": 5,
+            "assessmentMethod": "numeric",
+            "assessmentUpdatedAt": "2026-11-01T00:00:00.000Z",
+            "rubricVersions": [
+              "numeric-draft-1"
+            ],
+            "eventFitScore": 100,
+            "priceValueScore": 56.00000000000001,
+            "recommendationScore": 86.8,
+            "rank": 1,
+            "reasons": [
+              "검수 자료와 행사 희소 기준을 충족합니다.",
+              "행사 적합도와 예산 내 가격 실속으로 비교했습니다."
+            ]
+          },
+          {
+            "productNo": 900002,
+            "name": "[가상] 비교 상품 900002",
+            "unitPrice": 18000,
+            "itemSubtotal": 180000,
+            "imageUrl": null,
+            "productUrl": "https://example.com/products/900002",
+            "eventFormality": 80,
+            "rarityValue": 90,
+            "evidenceCount": 5,
+            "assessmentMethod": "numeric",
+            "assessmentUpdatedAt": "2026-11-01T00:00:00.000Z",
+            "rubricVersions": [
+              "numeric-draft-1"
+            ],
+            "eventFitScore": 90,
+            "priceValueScore": 64,
+            "recommendationScore": 82.2,
+            "rank": 2,
+            "reasons": [
+              "검수 자료와 행사 희소 기준을 충족합니다.",
+              "행사 적합도와 예산 내 가격 실속으로 비교했습니다."
+            ]
+          },
+          {
+            "productNo": 900003,
+            "name": "[가상] 비교 상품 900003",
+            "unitPrice": 30000,
+            "itemSubtotal": 300000,
+            "imageUrl": null,
+            "productUrl": "https://example.com/products/900003",
+            "eventFormality": 80,
+            "rarityValue": 75,
+            "evidenceCount": 2,
+            "assessmentMethod": "numeric",
+            "assessmentUpdatedAt": "2026-11-01T00:00:00.000Z",
+            "rubricVersions": [
+              "numeric-draft-1"
+            ],
+            "eventFitScore": 95,
+            "priceValueScore": 40,
+            "recommendationScore": 78.5,
+            "rank": 3,
+            "reasons": [
+              "검수 자료와 행사 희소 기준을 충족합니다.",
+              "행사 적합도와 예산 내 가격 실속으로 비교했습니다."
+            ]
+          }
+        ],
+        "exclusions": [],
+        "notices": []
+      }
+    },
+    {
+      "id": "one",
+      "response": {
+        "contractVersion": "core-contract-v1",
+        "policyVersion": "core-draft-1",
+        "request": {
+          "event": "wedding",
+          "relation": "business",
+          "quantity": 10,
+          "budget": {
+            "mode": "per_item",
+            "amount": 50000
+          },
+          "excludedProductNos": [
+            900002,
+            900003
+          ],
+          "sender": "unknown",
+          "purpose": "unknown"
+        },
+        "items": [
+          {
+            "productNo": 900001,
+            "name": "[가상] 비교 상품 900001",
+            "unitPrice": 22000,
+            "itemSubtotal": 220000,
+            "imageUrl": null,
+            "productUrl": "https://example.com/products/900001",
+            "eventFormality": 80,
+            "rarityValue": 80,
+            "evidenceCount": 5,
+            "assessmentMethod": "numeric",
+            "assessmentUpdatedAt": "2026-11-01T00:00:00.000Z",
+            "rubricVersions": [
+              "numeric-draft-1"
+            ],
+            "eventFitScore": 100,
+            "priceValueScore": 56.00000000000001,
+            "recommendationScore": 86.8,
+            "rank": 1,
+            "reasons": [
+              "검수 자료와 행사 희소 기준을 충족합니다.",
+              "행사 적합도와 예산 내 가격 실속으로 비교했습니다."
+            ]
+          }
+        ],
+        "exclusions": [
+          {
+            "productNo": 900002,
+            "code": "customer_excluded",
+            "message": "고객이 제외한 상품입니다."
+          },
+          {
+            "productNo": 900003,
+            "code": "customer_excluded",
+            "message": "고객이 제외한 상품입니다."
+          }
+        ],
+        "notices": [
+          {
+            "code": "few_candidates",
+            "message": "조건을 충족한 상품은 1개입니다. 기준을 자동 완화하지 않았습니다."
+          }
+        ]
+      }
+    },
+    {
+      "id": "none",
+      "response": {
+        "contractVersion": "core-contract-v1",
+        "policyVersion": "core-draft-1",
+        "request": {
+          "event": "wedding",
+          "relation": "business",
+          "quantity": 10,
+          "budget": {
+            "mode": "per_item",
+            "amount": 1
+          },
+          "excludedProductNos": [],
+          "sender": "unknown",
+          "purpose": "unknown"
+        },
+        "items": [],
+        "exclusions": [
+          {
+            "productNo": 900001,
+            "code": "budget_exceeded",
+            "message": "상품비가 예산 한도를 초과합니다."
+          },
+          {
+            "productNo": 900002,
+            "code": "budget_exceeded",
+            "message": "상품비가 예산 한도를 초과합니다."
+          },
+          {
+            "productNo": 900003,
+            "code": "budget_exceeded",
+            "message": "상품비가 예산 한도를 초과합니다."
+          }
+        ],
+        "notices": [
+          {
+            "code": "no_candidates",
+            "message": "조건에 맞는 상품이 없습니다. 조건 또는 제외 사유를 확인해 주세요."
+          }
+        ]
+      }
+    },
+    {
+      "id": "no-budget",
+      "response": {
+        "contractVersion": "core-contract-v1",
+        "policyVersion": "core-draft-1",
+        "request": {
+          "event": "wedding",
+          "relation": "business",
+          "quantity": 10,
+          "budget": {
+            "mode": "none"
+          },
+          "excludedProductNos": [],
+          "sender": "unknown",
+          "purpose": "unknown"
+        },
+        "items": [
+          {
+            "productNo": 900001,
+            "name": "[가상] 비교 상품 900001",
+            "unitPrice": 22000,
+            "itemSubtotal": 220000,
+            "imageUrl": null,
+            "productUrl": "https://example.com/products/900001",
+            "eventFormality": 80,
+            "rarityValue": 80,
+            "evidenceCount": 5,
+            "assessmentMethod": "numeric",
+            "assessmentUpdatedAt": "2026-11-01T00:00:00.000Z",
+            "rubricVersions": [
+              "numeric-draft-1"
+            ],
+            "eventFitScore": 100,
+            "priceValueScore": null,
+            "recommendationScore": 100,
+            "rank": 1,
+            "reasons": [
+              "검수 자료와 행사 희소 기준을 충족합니다.",
+              "예산을 입력하지 않아 행사 적합도로 비교했습니다."
+            ]
+          },
+          {
+            "productNo": 900003,
+            "name": "[가상] 비교 상품 900003",
+            "unitPrice": 30000,
+            "itemSubtotal": 300000,
+            "imageUrl": null,
+            "productUrl": "https://example.com/products/900003",
+            "eventFormality": 80,
+            "rarityValue": 75,
+            "evidenceCount": 2,
+            "assessmentMethod": "numeric",
+            "assessmentUpdatedAt": "2026-11-01T00:00:00.000Z",
+            "rubricVersions": [
+              "numeric-draft-1"
+            ],
+            "eventFitScore": 95,
+            "priceValueScore": null,
+            "recommendationScore": 95,
+            "rank": 2,
+            "reasons": [
+              "검수 자료와 행사 희소 기준을 충족합니다.",
+              "예산을 입력하지 않아 행사 적합도로 비교했습니다."
+            ]
+          },
+          {
+            "productNo": 900002,
+            "name": "[가상] 비교 상품 900002",
+            "unitPrice": 18000,
+            "itemSubtotal": 180000,
+            "imageUrl": null,
+            "productUrl": "https://example.com/products/900002",
+            "eventFormality": 80,
+            "rarityValue": 90,
+            "evidenceCount": 5,
+            "assessmentMethod": "numeric",
+            "assessmentUpdatedAt": "2026-11-01T00:00:00.000Z",
+            "rubricVersions": [
+              "numeric-draft-1"
+            ],
+            "eventFitScore": 90,
+            "priceValueScore": null,
+            "recommendationScore": 90,
+            "rank": 3,
+            "reasons": [
+              "검수 자료와 행사 희소 기준을 충족합니다.",
+              "예산을 입력하지 않아 행사 적합도로 비교했습니다."
+            ]
+          }
+        ],
+        "exclusions": [],
+        "notices": []
+      }
+    },
+    {
+      "id": "total-budget",
+      "response": {
+        "contractVersion": "core-contract-v1",
+        "policyVersion": "core-draft-1",
+        "request": {
+          "event": "wedding",
+          "relation": "business",
+          "quantity": 10,
+          "budget": {
+            "mode": "total",
+            "amount": 500000
+          },
+          "excludedProductNos": [],
+          "sender": "unknown",
+          "purpose": "unknown"
+        },
+        "items": [
+          {
+            "productNo": 900001,
+            "name": "[가상] 비교 상품 900001",
+            "unitPrice": 22000,
+            "itemSubtotal": 220000,
+            "imageUrl": null,
+            "productUrl": "https://example.com/products/900001",
+            "eventFormality": 80,
+            "rarityValue": 80,
+            "evidenceCount": 5,
+            "assessmentMethod": "numeric",
+            "assessmentUpdatedAt": "2026-11-01T00:00:00.000Z",
+            "rubricVersions": [
+              "numeric-draft-1"
+            ],
+            "eventFitScore": 100,
+            "priceValueScore": 56.00000000000001,
+            "recommendationScore": 86.8,
+            "rank": 1,
+            "reasons": [
+              "검수 자료와 행사 희소 기준을 충족합니다.",
+              "행사 적합도와 예산 내 가격 실속으로 비교했습니다."
+            ]
+          },
+          {
+            "productNo": 900002,
+            "name": "[가상] 비교 상품 900002",
+            "unitPrice": 18000,
+            "itemSubtotal": 180000,
+            "imageUrl": null,
+            "productUrl": "https://example.com/products/900002",
+            "eventFormality": 80,
+            "rarityValue": 90,
+            "evidenceCount": 5,
+            "assessmentMethod": "numeric",
+            "assessmentUpdatedAt": "2026-11-01T00:00:00.000Z",
+            "rubricVersions": [
+              "numeric-draft-1"
+            ],
+            "eventFitScore": 90,
+            "priceValueScore": 64,
+            "recommendationScore": 82.2,
+            "rank": 2,
+            "reasons": [
+              "검수 자료와 행사 희소 기준을 충족합니다.",
+              "행사 적합도와 예산 내 가격 실속으로 비교했습니다."
+            ]
+          },
+          {
+            "productNo": 900003,
+            "name": "[가상] 비교 상품 900003",
+            "unitPrice": 30000,
+            "itemSubtotal": 300000,
+            "imageUrl": null,
+            "productUrl": "https://example.com/products/900003",
+            "eventFormality": 80,
+            "rarityValue": 75,
+            "evidenceCount": 2,
+            "assessmentMethod": "numeric",
+            "assessmentUpdatedAt": "2026-11-01T00:00:00.000Z",
+            "rubricVersions": [
+              "numeric-draft-1"
+            ],
+            "eventFitScore": 95,
+            "priceValueScore": 40,
+            "recommendationScore": 78.5,
+            "rank": 3,
+            "reasons": [
+              "검수 자료와 행사 희소 기준을 충족합니다.",
+              "행사 적합도와 예산 내 가격 실속으로 비교했습니다."
+            ]
+          }
+        ],
+        "exclusions": [],
+        "notices": []
+      }
+    },
+    {
+      "id": "tiny-total-budget",
+      "response": {
+        "contractVersion": "core-contract-v1",
+        "policyVersion": "core-draft-1",
+        "request": {
+          "event": "wedding",
+          "relation": "business",
+          "quantity": 10,
+          "budget": {
+            "mode": "total",
+            "amount": 1
+          },
+          "excludedProductNos": [],
+          "sender": "unknown",
+          "purpose": "unknown"
+        },
+        "items": [],
+        "exclusions": [
+          {
+            "productNo": 900001,
+            "code": "budget_exceeded",
+            "message": "상품비가 예산 한도를 초과합니다."
+          },
+          {
+            "productNo": 900002,
+            "code": "budget_exceeded",
+            "message": "상품비가 예산 한도를 초과합니다."
+          },
+          {
+            "productNo": 900003,
+            "code": "budget_exceeded",
+            "message": "상품비가 예산 한도를 초과합니다."
+          }
+        ],
+        "notices": [
+          {
+            "code": "no_candidates",
+            "message": "조건에 맞는 상품이 없습니다. 조건 또는 제외 사유를 확인해 주세요."
+          }
+        ]
+      }
+    },
+    {
+      "id": "legacy",
+      "response": {
+        "contractVersion": "core-contract-v1",
+        "policyVersion": "core-draft-1",
+        "request": {
+          "event": "wedding",
+          "relation": "business",
+          "quantity": 10,
+          "budget": {
+            "mode": "per_item",
+            "amount": 50000
+          },
+          "excludedProductNos": [],
+          "sender": "unknown",
+          "purpose": "unknown"
+        },
+        "items": [
+          {
+            "productNo": 900001,
+            "name": "[가상] 비교 상품 900001",
+            "unitPrice": 22000,
+            "itemSubtotal": 220000,
+            "imageUrl": null,
+            "productUrl": "https://example.com/products/900001",
+            "eventFormality": 80,
+            "rarityValue": 80,
+            "evidenceCount": 2,
+            "assessmentMethod": "legacy-level",
+            "assessmentUpdatedAt": null,
+            "rubricVersions": [
+              "legacy-level-v1"
+            ],
+            "eventFitScore": 100,
+            "priceValueScore": 56.00000000000001,
+            "recommendationScore": 86.8,
+            "rank": 1,
+            "reasons": [
+              "검수 자료와 행사 희소 기준을 충족합니다.",
+              "행사 적합도와 예산 내 가격 실속으로 비교했습니다."
+            ]
+          }
+        ],
+        "exclusions": [],
+        "notices": [
+          {
+            "code": "few_candidates",
+            "message": "조건을 충족한 상품은 1개입니다. 기준을 자동 완화하지 않았습니다."
+          },
+          {
+            "code": "legacy_assessment",
+            "message": "과거 수준형 평가가 포함되어 있습니다. 새 수치형 평가와 구분해 확인해 주세요."
+          }
+        ]
+      }
+    },
+    {
+      "id": "mixed",
+      "response": {
+        "contractVersion": "core-contract-v1",
+        "policyVersion": "core-draft-1",
+        "request": {
+          "event": "wedding",
+          "relation": "business",
+          "quantity": 10,
+          "budget": {
+            "mode": "per_item",
+            "amount": 50000
+          },
+          "excludedProductNos": [],
+          "sender": "unknown",
+          "purpose": "unknown"
+        },
+        "items": [
+          {
+            "productNo": 900001,
+            "name": "[가상] 비교 상품 900001",
+            "unitPrice": 22000,
+            "itemSubtotal": 220000,
+            "imageUrl": null,
+            "productUrl": "https://example.com/products/900001",
+            "eventFormality": 80,
+            "rarityValue": 83.333333333333,
+            "evidenceCount": 3,
+            "assessmentMethod": "mixed",
+            "assessmentUpdatedAt": null,
+            "rubricVersions": [
+              "legacy-level-v1",
+              "numeric-draft-1"
+            ],
+            "eventFitScore": 96.666666666667,
+            "priceValueScore": 56.00000000000001,
+            "recommendationScore": 84.4666666666669,
+            "rank": 1,
+            "reasons": [
+              "검수 자료와 행사 희소 기준을 충족합니다.",
+              "행사 적합도와 예산 내 가격 실속으로 비교했습니다."
+            ]
+          }
+        ],
+        "exclusions": [],
+        "notices": [
+          {
+            "code": "few_candidates",
+            "message": "조건을 충족한 상품은 1개입니다. 기준을 자동 완화하지 않았습니다."
+          },
+          {
+            "code": "legacy_assessment",
+            "message": "과거 수준형 평가가 포함되어 있습니다. 새 수치형 평가와 구분해 확인해 주세요."
+          }
+        ]
+      }
+    },
+    {
+      "id": "unreviewed",
+      "response": {
+        "contractVersion": "core-contract-v1",
+        "policyVersion": "core-draft-1",
+        "request": {
+          "event": "wedding",
+          "relation": "business",
+          "quantity": 10,
+          "budget": {
+            "mode": "per_item",
+            "amount": 50000
+          },
+          "excludedProductNos": [],
+          "sender": "unknown",
+          "purpose": "unknown"
+        },
+        "items": [],
+        "exclusions": [
+          {
+            "productNo": 900001,
+            "code": "unreviewed",
+            "message": "v2 검수 완료 자료가 없습니다."
+          },
+          {
+            "productNo": 900002,
+            "code": "unreviewed",
+            "message": "v2 검수 완료 자료가 없습니다."
+          },
+          {
+            "productNo": 900003,
+            "code": "unreviewed",
+            "message": "v2 검수 완료 자료가 없습니다."
+          }
+        ],
+        "notices": [
+          {
+            "code": "no_candidates",
+            "message": "조건에 맞는 상품이 없습니다. 조건 또는 제외 사유를 확인해 주세요."
+          }
+        ]
+      }
+    }
+  ],
+  "errors": {
+    "aiFailed": {
+      "ok": false,
+      "error": {
+        "code": "ai_failed",
+        "message": "AI 제안을 받지 못했습니다. 작성 내용은 유지됩니다."
+      }
+    },
+    "saveConflict": {
+      "ok": false,
+      "error": {
+        "code": "revision_conflict",
+        "message": "다른 저장 내용이 있습니다. 현재 입력을 보존하고 최신 자료를 확인해 주세요."
+      }
+    },
+    "saveFailed": {
+      "ok": false,
+      "error": {
+        "code": "save_failed",
+        "message": "저장하지 못했습니다. 입력을 유지한 상태로 다시 시도해 주세요."
+      }
+    },
+    "invalidInput": {
+      "ok": false,
+      "error": {
+        "code": "invalid_input",
+        "message": "예산을 확인해 주세요.",
+        "fields": {
+          "budget.amount": "1원 이상의 정수 금액이 필요합니다."
+        }
+      }
+    }
+  }
+}
