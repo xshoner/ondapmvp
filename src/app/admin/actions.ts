@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import {
-  getAttributeHistory, getCatalog, getRecommendationLogs, getSyncInfo, saveAttributes, saveConfig, saveExpectation, saveProducts, type AttributeChange,
+  getAttributeHistory, getCatalog, getRecommendationLogs, getSyncInfo, saveConfig, saveExpectation, saveProducts, type AttributeChange,
 } from '@/data/repository.ts';
 import { diffProducts, syncSummary } from '@/cafe24/sync-diff.ts';
 import { soldOutFavorites, type FavoriteAlert } from '@/stats/summary.ts';
@@ -16,44 +16,15 @@ import { recordOperation } from '@/data/operations-repository.ts';
 
 // 모든 액션은 첫 줄에서 requireAdmin()으로 확인한다. Supabase 모드에서는 DB의 RLS가 한 번 더 막는다.
 
-function clampScore(n: number, max: number): number {
-  return Math.min(max, Math.max(0, Math.round(n)));
-}
-
-// 저장 전 정리: 점수 0~10 정수, 태그 # 떼기, 사유 없는 제외·빈 의미 버리기
-function cleanAttributes(attrs: ProductAttributes): ProductAttributes {
-  if (!Number.isInteger(attrs.productNo) || attrs.productNo <= 0) throw new Error('잘못된 상품번호입니다.');
-  return {
-    ...attrs,
-    scores: Object.fromEntries(Object.entries(attrs.scores).map(([k, v]) => [k, clampScore(Number(v), 10)])),
-    tags: attrs.tags.map((t) => t.trim().replace(/^#/, '')).filter(Boolean),
-    excludedEvents: attrs.excludedEvents.filter((x) => x.reason.trim()),
-    meanings: Object.fromEntries(Object.entries(attrs.meanings).filter(([, v]) => v && v.trim())),
-  };
-}
-
 export async function saveAttributesAction(attrs: ProductAttributes): Promise<{ ok: true; savedAt: string }> {
   await requireAdmin();
-  await saveAttributes(cleanAttributes(attrs));
-  revalidatePath('/admin', 'layout');
-  return { ok: true, savedAt: new Date().toISOString() };
+  throw new Error('상품지표 저장은 종료되었습니다. 격식지수 판정에서 입력해 주세요.');
 }
 
 // 엑셀(CSV)로 고친 여러 상품을 한 번에 저장. 쇼핑몰에 없는 상품번호는 거절한다
 export async function saveAttributesBulkAction(list: ProductAttributes[]): Promise<{ ok: true; saved: number } | { ok: false; message: string }> {
-  try {
-    await requireAdmin();
-    if (!Array.isArray(list) || list.length === 0) return { ok: false, message: '저장할 상품이 없습니다.' };
-    if (list.length > 1000) return { ok: false, message: '한 번에 1,000개까지 저장할 수 있습니다.' };
-    const known = new Set((await getCatalog()).products.map((p) => p.productNo));
-    const missing = list.filter((a) => !known.has(a.productNo)).map((a) => a.productNo);
-    if (missing.length) return { ok: false, message: `쇼핑몰에 없는 상품번호: ${missing.join(', ')}` };
-    await saveAttributes(...list.map(cleanAttributes));
-    revalidatePath('/', 'layout');
-    return { ok: true, saved: list.length };
-  } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : String(e) };
-  }
+  await requireAdmin();
+  return { ok: false, message: '상품지표 일괄 저장은 종료되었습니다. 격식지수 판정에서 입력해 주세요.' };
 }
 
 export async function getAttributeHistoryAction(productNo: number): Promise<{ ok: true; history: AttributeChange[] } | { ok: false; message: string }> {
@@ -68,6 +39,7 @@ export async function getAttributeHistoryAction(productNo: number): Promise<{ ok
 
 export async function saveConfigAction(config: EngineConfig): Promise<{ ok: true }> {
   await requireAdmin();
+  if (!config?.formalityV2) throw new Error('이전 상품지표 기준은 저장할 수 없습니다. 격식지수 기준 설정을 이용해 주세요.');
   if (!Array.isArray(config?.indicators) || !config.events || !config.relations) throw new Error('잘못된 설정입니다.');
   if (config.formalityV2) {
     const { parseWorkspace } = await import('../../engine/eligibility.ts');

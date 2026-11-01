@@ -6,7 +6,7 @@ import { cafe24ConfigFromEnv, fetchAllProducts, fetchProductDescription } from '
 import { getCatalog, getFormalityData, getSyncInfo, saveFormalityEvidenceItem, saveLocalFormalityProducts, saveProducts } from '../../../data/repository.ts';
 import { validateProductSnapshot } from '../../../cafe24/sync-rules.ts';
 import { generateJson } from '../../../ai/gemini.ts';
-import { initialPolicy, productRarity, RARE_FACTORS, type FormalityInput, type RareFactor } from '../../../engine/eligibility.ts';
+import { initialPolicy, productRarity, RARE_FACTORS, parseRecommendation, type FormalityInput, type RareFactor } from '../../../engine/eligibility.ts';
 import { assessPilotEvent, evidenceFromIntake, findTopEventScenarios, groundedFactors, LEVELS, type IntakeFactors, type RecommendedScenario } from '../../../engine/formality-intake.ts';
 import type { Cafe24Product } from '../../../engine/types.ts';
 
@@ -33,6 +33,7 @@ export async function loadPilot(): Promise<Pilot> {
   const policy = initialPolicy(catalog);
   const items = Object.fromEntries(Object.entries(data.items).map(([no, item]) => [no, {
     ...item,
+    description: item.description ?? '',
     rarity: item.reviewed ? productRarity(evidenceFromIntake(Number(no), item.factors, true), policy).value : null,
   }]));
   return { ...data, items };
@@ -140,6 +141,11 @@ export async function savePilotItem(no: number, description: string, factors: In
   const existing = data.items[String(no)];
 
   const clean: IntakeFactors = {};
+  try {
+    clean.recommendation = parseRecommendation(factors?.recommendation);
+    const profile = clean.recommendation;
+    if (reviewed && (!profile?.category || profile.trust === null || profile.practicality === null || !profile.trustBasis || !profile.practicalityBasis)) return { ok: false, error: '상품 분류와 신뢰·실용성 점수 및 확인 근거를 입력해 주세요.' };
+  } catch (e) { return { ok: false, error: e instanceof Error ? e.message : '추천 정보를 확인해 주세요.' }; }
   for (const key of Object.keys(RARE_FACTORS) as RareFactor[]) {
     const f = factors?.[key];
     if (!f) continue;
@@ -217,6 +223,7 @@ export async function getTopEventScenariosAction(no: number): Promise<Recommende
   if (!p) return [];
   const item = data.items[String(no)];
   if (!item || !item.reviewed) return [];
+  if (!item.factors.recommendation) return [];
   const catalog = await getCatalog();
   const excluded = catalog.attributes.find((a) => a.productNo === no)?.excludedEvents ?? [];
 
@@ -235,6 +242,7 @@ export async function testPilotEvent(no: number, input: Pick<FormalityInput, 'ev
   const p = data.products.find((x) => x.productNo === no);
   if (!p) throw new Error('목록에 없는 상품입니다.');
   const item = data.items[String(no)];
+  if (!item?.factors.recommendation) throw new Error('추천 상품 정보를 입력하고 다시 판정해 주세요.');
   const catalog = await getCatalog();
   const excluded = catalog.attributes.find((a) => a.productNo === no)?.excludedEvents.find((e) => e.event === input.event);
 

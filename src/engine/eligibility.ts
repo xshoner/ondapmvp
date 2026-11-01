@@ -1,4 +1,4 @@
-import type { Catalog, Relation } from './types.ts';
+import type { Catalog, Relation, ProductAttributes, EventType } from './types.ts';
 
 export const OCCASIONS = { funeral: '장례', wedding: '결혼', longevity: '회갑/칠순', birth: '출산', promotion: '승진/취임', opening: '신축/개업', thanks: '감사', birthday: '생일', ceremony: '공식 개막식·기념식', conference: '학술·기관 행사', anniversary: '창립기념', holiday: '명절' } as const;
 export const SENDERS = { unknown: '미입력', personal: '개인', company: '기업', organization: '단체', public: '공공기관' } as const;
@@ -23,9 +23,31 @@ export interface FormalityPolicy {
   rankWeights: Record<keyof typeof RANK_FACTORS, number>;
 }
 export interface ProductEvidence {
+  recommendation?: V2Recommendation;
   productNo: number;
   reviewed: boolean;
   factors: Partial<Record<RareFactor, { score: number; basis: string }>>;
+}
+export interface V2Recommendation {
+  region: string;
+  category: string;
+  trust: number | null;
+  practicality: number | null;
+  trustBasis: string;
+  practicalityBasis: string;
+  excludedEvents: EventType[];
+}
+
+export function parseRecommendation(value: unknown): V2Recommendation | undefined {
+  if (value === undefined) return undefined;
+  const v = object(value);
+  if (!Array.isArray(v.excludedEvents) || v.excludedEvents.some((e) => !['funeral','wedding','longevity','birth','promotion','opening','thanks','birthday'].includes(e))) throw new Error('제외 행사를 확인해 주세요.');
+  return { region: text(v.region, 80), category: text(v.category, 80), trust: v.trust === null ? null : number(v.trust, 0, 10), practicality: v.practicality === null ? null : number(v.practicality, 0, 10), trustBasis: text(v.trustBasis, 1000), practicalityBasis: text(v.practicalityBasis, 1000), excludedEvents: [...new Set(v.excludedEvents)] as EventType[] };
+}
+
+export function v2Attributes(productNo: number, evidence?: ProductEvidence): ProductAttributes {
+  const p = evidence?.recommendation;
+  return { productNo, region: p?.region || '국내', category: p?.category || '', scores: { ...(p?.trust !== null && p?.trust !== undefined && p.trustBasis ? { trust: p.trust } : {}), ...(p?.practicality !== null && p?.practicality !== undefined && p.practicalityBasis ? { practicality: p.practicality } : {}) }, excludedEvents: (p?.excludedEvents ?? []).map((event) => ({ event, reason: 'v2 판정에서 제외' })), events: [], relations: [], meanings: {}, tags: [], story: '', reviewed: evidence?.reviewed === true };
 }
 export interface FormalityWorkspace { format: 'ondap-formality-v2'; source: 'sample' | 'catalog'; policy: FormalityPolicy; evidence: ProductEvidence[] }
 export interface FormalityInput {
@@ -40,9 +62,9 @@ export interface FormalityInput {
 export function initialPolicy(catalog: Catalog): FormalityPolicy {
   if (catalog.config.formalityV2) return structuredClone(catalog.config.formalityV2);
   return {
-    version: 'v2-draft-1',
-    eventBase: Object.fromEntries(Object.keys(OCCASIONS).map((key) => [key, Object.hasOwn(catalog.config.events, key) ? catalog.config.events[key as keyof Catalog['config']['events']].formalityTarget * 10 : 70])) as FormalityPolicy['eventBase'],
-    relationShift: Object.fromEntries(Object.entries(catalog.config.relations).map(([key, value]) => [key, value.formalityShift * 10])) as FormalityPolicy['relationShift'],
+    version: 'v2-default-1',
+    eventBase: { funeral: 70, wedding: 70, longevity: 80, birth: 50, promotion: 80, opening: 60, thanks: 60, birthday: 40, ceremony: 70, conference: 70, anniversary: 70, holiday: 70 },
+    relationShift: { senior: 15, business: 10, peer: -10, family: -15 },
     senderShift: { unknown: 0, personal: 0, company: 3, organization: 3, public: 5 },
     purposeShift: { unknown: 0, return: 0, celebration: 0, condolence: 0, commemoration: 0, promotion: -5 },
     rarityWeights: { skill: 1, locality: 1, distribution: 1, history: 1, story: 1 },
@@ -99,7 +121,7 @@ export function parseWorkspace(value: unknown): FormalityWorkspace {
       const f = object(factors[key]);
       clean[key] = { score: number(f.score, 0, 10), basis: text(f.basis, 2000) };
     }
-    return { productNo, reviewed: e.reviewed, factors: clean };
+    return { productNo, reviewed: e.reviewed, factors: clean, recommendation: parseRecommendation(e.recommendation) };
   });
   return { format: 'ondap-formality-v2', source: w.source as FormalityWorkspace['source'], evidence, policy: {
     version, eventBase: numbers(p.eventBase, Object.keys(OCCASIONS) as (keyof typeof OCCASIONS)[], 0, 100),
@@ -139,7 +161,8 @@ export function evaluateFormality(catalog: Catalog, raw: FormalityWorkspace, inp
   const decisions = catalog.products.map((product) => {
     if (!Number.isSafeInteger(product.productNo) || seen.has(product.productNo)) throw new Error('카탈로그 상품번호가 잘못되거나 중복됐습니다.');
     seen.add(product.productNo);
-    const a = attrs.get(product.productNo), rarity = productRarity(evidence.get(product.productNo), policy);
+    const item = evidence.get(product.productNo);
+    const a = catalog.formalityEvidence !== undefined ? v2Attributes(product.productNo, item) : attrs.get(product.productNo), rarity = productRarity(item, policy);
     const no = (code: string, reason: string) => ({ product, rarity, eligible: false, code, reason, rankScore: null as number | null, ranking: null as Record<string, number> | null, category: a?.category ?? '' });
     if (!product.display || !product.selling || product.soldOut) return no('unavailable', '품절·미진열·판매 중지');
     if (!Number.isSafeInteger(product.price) || product.price < 0 || !Number.isSafeInteger(product.price * input.quantity)) return no('price_invalid', '가격 확인 필요');
@@ -147,6 +170,7 @@ export function evaluateFormality(catalog: Catalog, raw: FormalityWorkspace, inp
     const banned = a.excludedEvents.find((x) => x.event === input.event);
     if (banned) return no('event_banned', `행사 제외: ${banned.reason}`);
     if (!rarity.reviewed) return no('unreviewed', '상품 근거 미검수');
+    if (catalog.formalityEvidence !== undefined && (!item?.recommendation?.category || item.recommendation.trust === null || item.recommendation.practicality === null || !item.recommendation.trustBasis || !item.recommendation.practicalityBasis)) return no('profile_missing', 'v2 추천 상품 정보 입력 및 재검수 필요');
     if (rarity.value === null) return no('evidence_missing', '근거가 있는 유효 희소 속성이 2개 미만');
     if (rarity.value < event.band.min || rarity.value > event.band.max) return no('rarity_outside', `희소값 ${rarity.value.toFixed(3)}: 허용 ${event.band.min}~${event.band.max} 밖`);
     if (input.budget !== null && product.price > input.budget) return no('budget_exceeded', '예산 초과');

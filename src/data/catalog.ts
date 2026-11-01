@@ -6,6 +6,7 @@ import { dataDir } from '../lib/paths.ts';
 import type { Cafe24Product, Catalog, EngineConfig, ProductAttributes } from '../engine/types.ts';
 import type { FeedbackLog } from '../lib/feedback.ts';
 import { evidenceFromIntake, type IntakeFactors } from '../engine/formality-intake.ts';
+import { v2Attributes } from '../engine/eligibility.ts';
 
 function readJson<T>(file: string): T {
   return JSON.parse(readFileSync(join(dataDir, file), 'utf8')) as T;
@@ -26,7 +27,8 @@ export function loadCatalog(): Catalog {
 
 // 로컬 편집기와 결재 문서가 같은 검수 결과를 사용한다.
 export function loadRecommendationCatalog(): Catalog {
-  const catalog = loadCatalog();
+  const { products } = readJson<{ products: Cafe24Product[] }>('cafe24-products.json');
+  const catalog: Catalog = { products, attributes: [], config: readJson<EngineConfig>('config/engine.json') };
   const path = join(dataDir, 'formality-pilot.json');
   if (!existsSync(path)) return { ...catalog, formalityEvidence: [] };
   const data = JSON.parse(readFileSync(path, 'utf8')) as { items: Record<string, { factors: IntakeFactors; reviewed: boolean }> };
@@ -34,7 +36,7 @@ export function loadRecommendationCatalog(): Catalog {
     const evidence = evidenceFromIntake(Number(no), item.factors, true);
     return { ...evidence, factors: Object.fromEntries(Object.entries(evidence.factors).map(([key, value]) => [key, { ...value, basis: '관리자 검수 완료' }])) };
   });
-  return { ...catalog, formalityEvidence };
+  return { ...catalog, attributes: products.map((p) => v2Attributes(p.productNo, formalityEvidence.find((e) => e.productNo === p.productNo))), formalityEvidence };
 }
 
 export function loadSyncInfo(): { mallId: string; syncedAt: string } {

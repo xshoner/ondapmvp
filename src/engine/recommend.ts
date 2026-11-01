@@ -10,7 +10,7 @@
 
 import { baseIndex, scoreForSituation } from './formality.ts';
 import { buildReason, tierFor } from './explain.ts';
-import { evaluateFormality, initialPolicy, RANK_FACTORS, type ProductEvidence } from './eligibility.ts';
+import { evaluateFormality, initialPolicy, RANK_FACTORS, v2Attributes, type ProductEvidence } from './eligibility.ts';
 import type {
   Catalog,
   Exclusion,
@@ -81,7 +81,7 @@ function filterAndScoreV2(catalog: Catalog, input: RecommendInput, budgetMax: nu
     event: input.event, relation: input.relation, sender: 'unknown', purpose: 'unknown',
     budget: budgetMax ?? null, quantity: input.quantity ?? 1,
   });
-  const attrsByNo = new Map(catalog.attributes.map((a) => [a.productNo, a]));
+  const attrsByNo = new Map(evidence.map((e) => [e.productNo, v2Attributes(e.productNo, e)]));
   const candidates: ScoredProduct[] = [];
   const excluded: Exclusion[] = [];
   for (const decision of evaluation.decisions) {
@@ -123,7 +123,7 @@ function pickDiverse(ranked: ScoredProduct[], count: number, maxPerCategory: num
 }
 
 export function recommend(catalog: Catalog, input: RecommendInput): RecommendResult {
-  const count = catalog.config.resultCount;
+  const count = catalog.formalityEvidence ? 3 : catalog.config.resultCount;
   let { candidates, excluded } = filterAndScore(catalog, input, input.budgetMax);
   let relaxedBudget: number | null = null;
 

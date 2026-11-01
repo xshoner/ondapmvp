@@ -1,9 +1,10 @@
 import { eventFormality, OCCASIONS, productRarity, PURPOSES, RARE_FACTORS, SENDERS, type FormalityInput, type FormalityPolicy, type ProductEvidence, type RareFactor } from './eligibility.ts';
 import type { Cafe24Product, Relation } from './types.ts';
+import { parseRecommendation, type V2Recommendation } from './eligibility.ts';
 
 export type Level = 'low' | 'medium' | 'high';
 export interface IntakeFactor { level: Level; basis: string }
-export type IntakeFactors = Partial<Record<RareFactor, IntakeFactor>>;
+export type IntakeFactors = Partial<Record<RareFactor, IntakeFactor>> & { recommendation?: V2Recommendation };
 export const LEVELS: Record<Level, { label: string; score: number }> = {
   low: { label: '일반적인 수준', score: 2 }, medium: { label: '일부 특징이 있음', score: 5 }, high: { label: '뚜렷한 특징이 있음', score: 8 },
 };
@@ -14,7 +15,7 @@ export function evidenceFromIntake(productNo: number, factors: IntakeFactors, re
     if (!f || !Object.hasOwn(LEVELS, f.level) || typeof f.basis !== 'string' || !f.basis.trim()) return [];
     return [[key, { score: LEVELS[f.level].score, basis: f.basis.trim().slice(0, 2000) }]];
   });
-  return { productNo, reviewed, factors: Object.fromEntries(entries) };
+  return { productNo, reviewed, factors: Object.fromEntries(entries), recommendation: parseRecommendation(factors.recommendation) };
 }
 
 // AI가 제시한 근거는 실제 입력에 있는 문장만 남긴다. 사실 확인은 관리자가 한다.
