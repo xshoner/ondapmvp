@@ -35,7 +35,7 @@ export default async function PackagingPage({ searchParams }: { searchParams: Se
   const from: PackagingEntry = sp.from === 'cafe24' || sp.from === 'pick' || sp.from === 'mine' ? sp.from : 'recommend';
   // 돌아갈 곳: 카페24 상품 페이지 / 상품 고르기 / 추천 결과(행사·관계·예산·수량을 그대로 넘겨받는다) / 처음
   const backQuery = new URLSearchParams();
-  for (const k of ['event', 'relation', 'budget', 'qty']) if (typeof sp[k] === 'string') backQuery.set(k, sp[k] as string);
+  for (const k of ['event', 'relation', 'budget', 'budgetMode', 'totalBudget', 'qty', 'exclude', 'sender', 'purpose']) if (typeof sp[k] === 'string') backQuery.set(k, sp[k] as string);
   const [backHref, backLabel] =
     from === 'cafe24' && product ? [product.url, '‹ 상품으로']
     : from === 'pick' ? ['/packaging/pick', '‹ 상품 고르기']

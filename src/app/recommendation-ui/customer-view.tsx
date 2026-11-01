@@ -127,6 +127,9 @@ export function CustomerRecommendationView({
     } else {
       p.set('budgetMode', 'none');
     }
+    if (req.excludedProductNos.length) p.set('exclude', req.excludedProductNos.join(','));
+    if (req.sender && req.sender !== 'unknown') p.set('sender', req.sender);
+    if (req.purpose && req.purpose !== 'unknown') p.set('purpose', req.purpose);
     return `/packaging?${p.toString()}`;
   };
 

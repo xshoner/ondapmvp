@@ -77,6 +77,9 @@ export default async function ResultPage({ searchParams }: { searchParams: Searc
   const packagingHref = (productNo: number) => {
     const p = new URLSearchParams({ product: String(productNo), qty: String(quantity), event, relation });
     if (q.budget !== null) p.set('budget', String(q.budget));
+    if (q.budgetMode) p.set('budgetMode', q.budgetMode);
+    if (q.totalBudget != null) p.set('totalBudget', String(q.totalBudget));
+    if (q.exclude.length) p.set('exclude', q.exclude.join(','));
     return `/packaging?${p}`;
   };
   // 뺄 수 있는 칸이 남았을 때만 "빼고 다시" 링크를 준다

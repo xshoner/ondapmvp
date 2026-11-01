@@ -13,7 +13,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   const relations = relationIds(config).map((id) => ({ id, name: config.relations[id].name }));
   const q = parseResultQuery(sp);
   const initial = events.some((e) => e.id === q.event) && relations.some((r) => r.id === q.relation)
-    ? { event: q.event, relation: q.relation, budget: q.budget, qty: q.qty }
+    ? { event: q.event, relation: q.relation, budget: q.budget, qty: q.qty, budgetMode: q.budgetMode, totalBudget: q.totalBudget }
     : null;
 
   return (
