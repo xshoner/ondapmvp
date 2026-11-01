@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { initialPolicy, OCCASIONS, RANK_FACTORS, RARE_FACTORS, parseWorkspace, type FormalityPolicy } from '@/engine/eligibility.ts';
+import { initialPolicy, OCCASIONS, RARE_FACTORS, parseWorkspace, type FormalityPolicy } from '@/engine/eligibility.ts';
 import type { Catalog, Relation } from '@/engine/types.ts';
 import { saveConfigAction } from '../actions.ts';
 
@@ -33,9 +33,6 @@ export function WeightsEditor({ catalog }: { catalog: Catalog }) {
     </section>
     <section className="panel"><h2>상품 희소 속성 가중치</h2><p className="small muted">근거가 확인된 속성 중 가중치가 큰 항목이 희소값에 더 반영됩니다.</p>
       {Object.entries(RARE_FACTORS).map(([key, item]) => <label className="spread" key={key}>{item.name}{input(`${item.name} 가중치`, policy.rarityWeights[key as keyof typeof RARE_FACTORS], 0, 100, 1, (v) => edit((p) => { p.rarityWeights[key as keyof typeof RARE_FACTORS] = v; }))}</label>)}
-    </section>
-    <section className="panel"><h2>추천 순위 가중치</h2><p className="small muted">희소 기준을 통과한 상품의 순위를 정합니다. 예산이 없으면 가격 항목을 제외합니다.</p>
-      {Object.entries(RANK_FACTORS).map(([key, name]) => <label className="spread" key={key}>{name}{input(`${name} 가중치`, policy.rankWeights[key as keyof typeof RANK_FACTORS], 0, 100, 1, (v) => edit((p) => { p.rankWeights[key as keyof typeof RANK_FACTORS] = v; }))}</label>)}
     </section>
     <section className="panel"><h2>행사 점수별 허용 희소 구간</h2><p className="small muted">각 행사 점수 이상부터 해당 구간을 적용합니다. 희소값은 0~1입니다.</p>
       <table className="data"><thead><tr><th>행사 점수 이상</th><th>희소값 하한</th><th>희소값 상한</th></tr></thead><tbody>{policy.bands.map((band, i) => <tr key={i}><td>{input(`${i + 1}구간 시작`, band.from, 0, 100, 1, (v) => edit((p) => { p.bands[i].from = v; }))}</td><td>{input(`${i + 1}구간 하한`, band.min, 0, 1, 0.05, (v) => edit((p) => { p.bands[i].min = v; }))}</td><td>{input(`${i + 1}구간 상한`, band.max, 0, 1, 0.05, (v) => edit((p) => { p.bands[i].max = v; }))}</td></tr>)}</tbody></table>

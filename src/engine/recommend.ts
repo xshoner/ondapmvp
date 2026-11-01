@@ -98,9 +98,9 @@ function filterAndScoreV2(catalog: Catalog, input: RecommendInput, budgetMax: nu
       return { id: key, name: RANK_FACTORS[key as keyof typeof RANK_FACTORS], score: Math.round(value * 100) / 10, target: null, effective: Math.round(value * 100) / 10, weight, points: Math.round(value * weight / totalWeight * 1000) / 10 };
     });
     const rankScore = decision.rankScore!;
-    candidates.push({ model: 'v2', product, attributes: attrs, baseIndex: Math.round(decision.rarity.value! * 100), formalityIndex: rankScore, matchScore: rankScore, indicators, bonuses: [], tier: `희소도 ${Math.round(decision.rarity.value! * 100)}점`, reason: `${catalog.config.events[input.event].name} 행사에 설정된 희소 기준을 충족한 상품입니다. ${budgetMax === undefined ? '신뢰·실용성' : '예산과 신뢰·실용성'} 기준을 종합해 추천했습니다.` });
+    candidates.push({ model: 'v2', product, attributes: attrs, baseIndex: Math.round(decision.rarity.value! * 100), formalityIndex: rankScore, matchScore: rankScore, indicators, bonuses: [], tier: `희소값 ${Math.round(decision.rarity.value! * 100)}점`, reason: `${catalog.config.events[input.event].name} 행사에 설정된 희소 기준을 충족한 상품입니다. 조건을 충족한 상품을 판매가가 낮은 순으로 표시합니다.` });
   }
-  candidates.sort((a, b) => b.matchScore - a.matchScore || a.product.price - b.product.price || a.product.productNo - b.product.productNo);
+  candidates.sort((a, b) => a.product.price - b.product.price || a.product.productNo - b.product.productNo);
   return { candidates, excluded };
 }
 

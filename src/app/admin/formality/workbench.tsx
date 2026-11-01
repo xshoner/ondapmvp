@@ -378,7 +378,7 @@ export function FormalityWorkbench({
           </div>
 
           <h3 style={{ fontSize: 15, margin: '20px 0 10px' }}>
-            추천 후보 상품 <span className="small muted">(적격 필터 통과 후 실속·신뢰·실용성 종합 상위 최대 3개)</span>
+            추천 후보 상품 <span className="small muted">{workspace.source === 'catalog' ? '(기준을 충족한 상품 · 판매가 낮은 순 · 최대 3개)' : '(가상 자료 순위 평가)'}</span>
           </h3>
 
           {evaluation.result.selected.length === 0 ? (
@@ -404,7 +404,7 @@ export function FormalityWorkbench({
 
                   <div style={{ borderTop: '1px dashed #e2e8f0', paddingTop: 10, marginTop: 4 }}>
                     <div className="row spread" style={{ fontSize: 12, marginBottom: 4 }}>
-                      <span className="muted">순위 평가 점수</span>
+                      <span className="muted">{workspace.source === 'catalog' ? '상품 희소값' : '순위 평가 점수'}</span>
                       <b style={{ color: 'var(--pine-deep, #1b4d3e)' }}>{d.rankScore}점</b>
                     </div>
                     <div className="row spread" style={{ fontSize: 12, marginBottom: 6 }}>
@@ -493,7 +493,7 @@ export function FormalityWorkbench({
                   <th>상품 희소값</th>
                   <th>근거 충족도</th>
                   <th>판정</th>
-                  <th>순위 평가</th>
+                  <th>{workspace.source === 'catalog' ? '표시 기준' : '순위 평가'}</th>
                   <th>판정 및 제외 사유</th>
                 </tr>
               </thead>
@@ -549,7 +549,7 @@ export function FormalityWorkbench({
                           <span className="lab-badge lab-badge-ineligible">✗ 제외</span>
                         )}
                       </td>
-                      <td>{d.rankScore === null ? <span className="small muted">평가 제외</span> : `${d.rankScore}점`}</td>
+                      <td>{workspace.source === 'catalog' ? (d.eligible ? '판매가 낮은 순' : '제외') : d.rankScore === null ? <span className="small muted">평가 제외</span> : `${d.rankScore}점`}</td>
                       <td>
                         <span className="small" style={{ color: d.eligible ? 'var(--text)' : '#b91c1c' }}>
                           {d.reason}
@@ -826,7 +826,7 @@ export function FormalityWorkbench({
             ))}
           </div>
 
-          <h4 style={{ fontSize: 14, margin: '16px 0 6px' }}>필터 통과 후 순위 가중치</h4>
+          {workspace.source === 'sample' && <><h4 style={{ fontSize: 14, margin: '16px 0 6px' }}>가상 자료 순위 가중치</h4>
           <div className="row" style={{ gap: 14, flexWrap: 'wrap' }}>
             {(Object.keys(RANK_FACTORS) as (keyof typeof RANK_FACTORS)[]).map((key) => (
               <label key={key} style={{ fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -844,7 +844,7 @@ export function FormalityWorkbench({
                 />
               </label>
             ))}
-          </div>
+          </div></>}
         </section>
 
         {/* 3. 파일 내보내기 / 불러오기 */}

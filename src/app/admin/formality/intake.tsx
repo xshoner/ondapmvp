@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import type { Cafe24Product } from '@/engine/types.ts';
-import { RARE_FACTORS, type RareFactor, type V2Recommendation } from '@/engine/eligibility.ts';
+import { RARE_FACTORS, type RareFactor } from '@/engine/eligibility.ts';
 import { LEVELS, type IntakeFactors, type Level } from '@/engine/formality-intake.ts';
 import { importPilotProducts, loadDescription, savePilotItem, suggestIntake } from './intake-actions.ts';
 import { EventTest } from './event-test.tsx';
@@ -93,8 +93,6 @@ export function Intake({ initial, eventTest = true, mode }: { initial: Pilot; ev
     setMessage('');
   };
 
-  const profile: V2Recommendation = draft.factors.recommendation ?? { region: '', category: '', trust: null, practicality: null, trustBasis: '', practicalityBasis: '', excludedEvents: [] };
-  const editProfile = (patch: Partial<V2Recommendation>) => update({ ...draft, factors: { ...draft.factors, recommendation: { ...profile, ...patch } } });
 
   // 카페24 설명 비동기 자동 조회 (최신 입력 상태 기준 보존 및 순서 경합 방어)
   const autoFetchDescription = async (no: number) => {
@@ -680,17 +678,6 @@ export function Intake({ initial, eventTest = true, mode }: { initial: Pilot; ev
                   })}
                 </div>
 
-                <h3>추천 상품 정보</h3>
-                {draft.reviewed && !draft.factors.recommendation && <p className="notice">추천 상품 정보를 입력하고 다시 판정해 주세요. 이전 상품지표의 점수는 사용하지 않습니다.</p>}
-                <div className="intake-factors">
-                  <label>산지<input aria-label="산지" value={profile.region} maxLength={80} onChange={(e) => editProfile({ region: e.target.value })} /></label>
-                  <label>상품 분류<input aria-label="상품 분류" value={profile.category} maxLength={80} onChange={(e) => editProfile({ category: e.target.value })} /></label>
-                  {(['trust', 'practicality'] as const).map((key) => <div key={key}>
-                    <label>{key === 'trust' ? '신뢰·안전' : '실용성'} 점수 (0~10)<input aria-label={`${key === 'trust' ? '신뢰·안전' : '실용성'} 점수`} type="number" min={0} max={10} step={1} value={profile[key] ?? ''} onChange={(e) => editProfile({ [key]: e.target.value === '' ? null : Number(e.target.value) })} /></label>
-                    <label>확인 근거<textarea aria-label={`${key === 'trust' ? '신뢰·안전' : '실용성'} 근거`} maxLength={1000} value={profile[`${key}Basis`]} onChange={(e) => editProfile({ [`${key}Basis`]: e.target.value })} /></label>
-                  </div>)}
-                  <fieldset><legend>추천에서 제외할 행사</legend>{Object.entries({ funeral: '장례', wedding: '결혼', longevity: '회갑/칠순', birth: '출산', promotion: '승진/취임', opening: '신축/개업', thanks: '감사', birthday: '생일' }).map(([event, label]) => <label key={event}><input type="checkbox" checked={profile.excludedEvents.includes(event as any)} onChange={(e) => editProfile({ excludedEvents: e.target.checked ? [...profile.excludedEvents, event as any] : profile.excludedEvents.filter((x) => x !== event) })} />{label}</label>)}</fieldset>
-                </div>
                 <div className="intake-actions">
                   <button type="button" className="btn ghost small" disabled={pending} onClick={() => handleSave(false)}>
                     임시 저장 (미검수)

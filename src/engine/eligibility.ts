@@ -23,31 +23,12 @@ export interface FormalityPolicy {
   rankWeights: Record<keyof typeof RANK_FACTORS, number>;
 }
 export interface ProductEvidence {
-  recommendation?: V2Recommendation;
   productNo: number;
   reviewed: boolean;
   factors: Partial<Record<RareFactor, { score: number; basis: string }>>;
 }
-export interface V2Recommendation {
-  region: string;
-  category: string;
-  trust: number | null;
-  practicality: number | null;
-  trustBasis: string;
-  practicalityBasis: string;
-  excludedEvents: EventType[];
-}
-
-export function parseRecommendation(value: unknown): V2Recommendation | undefined {
-  if (value === undefined) return undefined;
-  const v = object(value);
-  if (!Array.isArray(v.excludedEvents) || v.excludedEvents.some((e) => !['funeral','wedding','longevity','birth','promotion','opening','thanks','birthday'].includes(e))) throw new Error('제외 행사를 확인해 주세요.');
-  return { region: text(v.region, 80), category: text(v.category, 80), trust: v.trust === null ? null : number(v.trust, 0, 10), practicality: v.practicality === null ? null : number(v.practicality, 0, 10), trustBasis: text(v.trustBasis, 1000), practicalityBasis: text(v.practicalityBasis, 1000), excludedEvents: [...new Set(v.excludedEvents)] as EventType[] };
-}
-
 export function v2Attributes(productNo: number, evidence?: ProductEvidence): ProductAttributes {
-  const p = evidence?.recommendation;
-  return { productNo, region: p?.region || '국내', category: p?.category || '', scores: { ...(p?.trust !== null && p?.trust !== undefined && p.trustBasis ? { trust: p.trust } : {}), ...(p?.practicality !== null && p?.practicality !== undefined && p.practicalityBasis ? { practicality: p.practicality } : {}) }, excludedEvents: (p?.excludedEvents ?? []).map((event) => ({ event, reason: 'v2 판정에서 제외' })), events: [], relations: [], meanings: {}, tags: [], story: '', reviewed: evidence?.reviewed === true };
+  return { productNo, region: '', category: '', scores: {}, excludedEvents: [], events: [], relations: [], meanings: {}, tags: [], story: '', reviewed: evidence?.reviewed === true };
 }
 export interface FormalityWorkspace { format: 'ondap-formality-v2'; source: 'sample' | 'catalog'; policy: FormalityPolicy; evidence: ProductEvidence[] }
 export interface FormalityInput {
@@ -121,7 +102,7 @@ export function parseWorkspace(value: unknown): FormalityWorkspace {
       const f = object(factors[key]);
       clean[key] = { score: number(f.score, 0, 10), basis: text(f.basis, 2000) };
     }
-    return { productNo, reviewed: e.reviewed, factors: clean, recommendation: parseRecommendation(e.recommendation) };
+    return { productNo, reviewed: e.reviewed, factors: clean };
   });
   return { format: 'ondap-formality-v2', source: w.source as FormalityWorkspace['source'], evidence, policy: {
     version, eventBase: numbers(p.eventBase, Object.keys(OCCASIONS) as (keyof typeof OCCASIONS)[], 0, 100),
@@ -170,10 +151,11 @@ export function evaluateFormality(catalog: Catalog, raw: FormalityWorkspace, inp
     const banned = a.excludedEvents.find((x) => x.event === input.event);
     if (banned) return no('event_banned', `행사 제외: ${banned.reason}`);
     if (!rarity.reviewed) return no('unreviewed', '상품 근거 미검수');
-    if (catalog.formalityEvidence !== undefined && (!item?.recommendation?.category || item.recommendation.trust === null || item.recommendation.practicality === null || !item.recommendation.trustBasis || !item.recommendation.practicalityBasis)) return no('profile_missing', 'v2 추천 상품 정보 입력 및 재검수 필요');
     if (rarity.value === null) return no('evidence_missing', '근거가 있는 유효 희소 속성이 2개 미만');
     if (rarity.value < event.band.min || rarity.value > event.band.max) return no('rarity_outside', `희소값 ${rarity.value.toFixed(3)}: 허용 ${event.band.min}~${event.band.max} 밖`);
     if (input.budget !== null && product.price > input.budget) return no('budget_exceeded', '예산 초과');
+    // 운영에서는 수동 부가 점수 없이 적격 상품을 판매가 순으로 표시한다.
+    if (catalog.formalityEvidence !== undefined) return { ...no('eligible', '행사 희소 기준·판매 조건·예산 충족'), eligible: true, rankScore: Math.round(rarity.value * 10000) / 100, ranking: {} as Record<string, number> };
     const ranking: Record<string, number> = {};
     let total = 0, weights = 0;
     for (const key of Object.keys(RANK_FACTORS) as (keyof typeof RANK_FACTORS)[]) {
@@ -186,7 +168,7 @@ export function evaluateFormality(catalog: Catalog, raw: FormalityWorkspace, inp
     }
     return { ...no('eligible', '행사 희소 기준·판매 조건·예산 충족'), eligible: true, rankScore: Math.round(total / weights * 10000) / 100, ranking };
   });
-  const ranked = decisions.filter((d) => d.eligible).sort((a, b) => b.rankScore! - a.rankScore! || a.product.price - b.product.price || a.product.productNo - b.product.productNo);
+  const ranked = decisions.filter((d) => d.eligible).sort((a, b) => (catalog.formalityEvidence !== undefined ? 0 : b.rankScore! - a.rankScore!) || a.product.price - b.product.price || a.product.productNo - b.product.productNo);
   const selected: typeof ranked = [], categories = new Set<string>();
   for (const d of ranked) {
     if (selected.length === 3) break;

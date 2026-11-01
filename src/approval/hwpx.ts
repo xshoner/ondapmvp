@@ -546,7 +546,7 @@ export async function generateApprovalHwpx(model: ApprovalDocumentModel): Promis
     { text: '핵심 특징', isHeader: true, align: 'CENTER' },
     ...candidateRows.map((r) => ({
       paragraphs: [
-        { text: `${r.tier} (${r.candidate.model === 'v2' ? '추천 점수' : '격식지수'} ${r.matchScore}점)`, charPrId: reg.roles.VALUE_BOLD.charPrId, align: 'LEFT' as const },
+        { text: `${r.tier} (${r.candidate.model === 'v2' ? '상품 희소값' : '격식지수'} ${r.matchScore}점)`, charPrId: reg.roles.VALUE_BOLD.charPrId, align: 'LEFT' as const },
         { text: r.reason, charPrId: reg.roles.VALUE.charPrId, align: 'LEFT' as const },
       ],
       borderFillId: reg.borders.CELL,

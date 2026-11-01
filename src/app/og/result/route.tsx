@@ -33,7 +33,7 @@ export async function GET(request: Request) {
   const meta = metaLines.join('');
   const image = main ? (main.product.detailImage ?? main.product.image) : null;
 
-  const fonts = await ogFonts(title + score + '추천 점수', name + tier + meta + '온답 답례 큐레이션');
+  const fonts = await ogFonts(title + score + '상품 희소값', name + tier + meta + '온답 답례 큐레이션');
   return new ImageResponse(
     (
       <div style={{ width: '100%', height: '100%', display: 'flex', background: C.paper }}>
@@ -62,7 +62,7 @@ export async function GET(request: Request) {
             {score && (
               <div style={{ width: 136, height: 136, background: seal, borderRadius: 10, transform: 'rotate(-4deg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8 }}>
                 <div style={{ flex: 1, height: '100%', border: '2px solid rgba(255,255,255,0.55)', borderRadius: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-                  <span style={{ fontFamily: 'Hahmlet', fontSize: 18 }}>추천 점수</span>
+                  <span style={{ fontFamily: 'Hahmlet', fontSize: 18 }}>상품 희소값</span>
                   <span style={{ fontFamily: 'Hahmlet', fontSize: 58, lineHeight: 1 }}>{score}</span>
                 </div>
               </div>

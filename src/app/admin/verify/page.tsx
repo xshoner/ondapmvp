@@ -166,7 +166,7 @@ function Detail({ catalog, catalogKey, event, relation, budget, expected }: { ca
             <tr>
               <th style={{ top: 0 }}>#</th>
               <th style={{ top: 0 }}>상품</th>
-              <th style={{ top: 0 }} className="right">추천 점수</th>
+              <th style={{ top: 0 }} className="right">상품 희소값</th>
               <th style={{ top: 0 }} className="right">희소도</th>
               <th style={{ top: 0 }}>순위 산정</th>
               <th style={{ top: 0 }}>카테고리</th>

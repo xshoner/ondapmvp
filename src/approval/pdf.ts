@@ -427,7 +427,7 @@ export async function generateApprovalPdf(model: ApprovalDocumentModel): Promise
     ['상품명', (r) => (r.isSelected ? `▶ ${r.candidate.productName}` : r.candidate.productName), true],
     ['단가 / 수량', (r) => `${won(r.unitPrice)} / ${r.quantity.toLocaleString('ko-KR')}개`],
     ['상품 합계', (r) => won(r.itemTotal), true],
-    ['핵심 특징', (r) => `${r.tier} (${r.candidate.model === 'v2' ? '추천 점수' : '격식지수'} ${r.matchScore}점)\n${r.reason}`],
+    ['핵심 특징', (r) => `${r.tier} (${r.candidate.model === 'v2' ? '상품 희소값' : '격식지수'} ${r.matchScore}점)\n${r.reason}`],
   ];
 
   for (const [label, getter, isItemBold] of compItems) {

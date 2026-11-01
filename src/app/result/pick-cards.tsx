@@ -17,9 +17,9 @@ export function MainPick({ item, quantity, packagingHref, excludeHref, preview =
       <div className="pick-media">
         {image ? <ProductImage src={image} alt={product.name} main /> : <div style={{ aspectRatio: '4 / 3' }} />}
         {!preview && <SavePickButton variant="overlay" pick={{ productNo: product.productNo, name: product.name, price: product.price, image: product.image, url: product.url }} />}
-        <a className="seal" href="/formality" aria-label={`${item.model === 'v2' ? '추천 점수' : '격식지수'} ${Math.round(item.matchScore)}점, 추천 기준 설명 보기`} style={{ textDecoration: 'none' }}>
+        <a className="seal" href="/formality" aria-label={`${item.model === 'v2' ? '상품 희소값' : '격식지수'} ${Math.round(item.matchScore)}점, 추천 기준 설명 보기`} style={{ textDecoration: 'none' }}>
           <div>
-            <div className="seal-label">{item.model === 'v2' ? '추천 점수' : '격식지수'}</div>
+            <div className="seal-label">{item.model === 'v2' ? '상품 희소값' : '격식지수'}</div>
             <div className="seal-score num">{Math.round(item.matchScore)}</div>
           </div>
         </a>

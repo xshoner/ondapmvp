@@ -205,7 +205,7 @@ export function buildSelectedReason(
     conclusion = `위와 같은 추천 사유를 종합적으로 검토하여 ${rankText}으로 선정합니다.`;
   }
 
-  return `${eName}(${rName}) 자리에 맞춘 ${candidate.model === 'v2' ? '추천 점수' : '격식지수'} ${scoreText}점(${candidate.tier})의 추천 상품입니다. ${cleanReason} ${conclusion}`;
+  return `${eName}(${rName}) 자리에 맞춘 ${candidate.model === 'v2' ? '상품 희소값' : '격식지수'} ${scoreText}점(${candidate.tier})의 추천 상품입니다. ${cleanReason} ${conclusion}`;
 }
 
 // 안전한 수량 검증

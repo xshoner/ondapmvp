@@ -61,7 +61,7 @@ async function readCatalog(): Promise<Catalog> {
 function publicEvidence(items: Record<string, FormalityEvidenceItem>): ProductEvidence[] {
   return Object.values(items).filter((item) => item.reviewed).map((item) => {
     const evidence = evidenceFromIntake(item.productNo, item.factors, true);
-    return { ...evidence, recommendation: evidence.recommendation ? { ...evidence.recommendation, trustBasis: evidence.recommendation.trustBasis ? '관리자 검수 완료' : '', practicalityBasis: evidence.recommendation.practicalityBasis ? '관리자 검수 완료' : '' } : undefined, factors: Object.fromEntries(Object.entries(evidence.factors).map(([key, value]) => [key, { ...value, basis: '관리자 검수 완료' }])) };
+    return { ...evidence, factors: Object.fromEntries(Object.entries(evidence.factors).map(([key, value]) => [key, { ...value, basis: '관리자 검수 완료' }])) };
   });
 }
 

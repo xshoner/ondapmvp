@@ -2,6 +2,7 @@ import type { ScoredProduct } from '@/engine/types.ts';
 
 // 격식지수가 어떻게 나왔는지: 지표별 기여 점수 + 보너스
 export function ScoreBreakdown({ item }: { item: ScoredProduct }) {
+  if (item.model === 'v2') return <p className="small muted">상품 희소값 {item.baseIndex}점. 행사 기준과 예산을 충족한 상품을 판매가가 낮은 순으로 표시합니다.</p>;
   const bonusTotal = item.bonuses.reduce((s, b) => s + b.points, 0);
   const maxPoints = Math.max(...item.indicators.map((c) => c.points), 1);
   return (

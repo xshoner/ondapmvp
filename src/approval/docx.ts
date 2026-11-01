@@ -569,7 +569,7 @@ export async function generateApprovalDocx(model: ApprovalDocumentModel): Promis
               children: [
                 new Paragraph({
                   children: [
-                    new TextRun({ text: `${r.tier} (${r.candidate.model === 'v2' ? '추천 점수' : '격식지수'} ${r.matchScore}점)`, bold: true, size: 22 }),
+                    new TextRun({ text: `${r.tier} (${r.candidate.model === 'v2' ? '상품 희소값' : '격식지수'} ${r.matchScore}점)`, bold: true, size: 22 }),
                   ],
                 }),
                 new Paragraph({
