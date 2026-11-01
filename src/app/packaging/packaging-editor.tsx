@@ -92,6 +92,7 @@ export function PackagingEditor(props: Props) {
   const [quantity, setQuantity] = useState(props.quantity);
   const eventName = event && event !== 'common' ? categoryNames[event] : null;
   const images = useMemo(() => byRelevance(props.images.filter((i) => matchesTarget(i, event, purpose, product.productNo)), event), [props.images, event, purpose, product.productNo]);
+  const otherImages = useMemo(() => byRelevance(props.images.filter((i) => !images.includes(i)), event), [props.images, images, event]);
   const texts = useMemo(() => byRelevance(props.texts, event), [props.texts, event]);
   const nearTexts = texts.filter((t) => matchesTarget(t, event, purpose, product.productNo));
   const otherTexts = texts.filter((t) => !nearTexts.includes(t));
@@ -112,6 +113,8 @@ export function PackagingEditor(props: Props) {
   const [result, setResult] = useState<{ code: string; copied: boolean; preview: string | null } | null>(null);
   const apiRef = useRef<CanvasApi | null>(null);
   const autoLayer = useRef<EditorLayer | null>(null); // 화면이 자동으로 깐 레이어 (고객이 움직이면 새 객체가 되어 더는 같지 않다)
+  const autoTextEdited = useRef(false);
+  const hasChosenImage = useRef(false);
   const pickSeq = useRef(0); // 바탕을 고를 때마다 올린다: 늦게 도착한 이전 이미지가 새로 고른 것을 덮지 않게
   const wrapRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -218,7 +221,7 @@ export function PackagingEditor(props: Props) {
       const l = textLayer(presetText(event, purpose));
       autoLayer.current = l;
       setLayers((ls) => (ls.length ? ls : [l]));
-      setTab('text');
+      setTab(props.images.length ? 'image' : 'text');
     }
   }, []); // 처음 한 번만
 
@@ -267,7 +270,7 @@ export function PackagingEditor(props: Props) {
         continue;
       }
       fitTries.current[l.id] = { text: l.text, tries: tries + 1 };
-      update(l.id, { fontSize: Math.max(MIN_AUTO_FONT, Math.floor(l.fontSize * k * 0.97)) });
+      update(l.id, { fontSize: Math.max(MIN_AUTO_FONT, Math.floor(l.fontSize * k * 0.97)) }, true);
     }
     if (Object.keys(done).length) setSettled((m) => ({ ...m, ...done }));
   }, [textRects]);
@@ -292,8 +295,10 @@ export function PackagingEditor(props: Props) {
   const uploads = layers.filter((l): l is EditorImageLayer => l.type === 'image' && Boolean(l.uploaded));
   const lowRes = uploads.some((l) => effectiveDpi(l.naturalWidth ?? 0, l.width * l.scaleX, sizeCm) < MIN_PRINT_DPI);
 
-  const update = (id: string, patch: Partial<EditorLayer>) =>
+  const update = (id: string, patch: Partial<EditorLayer>, automatic = false) => {
+    if (!automatic && autoLayer.current?.id === id) autoTextEdited.current = true;
     setLayers((ls) => ls.map((l) => (l.id === id ? ({ ...l, ...patch } as EditorLayer) : l)));
+  };
 
   // 저장 형식이 레이어 12개까지만 담으므로 그 이상은 처음부터 막는다 (넘치면 다시 꾸미기 때 조용히 빠진다)
   const layerFull = () => {
@@ -304,9 +309,11 @@ export function PackagingEditor(props: Props) {
 
   // 바탕 이미지는 한 장: 맨 아래가 이미지면 바꾸고, 아니면 맨 아래에 넣는다
   const setBaseImage = (layer: EditorImageLayer) => {
+    const defaultTextId = !hasChosenImage.current && !autoTextEdited.current && autoLayer.current?.type === 'text' ? autoLayer.current.id : null;
+    hasChosenImage.current = true;
     setLayers((ls) => {
       const old = ls[0]?.type === 'image' ? (ls[0] as EditorImageLayer) : null;
-      return [layer, ...(old ? ls.slice(1) : ls)];
+      return [layer, ...(old ? ls.slice(1) : ls).filter((l) => l.id !== defaultTextId)];
     });
     setSelectedId(null);
   };
@@ -334,6 +341,7 @@ export function PackagingEditor(props: Props) {
       ++pickSeq.current;
       const l = textLayer(presetText(id, purpose));
       autoLayer.current = l;
+      autoTextEdited.current = false;
       setLayers([l]);
     }
   };
@@ -343,6 +351,7 @@ export function PackagingEditor(props: Props) {
     ++pickSeq.current;
     const l = textLayer(presetText(event, nextPurpose));
     autoLayer.current = l;
+    autoTextEdited.current = false;
     setPurpose(nextPurpose);
     setLayers([l]); setBackground('#ffffff'); setSelectedId(null); setTab('text');
     setWithSticker(true);
@@ -701,20 +710,24 @@ export function PackagingEditor(props: Props) {
                 </label>
               )}
 
-              <div className="field-label" style={{ marginTop: 16 }}>추천 이미지</div>
-              {!images.length && <p className="small muted">이 목적에 맞게 확인된 이미지가 아직 없어요. 기본 문구나 내 사진으로 꾸밀 수 있어요.</p>}
+              <div className="field-label" style={{ marginTop: 16 }}>행사에 맞는 추천 이미지</div>
+              {!images.length && <p className="small muted">{props.images.length ? '이 목적에 맞는 추천 이미지가 아직 없어요. 아래 등록된 이미지에서 직접 골라 주세요.' : '등록된 이미지가 없어요. 내 사진이나 문구로 꾸밀 수 있어요.'}</p>}
               <div className="sticker-grid">
                 {images.map((img) => (
                   <button key={img.id} type="button" className="thumb" onClick={() => void pickImage(img)}
                     aria-pressed={layers[0]?.type === 'image' && layers[0].src === img.imageUrl}>
                     <Image src={img.imageUrl} alt={img.name} width={200} height={200} sizes="(max-width: 480px) 22vw, 110px" />
-                    <span>{categoryNames[img.category] ?? ''}</span>
+                    <span>{img.name || categoryNames[img.category] || '추천 이미지'}</span>
                   </button>
                 ))}
               </div>
 
+              {otherImages.length > 0 && <>
+                <div className="field-label" style={{ marginTop: 16 }}>등록된 이미지 직접 고르기</div>
+                <p className="small muted">다른 행사나 목적의 이미지가 있을 수 있어요. 담긴 문구를 확인하고 선택해 주세요.</p>
+                <div className="sticker-grid">{otherImages.map((img) => <button key={img.id} type="button" className="thumb" onClick={() => void pickImage(img)} aria-label={img.name || categoryNames[img.category] || '이미지'} aria-pressed={layers[0]?.type === 'image' && layers[0].src === img.imageUrl}><Image src={img.imageUrl} alt={img.name} width={200} height={200} sizes="(max-width: 480px) 22vw, 110px" loading="lazy" /><span>{img.name || categoryNames[img.category] || '이미지'}</span></button>)}</div>
+              </>}
               <div className="field-label" style={{ marginTop: 16 }}>바탕색</div>
-              <details className="small"><summary>다른 이미지 직접 고르기</summary><p className="muted">다른 행사·목적의 이미지도 있어요. 담긴 문구를 확인해 주세요.</p><div className="sticker-grid">{props.images.filter((img) => !images.includes(img)).map((img) => <button key={img.id} type="button" className="thumb" onClick={() => void pickImage(img)} aria-label={img.name}><Image src={img.imageUrl} alt={img.name} width={200} height={200} sizes="110px" loading="lazy" /><span>{img.name}</span></button>)}</div></details>
               <div className="row" style={{ gap: 8 }}>
                 {BACKGROUNDS.map((c) => (
                   <button key={c} type="button" className="swatch" style={{ background: c }} aria-pressed={background === c} aria-label={`바탕색 ${c}`} onClick={() => setBackground(c)} />
