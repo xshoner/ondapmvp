@@ -29,7 +29,13 @@ async function guard() {
 
 export async function loadPilot(): Promise<Pilot> {
   await guard();
-  return getFormalityData();
+  const [data, catalog] = await Promise.all([getFormalityData(), getCatalog()]);
+  const policy = initialPolicy(catalog);
+  const items = Object.fromEntries(Object.entries(data.items).map(([no, item]) => [no, {
+    ...item,
+    rarity: item.reviewed ? productRarity(evidenceFromIntake(Number(no), item.factors, true), policy).value : null,
+  }]));
+  return { ...data, items };
 }
 
 export async function importPilotProducts(): Promise<Pilot> {

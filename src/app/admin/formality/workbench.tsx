@@ -161,9 +161,9 @@ export function FormalityWorkbench({
     <>
       <header className="page-head spread" style={{ alignItems: 'flex-start' }}>
         <div>
-          <h1>격식지수 v2 검증실</h1>
+          <h1>격식 검증실</h1>
           <p>
-            특허출원 구조(행사 분석부 → 상품 속성 평가부 → 매칭 필터부 → 상품 추천부)에 따른 전체 시뮬레이션 및 기준표 검증입니다.
+            행사 조건과 상품 근거를 바탕으로 추천 기준을 시험합니다.
           </p>
         </div>
         <div className="row" style={{ gap: 8 }}>

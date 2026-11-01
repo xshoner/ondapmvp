@@ -93,7 +93,7 @@ export default async function VerifyPage({ searchParams }: { searchParams: Searc
                               {i + 1}. {x.product.name} <span className="muted">{x.matchScore}</span>
                             </div>
                           ))}
-                          {result.notice && <div className="small" style={{ color: 'var(--red)' }}>예산 확대</div>}
+                          {result.notice && <div className="small" style={{ color: 'var(--red)' }}>{result.relaxedBudget !== null ? '예산 확대' : result.results.length === 0 ? '추천 없음' : '후보 부족'}</div>}
                         </a>
                       </td>
                     );
