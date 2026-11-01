@@ -45,6 +45,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
         products={catalog.products}
         attributes={catalog.attributes}
         config={catalog.config}
+        formalityEvidence={catalog.formalityEvidence}
         mallId={sync.mallId}
         syncedAt={sync.syncedAt}
         initialProduct={Number(sp.product) || null}

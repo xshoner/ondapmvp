@@ -2,8 +2,28 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { recommend } from '../src/engine/recommend.ts';
 import { attrs, catalog, product } from './fixtures.ts';
+import { evaluateFormality, initialPolicy, type ProductEvidence } from '../src/engine/eligibility.ts';
 
 const nos = (r: ReturnType<typeof recommend>) => r.results.map((x) => x.product.productNo);
+
+test('v2 고객 추천은 검수 근거가 있는 상품만 검증실과 같은 기준으로 선정한다', () => {
+  const evidence: ProductEvidence[] = [1, 2].map((productNo) => ({ productNo, reviewed: productNo === 1, factors: { skill: { score: 8, basis: '검수' }, locality: { score: 8, basis: '검수' } } }));
+  const c = { ...catalog([product(1, 10000), product(2, 12000), product(3, 13000)], [1, 2, 3].map((n) => attrs(n, { scores: { trust: 8, practicality: 7 } }))), formalityEvidence: evidence };
+  const input = { event: 'wedding', relation: 'business', budgetMax: 50000, quantity: 10 } as const;
+  const result = recommend(c, input);
+  const lab = evaluateFormality(c, { format: 'ondap-formality-v2', source: 'catalog', policy: initialPolicy(c), evidence }, { event: input.event, relation: input.relation, sender: 'unknown', purpose: 'unknown', budget: input.budgetMax, quantity: input.quantity });
+  assert.deepEqual(nos(result), lab.selected.map((d) => d.product.productNo));
+  assert.deepEqual(nos(result), [1]);
+  assert.ok(result.excluded.some((x) => x.productNo === 2 && x.reason.includes('미검수')));
+  assert.equal(result.results[0].matchScore, lab.selected[0].rankScore);
+});
+
+test('v2는 예산을 자동 완화하거나 근거 없는 상품을 추천하지 않는다', () => {
+  const c = { ...catalog([product(1, 60000)], [attrs(1, { scores: { trust: 8, practicality: 8 } })]), formalityEvidence: [{ productNo: 1, reviewed: true, factors: { skill: { score: 8, basis: '검수' }, locality: { score: 8, basis: '검수' } } }] };
+  const result = recommend(c, { event: 'wedding', relation: 'business', budgetMax: 50000 });
+  assert.equal(result.results.length, 0);
+  assert.equal(result.relaxedBudget, null);
+});
 
 test('미진열·판매중지·품절·지표 미입력 상품은 제외', () => {
   const c = catalog(

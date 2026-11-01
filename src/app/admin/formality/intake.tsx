@@ -309,7 +309,7 @@ export function Intake({ initial, eventTest = true, mode }: { initial: Pilot; ev
     <>
       <header className="page-head spread" style={{ alignItems: 'flex-start' }}>
         <div>
-          <h1>격식지수 v2 (특허출원 구조) 상품 평가</h1>
+          <h1>격식지수 판정</h1>
           <p>
             카페24 상품 정보를 이해·평가하여 희소 속성값을 산출하고, 행사 조건별 적합성을 검증합니다.
           </p>
@@ -325,7 +325,7 @@ export function Intake({ initial, eventTest = true, mode }: { initial: Pilot; ev
           ① 카페24 상품 목록 및 설명 가져오기 → ② AI 검토평가(원문 일치 문장만 추출) → ③ 운영자 확인·수정 및 희소값 계산(근거 2개 이상 필요) → ④ 추천 행사 및 조건별 적합성 확인 → ⑤ 검증실에서 전체 상품 평가.
         </p>
         <p style={{ margin: '4px 0 0', color: 'var(--muted)' }} className="small">
-          {mode === 'local' ? '로컬 시험 자료에 저장됩니다. 기존 고객 추천이나 운영 DB에는 영향을 주지 않습니다.' : '운영 DB에 상품 근거를 저장합니다. 상품 가져오기는 운영 상품 목록을 갱신하며 기존 고객 추천에도 영향을 줄 수 있습니다. 새 격식지수는 아직 고객 추천에 적용되지 않습니다.'}
+          {mode === 'local' ? '로컬 시험 자료에 저장됩니다.' : '운영 DB에 상품 근거를 저장합니다. 검수 완료된 상품만 고객 추천 대상이 됩니다. 상품 가져오기는 운영 상품 목록을 갱신합니다.'}
         </p>
       </section>
 
@@ -715,7 +715,7 @@ export function Intake({ initial, eventTest = true, mode }: { initial: Pilot; ev
                 />
               ) : (
                 <p className="small muted">
-                  수준과 점수는 시험용 가안입니다. 확인된 상품의 행사별 적합 여부는 <a href="/admin/formality/lab">격식 기준 검증실</a>에서 별도 시험할 수 있습니다.
+                  확인된 상품의 행사별 적합 여부는 <a href="/admin/formality/lab">격식 기준 검증실</a>에서 시험할 수 있습니다.
                 </p>
               )}
             </>

@@ -7,6 +7,7 @@ import { fail, readPages, type DbPage } from './db.ts';
 import { attributesFromRow, attributesToRow, productFromRow, productToRow, type AttributesRow, type ProductRow } from './rows.ts';
 import { dataSource } from '../lib/supabase/env.ts';
 import { createClient } from '../lib/supabase/server.ts';
+import { createServiceClient } from '../lib/supabase/service.ts';
 import type { Cafe24Product, Catalog, EngineConfig, ProductAttributes, RecommendResult } from '../engine/types.ts';
 import type { FeedbackLog, FeedbackReason } from '../lib/feedback.ts';
 import { cache } from 'react';
@@ -31,7 +32,9 @@ export const getCatalog = cache(async function getCatalog(): Promise<Catalog> {
 });
 
 async function readCatalog(): Promise<Catalog> {
-  if (dataSource() === 'local') return local.loadCatalog();
+  if (dataSource() === 'local') {
+    return local.loadRecommendationCatalog();
+  }
   const db = await createClient();
   const [p, a, c] = await Promise.all([
     readPages((from, to) => db.from('products').select('product_no,name,price,display,selling,sold_out,image,detail_image,url').order('product_no').range(from, to) as DbPage<ProductRow>, 20000, true),
@@ -41,11 +44,25 @@ async function readCatalog(): Promise<Catalog> {
   if (p.error) fail('상품 읽기', p.error);
   if (a.error) fail('지표 읽기', a.error);
   if (c.error || !c.data) fail('엔진 설정 읽기', c.error ?? { message: 'engine_config 행이 없습니다. seed.sql을 실행하세요.' });
+  // 관리자 전용 근거를 서버에서 읽되 원문과 관리자 정보는 고객에게 전달하지 않는다.
+  const service = createServiceClient();
+  const ev = await readPages((from, to) => service.from('product_evidence').select('product_no,factors,reviewed').eq('reviewed', true).order('product_no').range(from, to), 20000, true);
+  if (ev.error) fail('격식 판정 읽기', ev.error);
+  const items: Record<string, FormalityEvidenceItem> = {};
+  for (const row of ev.rows) items[String(row.product_no)] = { productNo: row.product_no as number, description: '', factors: (row.factors as IntakeFactors) ?? {}, reviewed: true, rarity: null };
   return {
     products: p.rows.map(productFromRow),
     attributes: a.rows.map(attributesFromRow),
     config: c.data.config as EngineConfig,
+    formalityEvidence: publicEvidence(items),
   };
+}
+
+function publicEvidence(items: Record<string, FormalityEvidenceItem>): ProductEvidence[] {
+  return Object.values(items).filter((item) => item.reviewed).map((item) => {
+    const evidence = evidenceFromIntake(item.productNo, item.factors, true);
+    return { ...evidence, factors: Object.fromEntries(Object.entries(evidence.factors).map(([key, value]) => [key, { ...value, basis: '관리자 검수 완료' }])) };
+  });
 }
 
 export async function getSyncInfo(): Promise<{ mallId: string; syncedAt: string | null }> {

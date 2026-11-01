@@ -70,6 +70,7 @@ function photoIds(snap: unknown): string[] {
 export function toStored(s: EditorSnapshot): unknown {
   return {
     ...s,
+    version: s.version ?? 2,
     layers: s.layers.map((l) => (l.type === 'image' && l.uploaded ? { ...l, src: 'upload', uploaded: undefined } : l)),
   };
 }
@@ -100,8 +101,10 @@ export async function fromStored(
     layers.push({ ...l, src: URL.createObjectURL(blob), uploaded: true, photoId, naturalWidth: naturalWidth > 0 ? naturalWidth : undefined });
   }
   const sticker = sanitizeSticker(v) ?? { shape: 'circle', sizeCm: 6 };
+  const rawVersion = typeof (v as Record<string, unknown>).version === 'number' ? (v as Record<string, unknown>).version as number : undefined;
   return {
     snap: {
+      ...(rawVersion !== undefined ? { version: rawVersion } : {}),
       purpose: v.purpose === 'celebration' ? 'celebration' : 'return',
       styleId: ctx.styleIds.includes(String(v.styleId)) ? String(v.styleId) : '',
       withSticker: v.withSticker !== false,

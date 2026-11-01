@@ -14,6 +14,8 @@ export interface ResultQuery {
   budget: number | null; // 1개당 최대 예산(원). null = 상관없음
   qty: number;
   exclude: number[]; // 고객이 뺀 상품번호
+  budgetMode?: 'per_item' | 'total';
+  totalBudget?: number | null; // 원래 입력된 전체 예산(원)
 }
 
 export function clampQty(v: unknown): number {
@@ -41,12 +43,23 @@ type Params = Record<string, string | string[] | undefined>;
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 
 export function parseResultQuery(sp: Params): ResultQuery {
+  const modeRaw = one(sp.budgetMode);
+  const budgetMode = modeRaw === 'total' || modeRaw === 'per_item' ? modeRaw : undefined;
+  const totalBudget = parseBudget(one(sp.totalBudget));
+  const qty = clampQty(one(sp.qty) ?? 1);
+  let budget = parseBudget(one(sp.budget));
+  if (budgetMode === 'total' && totalBudget !== null) {
+    budget = perItemBudget(totalBudget, qty);
+  }
+
   return {
     event: String(one(sp.event) ?? ''),
     relation: String(one(sp.relation) ?? ''),
-    budget: parseBudget(one(sp.budget)),
-    qty: clampQty(one(sp.qty) ?? 1),
+    budget,
+    qty,
     exclude: parseExclude(one(sp.exclude)),
+    ...(budgetMode ? { budgetMode } : {}),
+    ...(totalBudget !== null ? { totalBudget } : {}),
   };
 }
 
@@ -55,6 +68,8 @@ export function resultHref(q: ResultQuery, patch: Partial<ResultQuery> = {}): st
   const p = new URLSearchParams({ event: v.event, relation: v.relation, qty: String(v.qty) });
   if (v.budget !== null) p.set('budget', String(v.budget));
   if (v.exclude.length) p.set('exclude', v.exclude.join(','));
+  if (v.budgetMode) p.set('budgetMode', v.budgetMode);
+  if (v.totalBudget !== undefined && v.totalBudget !== null) p.set('totalBudget', String(v.totalBudget));
   return `/result?${p}`;
 }
 

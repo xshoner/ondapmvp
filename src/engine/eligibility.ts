@@ -38,6 +38,7 @@ export interface FormalityInput {
 }
 
 export function initialPolicy(catalog: Catalog): FormalityPolicy {
+  if (catalog.config.formalityV2) return structuredClone(catalog.config.formalityV2);
   return {
     version: 'v2-draft-1',
     eventBase: Object.fromEntries(Object.keys(OCCASIONS).map((key) => [key, Object.hasOwn(catalog.config.events, key) ? catalog.config.events[key as keyof Catalog['config']['events']].formalityTarget * 10 : 70])) as FormalityPolicy['eventBase'],

@@ -55,6 +55,7 @@ export interface ProductAttributes {
 }
 
 export interface EngineConfig {
+  formalityV2?: import('./eligibility.ts').FormalityPolicy;
   modelVersion: string;
   indicators: Indicator[];
   events: Record<EventType, { name: string; formalityTarget: number; weights: Record<string, number> }>;
@@ -75,6 +76,8 @@ export interface Catalog {
   products: Cafe24Product[];
   attributes: ProductAttributes[];
   config: EngineConfig;
+  // 검수된 근거만 제공한다. 부재는 기존 도구·테스트의 구버전 카탈로그를 뜻한다.
+  formalityEvidence?: import('./eligibility.ts').ProductEvidence[];
 }
 
 export interface RecommendInput {
@@ -98,6 +101,7 @@ export interface IndicatorContribution {
 }
 
 export interface ScoredProduct {
+  model?: 'v2';
   product: Cafe24Product;
   attributes: ProductAttributes;
   baseIndex: number;

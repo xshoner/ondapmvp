@@ -10,6 +10,7 @@
 
 import { baseIndex, scoreForSituation } from './formality.ts';
 import { buildReason, tierFor } from './explain.ts';
+import { evaluateFormality, initialPolicy, RANK_FACTORS, type ProductEvidence } from './eligibility.ts';
 import type {
   Catalog,
   Exclusion,
@@ -25,6 +26,7 @@ export function filterAndScore(
   input: RecommendInput,
   budgetMax: number | undefined,
 ): { candidates: ScoredProduct[]; excluded: Exclusion[] } {
+  if (catalog.formalityEvidence) return filterAndScoreV2(catalog, input, budgetMax, catalog.formalityEvidence);
   const { config } = catalog;
   const attrByNo = new Map<number, ProductAttributes>(catalog.attributes.map((a) => [a.productNo, a]));
   const candidates: ScoredProduct[] = [];
@@ -71,6 +73,37 @@ export function filterAndScore(
   return { candidates, excluded };
 }
 
+// 고객 화면과 관리자 검증이 동일한 v2 적격성·순위 계산을 사용한다.
+function filterAndScoreV2(catalog: Catalog, input: RecommendInput, budgetMax: number | undefined, evidence: ProductEvidence[]) {
+  const policy = initialPolicy(catalog);
+  const skipped = new Set(input.exclude ?? []);
+  const evaluation = evaluateFormality(catalog, { format: 'ondap-formality-v2', source: 'catalog', policy, evidence }, {
+    event: input.event, relation: input.relation, sender: 'unknown', purpose: 'unknown',
+    budget: budgetMax ?? null, quantity: input.quantity ?? 1,
+  });
+  const attrsByNo = new Map(catalog.attributes.map((a) => [a.productNo, a]));
+  const candidates: ScoredProduct[] = [];
+  const excluded: Exclusion[] = [];
+  for (const decision of evaluation.decisions) {
+    const { product } = decision;
+    if (skipped.has(product.productNo) || !decision.eligible) {
+      excluded.push({ productNo: product.productNo, name: product.name, reason: skipped.has(product.productNo) ? '고객이 뺀 상품' : decision.reason });
+      continue;
+    }
+    const attrs = attrsByNo.get(product.productNo)!;
+    const active = Object.entries(decision.ranking ?? {});
+    const totalWeight = active.reduce((sum, [key]) => sum + policy.rankWeights[key as keyof typeof RANK_FACTORS], 0);
+    const indicators = active.map(([key, value]) => {
+      const weight = policy.rankWeights[key as keyof typeof RANK_FACTORS];
+      return { id: key, name: RANK_FACTORS[key as keyof typeof RANK_FACTORS], score: Math.round(value * 100) / 10, target: null, effective: Math.round(value * 100) / 10, weight, points: Math.round(value * weight / totalWeight * 1000) / 10 };
+    });
+    const rankScore = decision.rankScore!;
+    candidates.push({ model: 'v2', product, attributes: attrs, baseIndex: Math.round(decision.rarity.value! * 100), formalityIndex: rankScore, matchScore: rankScore, indicators, bonuses: [], tier: `희소도 ${Math.round(decision.rarity.value! * 100)}점`, reason: `${catalog.config.events[input.event].name} 행사에 설정된 희소 기준을 충족한 상품입니다. ${budgetMax === undefined ? '신뢰·실용성' : '예산과 신뢰·실용성'} 기준을 종합해 추천했습니다.` });
+  }
+  candidates.sort((a, b) => b.matchScore - a.matchScore || a.product.price - b.product.price || a.product.productNo - b.product.productNo);
+  return { candidates, excluded };
+}
+
 function pickDiverse(ranked: ScoredProduct[], count: number, maxPerCategory: number): ScoredProduct[] {
   const picked: ScoredProduct[] = [];
   const perCategory = new Map<string, number>();
@@ -94,7 +127,7 @@ export function recommend(catalog: Catalog, input: RecommendInput): RecommendRes
   let { candidates, excluded } = filterAndScore(catalog, input, input.budgetMax);
   let relaxedBudget: number | null = null;
 
-  if (candidates.length < count && input.budgetMax !== undefined) {
+  if (!catalog.formalityEvidence && candidates.length < count && input.budgetMax !== undefined) {
     const relaxed = Math.round(input.budgetMax * catalog.config.budgetRelaxRatio);
     const retry = filterAndScore(catalog, input, relaxed);
     if (retry.candidates.length > candidates.length) {
@@ -103,7 +136,7 @@ export function recommend(catalog: Catalog, input: RecommendInput): RecommendRes
     }
   }
 
-  const results = pickDiverse(candidates, count, catalog.config.diversity.maxPerCategory);
+  const results = pickDiverse(candidates, count, catalog.formalityEvidence ? 1 : catalog.config.diversity.maxPerCategory);
   let notice: string | null = null;
   if (relaxedBudget !== null) {
     notice = `예산 안에서 ${count}개를 찾지 못해 ${relaxedBudget.toLocaleString('ko-KR')}원까지 넓혀 추천했습니다.`;

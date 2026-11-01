@@ -10,6 +10,8 @@ import { BUDGET_STEPS, MAX_EXCLUDE, MAX_QTY, budgetChipText, budgetText, parseRe
 import { CloseCondOnOutside, FeedbackBox, RememberQuery } from './client-bits.tsx';
 import { MainPick, OtherPick } from './pick-cards.tsx';
 import { ShareButton } from './share-button.tsx';
+import { CreateApprovalButton } from './create-approval-button.tsx';
+import { isApprovalEnabled } from '@/approval/guard.ts';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +27,7 @@ export async function generateMetadata({ searchParams }: { searchParams: SearchP
   const { event, relation } = q;
   if (!isEvent(config, event) || !isRelation(config, relation)) return {};
   const title = `${config.events[event].name} 자리에 맞춘 답례품 | 온답`;
-  const description = `${config.relations[relation].name}께 드릴 답례품을 격식지수로 골랐습니다. 추천 세 가지를 확인해 보세요.`;
+  const description = `${config.relations[relation].name}께 드릴 답례품을 행사와 예산에 맞춰 골랐습니다.`;
   const image = { url: `/og${resultHref(q)}`, width: 1200, height: 630, alt: title };
   return { title, description, openGraph: { title, description, images: [image], type: 'website', locale: 'ko_KR' }, twitter: { card: 'summary_large_image', title, description, images: [image.url] } };
 }
@@ -67,7 +69,7 @@ export default async function ResultPage({ searchParams }: { searchParams: Searc
     const { createClient } = await import('@/lib/supabase/server.ts');
     const { dataSource } = await import('@/lib/supabase/env.ts');
     const db = dataSource() === 'supabase' ? await createClient() : undefined;
-    after(() => logRecommendation(result, config.modelVersion, db));
+    after(() => logRecommendation(result, catalog.formalityEvidence ? 'v2' : config.modelVersion, db));
   }
   const [main, ...others] = result.results;
   const eventName = config.events[event].name;
@@ -79,7 +81,6 @@ export default async function ResultPage({ searchParams }: { searchParams: Searc
   };
   // 뺄 수 있는 칸이 남았을 때만 "빼고 다시" 링크를 준다
   const excludeHref = (productNo: number) => (q.exclude.length < MAX_EXCLUDE ? resultHref(q, { exclude: [...q.exclude, productNo] }) : null);
-  const bannedCount = result.excluded.filter((x) => x.reason.startsWith(`${eventName} 제외`)).length;
 
   return (
     <main className={calm ? 'mobile mood-calm' : 'mobile'}>
@@ -97,13 +98,19 @@ export default async function ResultPage({ searchParams }: { searchParams: Searc
           <h1 style={{ fontSize: 26 }}>{eventName} 자리에 맞춘<br />답례품을 골랐습니다</h1>
         )}
         <ConditionBar q={q} config={config} />
-        <div style={{ marginTop: 12 }}><ShareButton title={`${eventName} 답례품`} /></div>
-        <p className="result-note">
-          상품 {catalog.products.length}개를 격식지수로 비교했습니다.
-          {bannedCount > 0 && ` ${eventName} 자리에 어울리지 않는 ${bannedCount}개는 미리 뺐습니다.`}
-          {q.exclude.length > 0 && <> 빼 두신 상품 {q.exclude.length}개는 제외했어요. <a className="text-link" href={resultHref(q, { exclude: [] })}>모두 되돌리기</a></>}
-          {result.notice && <><br /><span style={{ color: 'var(--danger)' }}>{result.notice}</span></>}
-        </p>
+        {q.exclude.length > 0 && (
+          <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--paper-deep)', borderRadius: 'var(--radius-sm)', fontSize: 13, color: 'var(--ink-soft)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+            <span>제외해 둔 상품이 {q.exclude.length}개 있습니다.</span>
+            <a className="text-link" style={{ fontWeight: 600 }} href={resultHref(q, { exclude: [] })}>
+              제외 상품 모두 되돌리기
+            </a>
+          </div>
+        )}
+        {result.notice && (
+          <div style={{ marginTop: 10, padding: '10px 14px', background: '#FEF2F2', borderRadius: 'var(--radius-sm)', fontSize: 13, color: 'var(--danger)', lineHeight: 1.45 }}>
+            ※ {result.notice}
+          </div>
+        )}
       </section>
 
       {main ? (
@@ -119,28 +126,72 @@ export default async function ResultPage({ searchParams }: { searchParams: Searc
 
       {others.length > 0 && (
         <section>
-          {others.some((x) => x.tier !== main?.tier) ? (
-            <>
-              <h2 className="alt-title">다른 격식 단계의 선택</h2>
-              <p className="small muted" style={{ margin: 0 }}>같은 자리에서 조금 더 실속 있게, 또는 가볍게 고를 수 있는 상품입니다.</p>
-            </>
-          ) : (
-            <>
-              <h2 className="alt-title">함께 고려할 만한 선택</h2>
-              <p className="small muted" style={{ margin: 0 }}>같은 격식으로 종류를 달리해 고른 상품입니다. 받는 분 취향에 맞춰 비교해 보세요.</p>
-            </>
-          )}
+          <h2 className="alt-title" style={{ fontSize: 18, fontWeight: 700, margin: '36px 0 6px' }}>
+            함께 비교할 만한 대안 추천
+          </h2>
+          <p className="small muted" style={{ margin: '0 0 14px' }}>
+            받는 분의 취향이나 예산에 맞춰 다른 선택지도 살펴보세요.
+          </p>
           <div className="alt-list">
-            {others.map((x) => <OtherPick key={x.product.productNo} item={x} quantity={quantity} mobile={mobile} packagingHref={packagingHref(x.product.productNo)} excludeHref={excludeHref(x.product.productNo)} />)}
+            {others.map((x, idx) => (
+              <OtherPick
+                key={x.product.productNo}
+                rank={idx + 2}
+                item={x}
+                quantity={quantity}
+                mobile={mobile}
+                packagingHref={packagingHref(x.product.productNo)}
+                excludeHref={excludeHref(x.product.productNo)}
+              />
+            ))}
           </div>
         </section>
       )}
 
       {result.results.length > 1 && <CompareTable items={result.results} quantity={quantity} config={config} />}
 
-      {main && <FeedbackBox query={q} productNos={result.results.map((x) => x.product.productNo)} />}
+      {/* 부가 기능: 결과 공유 및 (로컬 환경일 때) 결재 문서 작성 */}
+      {main && (
+        <section
+          style={{
+            marginTop: 24,
+            marginBottom: 20,
+            padding: '14px 16px',
+            background: 'var(--surface)',
+            border: '1px solid var(--line)',
+            borderRadius: 'var(--radius)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+            <span style={{ fontSize: 13, color: 'var(--muted)' }}>추천 결과 공유</span>
+            <ShareButton title={`${eventName} 답례품`} label="결과 공유" />
+          </div>
 
-      <p className="foot-note">온답 격식지수 가안 {config.modelVersion}</p>
+          {isApprovalEnabled() && (
+            <>
+              <hr style={{ border: 'none', borderTop: '1px solid var(--line)', margin: 0 }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <span style={{ fontSize: 13, color: 'var(--ink)' }}>
+                    추천 상품 비교·결재 문서 만들기
+                  </span>
+                </div>
+                <CreateApprovalButton
+                  className="btn ghost small"
+                  query={q}
+                  candidates={result.results.map((r) => ({ productNo: r.product.productNo, price: r.product.price }))}
+                  label="결재 문서(품의서) 작성"
+                />
+              </div>
+            </>
+          )}
+        </section>
+      )}
+
+      {main && <FeedbackBox query={q} productNos={result.results.map((x) => x.product.productNo)} />}
     </main>
   );
 }
@@ -157,7 +208,15 @@ function ConditionBar({ q, config }: { q: ResultQuery; config: EngineConfig }) {
         {relationIds(config).map((id) => <CondLink key={id} href={resultHref(q, { relation: id, ...reset })} on={id === q.relation}>{config.relations[id].name}</CondLink>)}
       </Cond>
       <Cond label={budgetChipText(q.budget)} title="1개당 예산">
-        {BUDGET_STEPS.map((b) => <CondLink key={String(b)} href={resultHref(q, { budget: b, ...reset })} on={b === q.budget}>{budgetText(b)}</CondLink>)}
+        {BUDGET_STEPS.map((b) => (
+          <CondLink
+            key={String(b)}
+            href={resultHref(q, { budget: b, budgetMode: 'per_item', totalBudget: null, ...reset })}
+            on={b === q.budget && q.budgetMode !== 'total'}
+          >
+            {budgetText(b)}
+          </CondLink>
+        ))}
       </Cond>
       <Cond label={`${q.qty.toLocaleString('ko-KR')}개`} title="수량">
         <form action="/result" className="cond-qty">
@@ -165,6 +224,8 @@ function ConditionBar({ q, config }: { q: ResultQuery; config: EngineConfig }) {
           <input type="hidden" name="relation" value={q.relation} />
           {q.budget !== null && <input type="hidden" name="budget" value={q.budget} />}
           {q.exclude.length > 0 && <input type="hidden" name="exclude" value={q.exclude.join(',')} />}
+          {q.budgetMode && <input type="hidden" name="budgetMode" value={q.budgetMode} />}
+          {q.totalBudget !== undefined && q.totalBudget !== null && <input type="hidden" name="totalBudget" value={q.totalBudget} />}
           <input className="num-input" type="number" name="qty" inputMode="numeric" min={1} max={MAX_QTY} defaultValue={q.qty} aria-label="수량" required />
           <button type="submit" className="btn small">바꾸기</button>
         </form>
@@ -188,36 +249,46 @@ function CondLink({ href, on, children }: { href: string; on: boolean; children:
 
 // 추천 상품을 한 표에 나란히 (휴대폰에서는 옆으로 밀어 본다)
 function CompareTable({ items, quantity, config }: { items: ScoredProduct[]; quantity: number; config: EngineConfig }) {
-  const rows: [string, (x: ScoredProduct) => React.ReactNode][] = [
+  const rows: [string, (x: ScoredProduct, idx: number) => React.ReactNode][] = [
+    ['추천 순위', (_, idx) => <b>{idx === 0 ? '1위 (대표)' : `${idx + 1}위 대안`}</b>],
     ['격식 단계', (x) => x.tier],
-    ['격식지수', (x) => <b>{Math.round(x.matchScore)}</b>],
-    ['1개 가격', (x) => won(x.product.price)],
-    [`${quantity.toLocaleString('ko-KR')}개 합계`, (x) => won(x.product.price * quantity)],
+    ['1개 단가', (x) => won(x.product.price)],
+    [`${quantity.toLocaleString('ko-KR')}개 상품 합계`, (x) => <b>{won(x.product.price * quantity)}</b>],
     ['산지', (x) => x.attributes.region],
     ['분류', (x) => x.attributes.category],
     ['지역 상생', (x) => (isDepopulationArea(config, x.attributes.region) ? '인구감소지역 상품' : '—')],
   ];
   return (
     <details className="disclosure compare">
-      <summary>{items.length}개 상품 한눈에 비교</summary>
+      <summary style={{ fontSize: 15, fontWeight: 600 }}>{items.length}개 추천 상품 한눈에 비교하기</summary>
       <div className="compare-scroll">
         <table className="compare-table num">
           <thead>
             <tr>
               <td />
-              {items.map((x) => <th key={x.product.productNo} scope="col">{x.product.name}</th>)}
+              {items.map((x, idx) => (
+                <th key={x.product.productNo} scope="col">
+                  <span style={{ display: 'block', fontSize: 12, color: 'var(--pine)', fontWeight: 700, marginBottom: 2 }}>
+                    {idx === 0 ? '1위 추천' : `${idx + 1}위 대안`}
+                  </span>
+                  {x.product.name}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {rows.map(([label, cell]) => (
               <tr key={label}>
                 <th scope="row">{label}</th>
-                {items.map((x) => <td key={x.product.productNo}>{cell(x)}</td>)}
+                {items.map((x, idx) => <td key={x.product.productNo}>{cell(x, idx)}</td>)}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      <p className="small muted" style={{ marginTop: 8, textAlign: 'right', fontSize: 12 }}>
+        ※ 모바일에서는 표를 좌우로 스크롤하여 3개 상품을 비교할 수 있습니다.
+      </p>
     </details>
   );
 }

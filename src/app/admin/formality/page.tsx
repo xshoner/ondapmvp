@@ -7,5 +7,8 @@ export const dynamic = 'force-dynamic';
 
 export default async function FormalityPage() {
   await requireAdmin();
-  return <Intake initial={await loadPilot()} eventTest mode={dataSource()} />;
+  return <>
+    <p><a className="text-link" href="/admin">현재 고객 추천 상품 설정</a></p>
+    <Intake initial={await loadPilot()} eventTest mode={dataSource()} />
+  </>;
 }

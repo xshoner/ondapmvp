@@ -38,16 +38,16 @@ export default async function VerifyPage({ searchParams }: { searchParams: Searc
   return (
     <div style={{ display: 'grid', gap: 20 }}>
       <header className="page-head" style={{ marginBottom: 0 }}>
-        <h1>알고리즘 검증 (v1 운영)</h1>
+        <h1>알고리즘 검증</h1>
         <p>
-          현재 운영 고객 추천(v0.1)의 행사 8 × 관계 4 = 32 시나리오 일치율을 검증합니다. 새 격식지수 v2의 전체 시뮬레이션 및 적격 판정은{' '}
+          고객 추천과 동일한 기준으로 행사 8 × 관계 4 = 32개 시나리오를 검증합니다. 상품별 적격 판정은{' '}
           <a className="text-link" href="/admin/formality/lab">격식 검증실</a>에서 확인하세요.
         </p>
       </header>
       <section className="panel">
         <div className="spread">
           <div>
-            <h2>32개 시나리오 결과 <span className="small muted">격식지수 가안 {config.modelVersion}</span></h2>
+            <h2>32개 시나리오 결과</h2>
             <p className="small muted" style={{ margin: '4px 0 0' }}>행사 8 × 관계 4 조합을 같은 예산으로 돌린 1~3위입니다. 칸을 누르면 전체 순위와 점수 내역을 봅니다.</p>
           </div>
           <div className="chips">
@@ -166,10 +166,9 @@ function Detail({ catalog, catalogKey, event, relation, budget, expected }: { ca
             <tr>
               <th style={{ top: 0 }}>#</th>
               <th style={{ top: 0 }}>상품</th>
-              <th style={{ top: 0 }} className="right">격식지수</th>
-              <th style={{ top: 0 }} className="right">지표</th>
-              {config.indicators.map((i) => <th key={i.id} style={{ top: 0 }} className="right">{i.name}</th>)}
-              <th style={{ top: 0 }} className="right">보너스</th>
+              <th style={{ top: 0 }} className="right">추천 점수</th>
+              <th style={{ top: 0 }} className="right">희소도</th>
+              <th style={{ top: 0 }}>순위 산정</th>
               <th style={{ top: 0 }}>카테고리</th>
             </tr>
           </thead>
@@ -182,11 +181,8 @@ function Detail({ catalog, catalogKey, event, relation, budget, expected }: { ca
                   <div className="small muted">{won(r.product.price)}{expected === r.product.productNo ? ' · 기대 정답' : ''}</div>
                 </td>
                 <td className="right"><b>{r.matchScore}</b></td>
-                <td className="right">{r.formalityIndex}</td>
-                {r.indicators.map((c) => <td key={c.id} className="right" title={`${c.score}/10 × ${c.weight}`}>{c.points}</td>)}
-                <td className="right" title={r.bonuses.map((b) => `${b.reason} ${b.points}`).join('\n')}>
-                  {r.bonuses.reduce((s, b) => s + b.points, 0)}
-                </td>
+                <td className="right">{r.baseIndex}</td>
+                <td className="small">{r.indicators.map((c) => `${c.name} ${c.points}`).join(' · ')}</td>
                 <td className="small">{r.attributes.category}</td>
               </tr>
             ))}

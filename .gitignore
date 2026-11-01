@@ -10,6 +10,9 @@ next-env.d.ts
 /data/design-files/
 /public/packaging/uploads/
 
+# 결재 문서 초안 (로컬 모드 산출물)
+/data/approval-drafts/
+
 # 카페24 붙이기 코드 생성물 (npm run cafe24:snippets)
 /cafe24/out/
 

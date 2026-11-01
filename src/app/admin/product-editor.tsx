@@ -23,6 +23,7 @@ type Props = {
   products: Cafe24Product[];
   attributes: ProductAttributes[];
   config: EngineConfig;
+  formalityEvidence: Catalog['formalityEvidence'];
   mallId: string;
   syncedAt: string | null;
   initialProduct?: number | null; // AI 일괄 제안 등에서 특정 상품을 열 때 (/admin?product=27)
@@ -45,9 +46,9 @@ const SHORTCUTS: [string, string][] = [
   ['?', '이 안내 열고 닫기'],
 ];
 
-export function ProductEditor({ products, attributes, config, mallId, syncedAt, initialProduct }: Props) {
+export function ProductEditor({ products, attributes, config, formalityEvidence, mallId, syncedAt, initialProduct }: Props) {
   const router = useRouter();
-  const catalog: Catalog = useMemo(() => ({ products, attributes, config }), [products, attributes, config]);
+  const catalog: Catalog = useMemo(() => ({ products, attributes, config, formalityEvidence }), [products, attributes, config, formalityEvidence]);
   // 방금 저장한 값: 서버 새로고침(router.refresh)이 오기 전에 그 상품을 다시 열어도 옛 값이 나오지 않게
   const [justSaved, setJustSaved] = useState<Map<number, ProductAttributes>>(new Map());
   useEffect(() => setJustSaved(new Map()), [attributes]);

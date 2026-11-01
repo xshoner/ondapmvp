@@ -18,7 +18,7 @@ export async function sendFeedbackAction(input: {
   const startedAt = Date.now();
   if (!allow(clientIp(await headers()))) return { ok: false };
   try {
-    const { config, products } = await getCatalog();
+    const { config, products, formalityEvidence } = await getCatalog();
     if (!isEvent(config, input?.event) || !isRelation(config, input?.relation) || typeof input.helpful !== 'boolean') return { ok: false };
     const requestId = input.requestId ?? crypto.randomUUID(); // 이전 배포의 열린 탭도 정상 처리
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) return { ok: false };
@@ -27,7 +27,7 @@ export async function sendFeedbackAction(input: {
     const reasons = input.helpful ? [] : [...new Set((Array.isArray(input.reasons) ? input.reasons : []).filter(isFeedbackReason))].slice(0, 5);
     await saveFeedback({
       event: input.event, relation: input.relation, budgetMax: parseBudget(input.budget), quantity: clampQty(input.qty),
-      resultProductNos: productNos, helpful: input.helpful, reasons, modelVersion: config.modelVersion,
+      resultProductNos: productNos, helpful: input.helpful, reasons, modelVersion: formalityEvidence ? 'v2' : config.modelVersion,
       requestId,
     });
     await recordOperation('feedback_save', 'ok', startedAt);

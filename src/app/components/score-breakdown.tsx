@@ -7,7 +7,7 @@ export function ScoreBreakdown({ item }: { item: ScoredProduct }) {
   return (
     <div style={{ display: 'grid', gap: 8 }}>
       <div className="small muted">
-        격식지수 <b style={{ color: 'var(--ink)' }}>{item.matchScore}</b> = 지표 {item.formalityIndex} + 보너스 {bonusTotal}
+        {item.model === 'v2' ? '추천 점수' : '격식지수'} <b style={{ color: 'var(--ink)' }}>{item.matchScore}</b>{item.model !== 'v2' && ` = 지표 ${item.formalityIndex} + 보너스 ${bonusTotal}`}
       </div>
       {item.indicators.map((c) => (
         <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '88px 1fr 56px', gap: 8, alignItems: 'center' }}>

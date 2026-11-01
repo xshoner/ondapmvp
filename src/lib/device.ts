@@ -56,7 +56,15 @@ const LAST_QUERY_DAYS = 30;
 export type LastQuery = Omit<ResultQuery, 'exclude'>;
 
 export function rememberQuery(q: ResultQuery): void {
-  writeJson(LAST_QUERY_KEY, { event: q.event, relation: q.relation, budget: q.budget, qty: q.qty, at: Date.now() });
+  writeJson(LAST_QUERY_KEY, {
+    event: q.event,
+    relation: q.relation,
+    budget: q.budget,
+    qty: q.qty,
+    ...(q.budgetMode ? { budgetMode: q.budgetMode } : {}),
+    ...(q.totalBudget !== undefined && q.totalBudget !== null ? { totalBudget: q.totalBudget } : {}),
+    at: Date.now(),
+  });
 }
 
 export function loadLastQuery(now = Date.now()): LastQuery | null {
@@ -65,7 +73,16 @@ export function loadLastQuery(now = Date.now()): LastQuery | null {
   if (typeof v.at !== 'number' || now - v.at > LAST_QUERY_DAYS * DAY) return null;
   const qty = Number(v.qty);
   if (!Number.isInteger(qty) || qty < 1 || qty > MAX_QTY) return null;
-  return { event: v.event, relation: v.relation, budget: parseBudget(v.budget), qty };
+  const budgetMode = v.budgetMode === 'total' || v.budgetMode === 'per_item' ? v.budgetMode : undefined;
+  const totalBudget = parseBudget(v.totalBudget);
+  return {
+    event: v.event,
+    relation: v.relation,
+    budget: parseBudget(v.budget),
+    qty,
+    ...(budgetMode ? { budgetMode } : {}),
+    ...(totalBudget !== null ? { totalBudget } : {}),
+  };
 }
 
 export function forgetLastQuery(): void {

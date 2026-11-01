@@ -69,6 +69,10 @@ export async function getAttributeHistoryAction(productNo: number): Promise<{ ok
 export async function saveConfigAction(config: EngineConfig): Promise<{ ok: true }> {
   await requireAdmin();
   if (!Array.isArray(config?.indicators) || !config.events || !config.relations) throw new Error('잘못된 설정입니다.');
+  if (config.formalityV2) {
+    const { parseWorkspace } = await import('../../engine/eligibility.ts');
+    config.formalityV2 = parseWorkspace({ format: 'ondap-formality-v2', source: 'catalog', evidence: [], policy: config.formalityV2 }).policy;
+  }
   // 점수 기준 예시는 짧은 글만 (화면 도움말에 그대로 나온다)
   for (const ind of config.indicators) {
     if (!ind.examples) continue;

@@ -23,9 +23,9 @@ export function GiftFinderForm({ events, relations, initial }: { events: Option[
   // 예산은 1개당으로 고르거나, 전체 예산을 넣으면 수량으로 나눠 1개당 예산을 잡는다.
   // 결과에서 돌아온 예산이 칩에 없는 값(전체 예산으로 계산한 값)이면 그 값을 칩 하나로 더해 고른 채로 둔다
   const budgetSteps = initial?.budget != null && !BUDGET_STEPS.includes(initial.budget) ? [initial.budget, ...BUDGET_STEPS] : BUDGET_STEPS;
-  const [budgetMode, setBudgetMode] = useState<'each' | 'total'>('each');
+  const [budgetMode, setBudgetMode] = useState<'each' | 'total'>(initial?.budgetMode === 'total' ? 'total' : 'each');
   const [budget, setBudget] = useState<number | null>(initial ? initial.budget : 50000);
-  const [total, setTotal] = useState('');
+  const [total, setTotal] = useState(initial?.totalBudget ? String(initial.totalBudget) : '');
   const [quantity, setQuantity] = useState(initial?.qty ?? 10);
   const [pending, setPending] = useState(false);
   const [last, setLast] = useState<LastQuery | null>(null);
@@ -45,7 +45,15 @@ export function GiftFinderForm({ events, relations, initial }: { events: Option[
   function submit() {
     if (!ready || event === null || relation === null) return;
     setPending(true);
-    router.push(resultHref({ event, relation, budget: effectiveBudget, qty: quantity, exclude: [] }));
+    router.push(resultHref({
+      event,
+      relation,
+      budget: effectiveBudget,
+      qty: quantity,
+      exclude: [],
+      budgetMode: budgetMode === 'total' ? 'total' : 'per_item',
+      totalBudget: budgetMode === 'total' ? totalWon : null,
+    }));
   }
 
   const nameOf = (list: Option[], id: string | null) => list.find((x) => x.id === id)?.name;

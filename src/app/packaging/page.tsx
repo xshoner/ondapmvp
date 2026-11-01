@@ -4,7 +4,7 @@ import { CATEGORY_ORDER, categoryName } from '@/packaging/rules.ts';
 import type { PackagingAssets } from '@/packaging/types.ts';
 import { stickerFontFamilies } from './fonts.ts';
 import { PackagingEditor, type PackagingEntry } from './packaging-editor.tsx';
-import { eventIds, isEvent } from '@/engine/labels.ts';
+import { eventIds, isEvent, isRelation } from '@/engine/labels.ts';
 import { clampQty } from '@/lib/result-query.ts';
 
 export const dynamic = 'force-dynamic';
@@ -22,6 +22,8 @@ export default async function PackagingPage({ searchParams }: { searchParams: Se
   const product = catalog.products.find((p) => p.productNo === Number(sp.product));
   const quantity = clampQty(sp.qty ?? 1);
   const event = isEvent(catalog.config, sp.event) ? sp.event : null;
+  const relation = isRelation(catalog.config, sp.relation) ? sp.relation : null;
+  const relationName = relation ? catalog.config.relations[relation]?.name : null;
 
   let assets: PackagingAssets | null = null;
   try {
@@ -42,16 +44,16 @@ export default async function PackagingPage({ searchParams }: { searchParams: Se
     : ['/', '‹ 처음으로'];
 
   const back = (
-    <header className="topbar">
+    <header className="topbar pkg-topbar">
       <a className="back" href={backHref}>{backLabel}</a>
-      <span className="title">포장 꾸미기</span>
-      <span style={{ width: 72 }} />
+      <span className="title">온답 포장 꾸미기</span>
+      <a className="small link-btn" href="/packaging/mine" style={{ textAlign: 'right' }}>내 디자인</a>
     </header>
   );
 
   if (!product || !assets || assets.styles.length === 0) {
     return (
-      <main className="mobile">
+      <main className="pkg-page-container">
         {back}
         <section className="card" style={{ padding: 20, marginTop: 24, textAlign: 'center' }}>
           <p style={{ margin: 0 }}>{!product ? '상품을 찾을 수 없어요.' : '포장 꾸미기를 준비하고 있어요.'}</p>
@@ -65,13 +67,15 @@ export default async function PackagingPage({ searchParams }: { searchParams: Se
   const categoryNames = Object.fromEntries(CATEGORY_ORDER.map((c) => [c, categoryName(c, eventNames)]));
 
   return (
-    <main className="mobile" style={{ paddingBottom: 24 }}>
+    <div className="pkg-page-container">
       {back}
       <PackagingEditor
         product={{ productNo: product.productNo, name: product.name, price: product.price, image: product.image ?? null, url: product.url }}
         quantity={quantity}
         event={event}
         events={eventIds(catalog.config).map((id) => ({ id, name: eventNames[id] }))}
+        relation={relation}
+        relationName={relationName}
         from={from}
         restoreCode={typeof sp.restore === 'string' ? sp.restore.slice(0, 20) : null}
         styles={assets.styles}
@@ -79,7 +83,9 @@ export default async function PackagingPage({ searchParams }: { searchParams: Se
         texts={assets.texts}
         categoryNames={categoryNames}
         fontFamilies={stickerFontFamilies}
+        backHref={backHref}
+        backLabel={backLabel}
       />
-    </main>
+    </div>
   );
 }

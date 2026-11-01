@@ -14,8 +14,22 @@ export interface CanvasApi {
 // 캔버스가 잰 문구 상자 (편집기 좌표). 어떤 글자·크기로 잰 값인지 함께 보낸다
 export type TextRect = Box & { text: string; fontSize: number };
 
+// 실행 취소(되돌리기) 스냅샷 엔트리: 캔버스 레이어, 서식, 템플릿, 텍스트 입력값 전체를 100% 동기화하여 보관
+export interface EditorHistoryEntry {
+  layers: EditorLayer[];
+  background: string;
+  shape: StickerShape;
+  sizeCm: StickerSizeCm;
+  selectedTemplateId: string | null;
+  fields: DesignDraft['fields'];
+  mainText: string;
+  autoTextEdited: boolean;
+  hasChosenImage: boolean;
+}
+
 // 편집 상태 한 벌: 자동 보관과 '내 디자인 다시 꾸미기'가 함께 쓴다
 export interface EditorSnapshot {
+  version?: number; // 2: 3단계 신규 에디터 포맷
   purpose?: 'return' | 'celebration';
   styleId: string;
   withSticker: boolean;

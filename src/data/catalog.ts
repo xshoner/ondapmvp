@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { dataDir } from '../lib/paths.ts';
 import type { Cafe24Product, Catalog, EngineConfig, ProductAttributes } from '../engine/types.ts';
 import type { FeedbackLog } from '../lib/feedback.ts';
+import { evidenceFromIntake, type IntakeFactors } from '../engine/formality-intake.ts';
 
 function readJson<T>(file: string): T {
   return JSON.parse(readFileSync(join(dataDir, file), 'utf8')) as T;
@@ -21,6 +22,19 @@ export function loadCatalog(): Catalog {
   const { products: attributes } = readJson<{ products: ProductAttributes[] }>('product-attributes.json');
   const config = readJson<EngineConfig>('config/engine.json');
   return { products, attributes, config };
+}
+
+// 로컬 편집기와 결재 문서가 같은 검수 결과를 사용한다.
+export function loadRecommendationCatalog(): Catalog {
+  const catalog = loadCatalog();
+  const path = join(dataDir, 'formality-pilot.json');
+  if (!existsSync(path)) return { ...catalog, formalityEvidence: [] };
+  const data = JSON.parse(readFileSync(path, 'utf8')) as { items: Record<string, { factors: IntakeFactors; reviewed: boolean }> };
+  const formalityEvidence = Object.entries(data.items).filter(([, item]) => item.reviewed).map(([no, item]) => {
+    const evidence = evidenceFromIntake(Number(no), item.factors, true);
+    return { ...evidence, factors: Object.fromEntries(Object.entries(evidence.factors).map(([key, value]) => [key, { ...value, basis: '관리자 검수 완료' }])) };
+  });
+  return { ...catalog, formalityEvidence };
 }
 
 export function loadSyncInfo(): { mallId: string; syncedAt: string } {

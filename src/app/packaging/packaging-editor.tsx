@@ -1,58 +1,100 @@
 'use client';
 
-// 고객 포장 꾸미기: 포장 스타일 고르기 → (무료) 스티커 꾸미기 → 저장하면 디자인 코드 발급.
-// 단계를 줄이려고 한 화면에 모두 두고, 행사에 맞는 추천 이미지를 처음부터 깔아 둔다 (바로 저장해도 된다).
-// 꾸미던 내용은 이 기기에 자동 보관하고, 저장한 디자인은 '내 디자인'에서 다시 꾸밀 수 있다.
+// ONDAP 포장 꾸미기 3단계 제작 에디터
+// STEP 1: 포장지 선택 -> STEP 2: 메시지 꾸미기 -> STEP 3: 최종 확인
+// 일반 사용자가 복잡한 디자인 도구를 몰라도 추천 템플릿과 문구 수정만으로 포장을 완성할 수 있도록 구현
 
-import dynamic from 'next/dynamic';
-import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  CANVAS_UNITS, FONTS, MAX_LAYERS, MIN_PRINT_DPI, PLACEHOLDER_BLANK, STICKER_SIZES, bleedUnits, cautionWords, effectiveDpi, fillPlaceholders, fitScale,
-  freeTextY, overlaps, printPixels, totalCm, type FontId,
-} from '@/packaging/rules.ts';
 import type { EventType } from '@/engine/types.ts';
-import { isMobileUA } from '@/lib/device.ts';
-import type { DesignCategory, DesignDraft, DesignImage, DesignText, PackagingStyle, StickerShape, StickerSizeCm, TextLayer } from '@/packaging/types.ts';
-import { loadSavedDesigns, makeThumb, orderUrl, rememberDesign } from '@/packaging/client.ts';
-import { QtyInput } from '../components/qty-input.tsx';
+import {
+  CANVAS_UNITS,
+  MIN_PRINT_DPI,
+  STICKER_SIZES,
+  bleedUnits,
+  cautionWords,
+  effectiveDpi,
+  fillPlaceholders,
+  fitScale,
+  overlaps,
+  printPixels,
+  totalCm,
+  type FontId,
+} from '@/packaging/rules.ts';
+import type {
+  DesignCategory,
+  DesignDraft,
+  DesignImage,
+  DesignText,
+  GiftPurpose,
+  PackagingStyle,
+  StickerShape,
+  StickerSizeCm,
+  TextLayer,
+} from '@/packaging/types.ts';
+import { loadSavedDesigns, makeThumb, rememberDesign } from '@/packaging/client.ts';
+import { matchesTarget, presetText } from '@/packaging/presets.ts';
+import {
+  applyImageSelectionToLayers,
+  classifyDraftFormat,
+  extractMainTextFromLayers,
+  formatSenderDisplay,
+  getEventTemplates,
+  isNamesUsedInLayers,
+  syncFieldsToLayers,
+  syncMainTextToLayers,
+  type DraftFormatType,
+  type StickerTemplate,
+} from '@/packaging/templates.ts';
 import { saveDesignAction } from './actions.ts';
 import {
-  CARD_SHORT_MM, PREVIEW_PX, PX_PER_MM_RANGE, autosave, clearAutosave, forgetFields, fromStored, loadAutosave, loadFields, loadPxPerMm,
-  prunePhotos, putPhoto, rememberFields, savePreview, savePxPerMm, toStored, todayLabel,
+  CARD_SHORT_MM,
+  PREVIEW_PX,
+  autosave,
+  clearAutosave,
+  forgetFields,
+  fromStored,
+  loadAutosave,
+  loadFields,
+  prunePhotos,
+  putPhoto,
+  rememberFields,
+  savePreview,
+  toStored,
+  todayLabel,
 } from './editor-store.ts';
-import type { CanvasApi, EditorImageLayer, EditorLayer, EditorSnapshot, TextRect } from './editor-types.ts';
-import { won } from '@/lib/result-query.ts';
-import { matchesTarget, presetText } from '@/packaging/presets.ts';
-import type { GiftPurpose } from '@/packaging/types.ts';
+import type { CanvasApi, EditorHistoryEntry, EditorImageLayer, EditorLayer, EditorSnapshot, TextRect } from './editor-types.ts';
 
-const StickerCanvas = dynamic(() => import('./sticker-canvas.tsx'), {
-  ssr: false,
-  loading: () => <div className="stage-loading">편집기를 불러오는 중…</div>,
-});
+import { StepNavigation } from './components/step-navigation.tsx';
+import { ProductHeader } from './components/product-header.tsx';
+import { Step1Wrapping } from './components/step1-wrapping.tsx';
+import { Step2Message } from './components/step2-message.tsx';
+import { Step3Review } from './components/step3-review.tsx';
+import { PreviewPane } from './components/preview-pane.tsx';
+import { ResultModal } from './components/result-modal.tsx';
+import { RealSizeModal } from './components/real-size-modal.tsx';
 
 export type PackagingEntry = 'recommend' | 'cafe24' | 'pick' | 'mine';
 
-type Props = {
+interface Props {
   product: { productNo: number; name: string; price: number; image: string | null; url: string };
   quantity: number;
   event: EventType | null;
   events: { id: EventType; name: string }[];
-  // 들어온 곳: 추천 결과, 카페24 상품 페이지 버튼, '포장만 꾸미기' 상품 선택, 내 디자인 '다시 꾸미기'
+  relation?: string | null;
+  relationName?: string | null;
   from: PackagingEntry;
-  restoreCode: string | null; // 다시 꾸밀 디자인 코드 (이 기기의 '내 디자인'에서 찾는다)
+  restoreCode: string | null;
   styles: PackagingStyle[];
   images: DesignImage[];
   texts: DesignText[];
   categoryNames: Record<string, string>;
   fontFamilies: Record<FontId, string>;
-};
+  backHref?: string;
+  backLabel?: string;
+}
 
-const COLORS = ['#1f2a26', '#ffffff', '#2f5a4b', '#b8903a', '#b5523b', '#1d3557', '#7a2e3a', '#e8a0b4'];
-const BACKGROUNDS = ['#ffffff', '#f6edd8', '#e3ede7', '#f7e6e1', '#1f3f34'];
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
-const MIN_AUTO_FONT = 28; // 긴 이름 자동 맞춤은 글자 크기 막대의 최솟값까지만 줄인다
-
+const MIN_AUTO_FONT = 28;
 const newId = () => 'l' + Math.random().toString(36).slice(2, 9);
 
 function loadNatural(src: string): Promise<{ w: number; h: number }> {
@@ -65,203 +107,545 @@ function loadNatural(src: string): Promise<{ w: number; h: number }> {
   });
 }
 
-// 재단 여백까지 빈틈없이 덮도록 (짧은 변을 1000에 맞춤)
 function coverLayer(src: string, w: number, h: number, extra: Partial<EditorImageLayer> = {}): EditorImageLayer {
   const r = w / h;
   return {
-    id: newId(), type: 'image', src, x: 500, y: 500, rotation: 0, scaleX: 1, scaleY: 1,
-    width: r >= 1 ? 1000 * r : 1000, height: r >= 1 ? 1000 : 1000 / r, ...extra,
+    id: newId(),
+    type: 'image',
+    src,
+    x: 500,
+    y: 500,
+    rotation: 0,
+    scaleX: 1,
+    scaleY: 1,
+    width: r >= 1 ? 1000 * r : 1000,
+    height: r >= 1 ? 1000 : 1000 / r,
+    ...extra,
   };
 }
 
-function textLayer(text: string, y = 500): TextLayer {
-  return { id: newId(), type: 'text', text, x: 500, y, rotation: 0, scaleX: 1, scaleY: 1, font: 'serif', fontSize: 78, color: '#1f2a26', stroke: null, shadow: false };
-}
-
-// 행사 분류 → 공통 → 나머지 순서
-function byRelevance<T extends { category: DesignCategory; sort: number }>(items: T[], event: DesignCategory | null): T[] {
-  const rank = (c: DesignCategory) => (c === event ? 0 : c === 'common' ? 1 : 2);
-  return [...items].sort((a, b) => rank(a.category) - rank(b.category) || a.sort - b.sort);
-}
-
 export function PackagingEditor(props: Props) {
-  const { product, styles, categoryNames, fontFamilies, events, from } = props;
-  // 추천을 거치지 않고 들어오면 행사를 모르므로 화면에서 고르게 한다 (안 골라도 공통 이미지로 꾸밀 수 있다)
-  const [event, setEvent] = useState<DesignCategory | null>(props.event);
+  const {
+    product,
+    styles,
+    categoryNames,
+    fontFamilies,
+    events,
+    from,
+    backHref = '/',
+    backLabel = '‹ 뒤로',
+  } = props;
+
+  // 1. 단일 핵심 상태 머신
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [purpose, setPurpose] = useState<GiftPurpose>('return');
   const [quantity, setQuantity] = useState(props.quantity);
-  const eventName = event && event !== 'common' ? categoryNames[event] : null;
-  const images = useMemo(() => byRelevance(props.images.filter((i) => matchesTarget(i, event, purpose, product.productNo)), event), [props.images, event, purpose, product.productNo]);
-  const otherImages = useMemo(() => byRelevance(props.images.filter((i) => !images.includes(i)), event), [props.images, images, event]);
-  const texts = useMemo(() => byRelevance(props.texts, event), [props.texts, event]);
-  const nearTexts = texts.filter((t) => matchesTarget(t, event, purpose, product.productNo));
-  const otherTexts = texts.filter((t) => !nearTexts.includes(t));
+  const [event, setEvent] = useState<DesignCategory | null>(props.event);
 
-  const [styleId, setStyleId] = useState(styles.find((s) => matchesTarget(s, props.event, 'return', product.productNo))?.id ?? '');
+  // 사용 가능한 포장 스타일 (상품 제한 targeting.productNos 반영)
+  const availableStyles = useMemo(() => {
+    return styles.filter((s) => !s.targeting?.productNos?.length || s.targeting.productNos.includes(product.productNo));
+  }, [styles, product.productNo]);
+
+  const [styleId, setStyleId] = useState(() => {
+    const matched = availableStyles.find((s) => matchesTarget(s, props.event, 'return', product.productNo));
+    return matched?.id ?? availableStyles[0]?.id ?? styles[0]?.id ?? '';
+  });
+
+  // 사용 가능한 스타일이 변하거나 현재 styleId가 유효하지 않으면 폴백
+  useEffect(() => {
+    if (availableStyles.length > 0 && !availableStyles.some((s) => s.id === styleId)) {
+      const fallback = availableStyles.find((s) => matchesTarget(s, event, purpose, product.productNo)) ?? availableStyles[0];
+      if (fallback) setStyleId(fallback.id);
+    }
+  }, [availableStyles, styleId, event, purpose, product.productNo]);
+
+  // 2. 행사 맞춤 템플릿 목록 (상태 초기값에 즉시 활용)
+  const templates = useMemo(() => {
+    return getEventTemplates({
+      event,
+      purpose,
+      relation: props.relation,
+      images: props.images,
+    });
+  }, [event, purpose, props.relation, props.images]);
+
+  const initialTpl = templates[0];
+  const initialLayers = useMemo(() => {
+    return initialTpl
+      ? initialTpl.createLayers({
+          mainText: initialTpl.mainText,
+          fields: { recipient: '', sender: '', date: '' },
+        })
+      : [];
+  }, [initialTpl]);
+
   const [withSticker, setWithSticker] = useState(true);
-  const [shape, setShape] = useState<StickerShape>('circle');
-  const [sizeCm, setSizeCm] = useState<StickerSizeCm>(6);
-  const [background, setBackground] = useState('#ffffff');
-  const [layers, setLayers] = useState<EditorLayer[]>([]);
+  const [shape, setShape] = useState<StickerShape>(() => initialTpl?.shape ?? 'circle');
+  const [sizeCm, setSizeCm] = useState<StickerSizeCm>(() => initialTpl?.sizeCm ?? 6);
+  const [background, setBackground] = useState<string>(() => initialTpl?.background ?? '#ffffff');
+  const [layers, setLayers] = useState<EditorLayer[]>(() => initialLayers);
   const [fields, setFields] = useState<DesignDraft['fields']>({ recipient: '', sender: '', date: '' });
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [tab, setTab] = useState<'image' | 'text'>('image');
-  const [consent, setConsent] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [result, setResult] = useState<{ code: string; copied: boolean; preview: string | null } | null>(null);
-  const apiRef = useRef<CanvasApi | null>(null);
-  const autoLayer = useRef<EditorLayer | null>(null); // 화면이 자동으로 깐 레이어 (고객이 움직이면 새 객체가 되어 더는 같지 않다)
+  const [mainText, setMainText] = useState<string>(() => initialTpl?.mainText ?? '');
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(() => initialTpl?.id ?? null);
+
+  // 사용자 편집 상태 및 첫 이미지 선택 여부 추적
   const autoTextEdited = useRef(false);
   const hasChosenImage = useRef(false);
-  const pickSeq = useRef(0); // 바탕을 고를 때마다 올린다: 늦게 도착한 이전 이미지가 새로 고른 것을 덮지 않게
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [displaySize, setDisplaySize] = useState(0);
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [consent, setConsent] = useState(false);
+  const [namesChecked, setNamesChecked] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [result, setResult] = useState<{ code: string; preview: string | null } | null>(null);
+  const [realSizeOpen, setRealSizeOpen] = useState(false);
+  const [resume, setResume] = useState<unknown>(null);
+  const [banner, setBanner] = useState<string | null>(null);
+
+  const apiRef = useRef<CanvasApi | null>(null);
+  const pickSeq = useRef(0);
   const [textRects, setTextRects] = useState<Record<string, TextRect>>({});
   const fitTries = useRef<Record<string, { text: string; tries: number }>>({});
-  const [settled, setSettled] = useState<Record<string, string>>({}); // 자동 맞춤을 마친 문구 (레이어 → 그때 글자)
-  const [namesChecked, setNamesChecked] = useState(false);
-  const [view, setView] = useState<{ kind: 'mockup' | 'real'; png: string } | null>(null);
-  const [resume, setResume] = useState<unknown>(null); // 자동 보관해 둔 디자인
-  const [banner, setBanner] = useState<string | null>(null);
-  const [fieldsRemembered, setFieldsRemembered] = useState(false);
-  const [qr, setQr] = useState<string | null>(null);
+  const [settled, setSettled] = useState<Record<string, string>>({});
   const autosaving = useRef(false);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  // 처음 화면: 행사 추천 이미지가 있으면 깔아 두고, 없으면 추천 문구 한 줄
-  // 되돌리기: 바뀌기 직전 상태를 쌓아 둔다. 짧은 시간(0.6초) 안의 연속 변경(글자 입력 등)은 한 번으로 친다.
-  // 올린 사진의 blob 주소는 되돌리기로 다시 쓸 수 있으므로 지우지 않는다
-  const history = useRef<{ layers: EditorLayer[]; background: string }[]>([]);
-  const prevSnap = useRef<{ layers: EditorLayer[]; background: string }>({ layers: [], background: '#ffffff' });
+  // 실행 취소(되돌리기) 스택: 캔버스 레이어, 서식, 템플릿, 텍스트 입력값 전체를 100% 동기화하여 보관
+  const history = useRef<EditorHistoryEntry[]>([]);
+  const prevSnap = useRef<EditorHistoryEntry>({
+    layers: initialLayers,
+    background: initialTpl?.background ?? '#ffffff',
+    shape: initialTpl?.shape ?? 'circle',
+    sizeCm: initialTpl?.sizeCm ?? 6,
+    selectedTemplateId: initialTpl?.id ?? null,
+    fields: { recipient: '', sender: '', date: '' },
+    mainText: initialTpl?.mainText ?? '',
+    autoTextEdited: false,
+    hasChosenImage: false,
+  });
   const lastPush = useRef(0);
-  const restoring = useRef(false);
+  const isUndoing = useRef(false);
+  const isRestoring = useRef(false);
+  const isAutoFitting = useRef(false);
+  const started = useRef(false);
   const [canUndo, setCanUndo] = useState(false);
+
+  const eventName = event && event !== 'common' ? categoryNames[event] : null;
+
+  const currentTemplate = useMemo(() => {
+    return templates.find((t) => t.id === selectedTemplateId) ?? templates[0];
+  }, [templates, selectedTemplateId]);
+
+  // 추천 이미지/문구 정렬
+  const images = useMemo(() => {
+    return props.images.filter((i) => i.category === event || i.category === 'common');
+  }, [props.images, event]);
+  const otherImages = useMemo(() => {
+    return props.images.filter((i) => !images.includes(i));
+  }, [props.images, images]);
+
+  const texts = useMemo(() => {
+    return props.texts.filter((t) => t.category === event || t.category === 'common');
+  }, [props.texts, event]);
+  const otherTexts = useMemo(() => {
+    return props.texts.filter((t) => !texts.includes(t));
+  }, [props.texts, texts]);
+
+  // 템플릿 적용 함수 (고객 수정 문구, 추가 문구 및 사진 보존)
+  const applyTemplate = (tpl: StickerTemplate, checkConfirm = false) => {
+    const customUploads = layers.filter((l): l is EditorImageLayer => l.type === 'image' && Boolean(l.uploaded));
+    const customPickedImage = !customUploads.length && hasChosenImage.current
+      ? layers.find((l) => l.type === 'image' && l.id !== 'template-image')
+      : null;
+    const additionalTextLayers = layers.filter(
+      (l) => l.type === 'text' && !['role-main', 'role-recipient', 'role-sender', 'role-date'].includes(l.id),
+    );
+    const hasCustomEdits =
+      autoTextEdited.current ||
+      customUploads.length > 0 ||
+      hasChosenImage.current ||
+      additionalTextLayers.length > 0;
+
+    if (checkConfirm && hasCustomEdits) {
+      if (
+        !window.confirm(
+          '서식을 변경하면 폰트와 배치가 새 서식 기준으로 변경됩니다. 직접 입력하신 이름과 문구, 추가하신 문구 및 사진은 그대로 유지됩니다. 변경하시겠습니까?'
+        )
+      ) {
+        return;
+      }
+    }
+
+    setSelectedTemplateId(tpl.id);
+    setBackground(tpl.background);
+    setShape(tpl.shape);
+    setSizeCm(tpl.sizeCm);
+
+    // 직접 작성/수정한 문구가 있다면 유지, 아니면 새 템플릿의 문구 사용
+    const textToUse = autoTextEdited.current && mainText.trim() ? mainText : tpl.mainText;
+
+    const newLayers = tpl.createLayers({
+      mainText: textToUse,
+      fields,
+    });
+
+    // 1. 고객이 직접 올린 사진 또는 선택한 추천 이미지 보존
+    let baseLayers = newLayers;
+    if (customUploads.length > 0) {
+      baseLayers = [customUploads[0], ...newLayers.filter((l) => l.type !== 'image')];
+    } else if (customPickedImage) {
+      baseLayers = [customPickedImage, ...newLayers.filter((l) => l.type !== 'image')];
+    }
+
+    // 2. 고객이 직접 추가한 별도 텍스트 레이어 보존
+    const finalLayers = [...baseLayers, ...additionalTextLayers];
+
+    setLayers(finalLayers);
+    if (!autoTextEdited.current) {
+      setMainText(tpl.mainText);
+    }
+    setSelectedId(null);
+  };
+
+  // 실행 취소 스택 관리
   useEffect(() => {
-    const prev = prevSnap.current;
-    prevSnap.current = { layers, background };
-    if (restoring.current) {
-      restoring.current = false;
+    if (!started.current) {
       return;
     }
-    const sameLayers = prev.layers === layers || (prev.layers.length === 0 && layers.length === 0); // 처음 그릴 때 빈 목록끼리
-    if (sameLayers && prev.background === background) return;
-    if (prev.layers.length === 0 && history.current.length === 0 && layers.length === 1 && layers[0] === autoLayer.current) return; // 처음 자동으로 깐 것은 되돌리기 대상이 아니다
-    const now = Date.now();
-    if (now - lastPush.current > 600) {
-      history.current.push(prev);
-      if (history.current.length > 40) history.current.shift();
+    if (isRestoring.current) {
+      isRestoring.current = false;
+      return;
     }
-    lastPush.current = now;
-    setCanUndo(history.current.length > 0);
-  }, [layers, background]);
+    if (isUndoing.current) {
+      isUndoing.current = false;
+      return;
+    }
+    if (isAutoFitting.current) {
+      isAutoFitting.current = false;
+      if (prevSnap.current) {
+        prevSnap.current = { ...prevSnap.current, layers };
+      }
+      return;
+    }
+
+    const currentEntry: EditorHistoryEntry = {
+      layers,
+      background,
+      shape,
+      sizeCm,
+      selectedTemplateId,
+      fields: { ...fields },
+      mainText,
+      autoTextEdited: autoTextEdited.current,
+      hasChosenImage: hasChosenImage.current,
+    };
+
+    if (!prevSnap.current) {
+      // 마운트 시 최초 기준점만 등록 (히스토리 스택에 쌓지 않음 -> 초기 실행 취소 비활성화)
+      prevSnap.current = currentEntry;
+      return;
+    }
+
+    const prev = prevSnap.current;
+    const sameLayers = prev.layers === layers;
+    const sameBg = prev.background === background;
+    const sameShape = prev.shape === shape;
+    const sameSize = prev.sizeCm === sizeCm;
+    const sameTpl = prev.selectedTemplateId === selectedTemplateId;
+    const sameFields =
+      prev.fields.recipient === fields.recipient &&
+      prev.fields.sender === fields.sender &&
+      prev.fields.date === fields.date;
+    const sameMain = prev.mainText === mainText;
+
+    if (sameLayers && sameBg && sameShape && sameSize && sameTpl && sameFields && sameMain) {
+      return;
+    }
+
+    const now = Date.now();
+    const isDiscreteChange = !sameShape || !sameSize || !sameTpl || !sameBg;
+    if (isDiscreteChange || now - lastPush.current > 500) {
+      history.current.push(prev);
+      if (history.current.length > 50) history.current.shift();
+      lastPush.current = now;
+      setCanUndo(true);
+    }
+    prevSnap.current = currentEntry;
+  }, [layers, background, shape, sizeCm, selectedTemplateId, fields, mainText]);
 
   const undo = () => {
-    const snap = history.current.pop();
-    if (!snap) return;
-    restoring.current = true;
-    setLayers(snap.layers);
-    setBackground(snap.background);
+    if (history.current.length === 0) return;
+    const entry = history.current.pop();
+    if (!entry) return;
+
+    isUndoing.current = true;
+    setLayers(entry.layers);
+    setBackground(entry.background);
+    setShape(entry.shape);
+    setSizeCm(entry.sizeCm);
+    setSelectedTemplateId(entry.selectedTemplateId);
+
+    setFields({ ...entry.fields });
+    setMainText(entry.mainText);
+
+    autoTextEdited.current = entry.autoTextEdited;
+    hasChosenImage.current = entry.hasChosenImage;
+
     setSelectedId(null);
+    setNamesChecked(false); // 실행 취소로 이름/날짜가 변경되었으므로 철자 확인 초기화
+
+    prevSnap.current = { ...entry };
     setCanUndo(history.current.length > 0);
     lastPush.current = 0;
   };
 
   const clearAll = () => {
+    if (prevSnap.current) {
+      history.current.push(prevSnap.current);
+      if (history.current.length > 50) history.current.shift();
+      setCanUndo(true);
+    }
     setLayers([]);
     setBackground('#ffffff');
     setSelectedId(null);
+    setMainText('');
+    setFields({ recipient: '', sender: '', date: '' });
+    setNamesChecked(false);
   };
 
-  // 저장해 둔 편집 상태로 바꾼다 (다시 꾸미기·이어서 꾸미기). 불러온 문구는 자동 맞춤으로 크기를 바꾸지 않는다
-  const restore = async (stored: unknown, message: string, keepSaving: boolean) => {
-    const r = await fromStored(stored, { styleIds: styles.map((x) => x.id), events: events.map((e) => e.id) });
-    setResume(null);
-    if (!r) return setBanner('저장해 둔 디자인을 읽지 못했어요. 새로 꾸며 주세요.');
-    const d = r.snap;
-    setPurpose(d.purpose ?? 'return');
-    restoring.current = true; // 불러온 것 자체는 되돌리기·자동 보관 대상이 아니다
-    setSettled(Object.fromEntries(d.layers.flatMap((l) => (l.type === 'text' ? [[l.id, fillPlaceholders(l.text, d.fields)]] : []))));
-    setStyleId(d.styleId);
-    setWithSticker(d.withSticker);
-    setShape(d.shape);
-    setSizeCm(d.sizeCm);
-    setBackground(d.background);
-    setLayers(d.layers);
-    setFields(d.fields);
-    // 이어서 꾸미기는 이번에 들어온 링크의 행사·수량을 지킨다 (추천 결과에서 정한 수량을 지난 보관본이 덮지 않게)
-    setEvent(keepSaving && props.event ? props.event : d.event);
-    setQuantity(keepSaving && props.quantity > 1 ? props.quantity : d.quantity);
-    setSelectedId(null);
-    setConsent(false); // 사진이 바뀌었을 수 있으니 사용 권한은 다시 확인
-    autosaving.current = keepSaving; // 이어서 꾸미기는 계속 보관, 다시 꾸미기는 고친 뒤부터
-    setBanner(r.missingPhotos ? `${message} 올렸던 사진 ${r.missingPhotos}장은 이 기기에 남아 있지 않아 빠졌어요.` : message);
-  };
-
-  const started = useRef(false);
+  // 초기 시작 시: 기본 템플릿 세팅 및 자동보관/다시꾸미기 검사
   useEffect(() => {
-    if (started.current) return; // 개발 모드(StrictMode)에서 두 번 돌아도 한 번만 깐다
+    if (started.current) return;
     started.current = true;
     void prunePhotos();
+
     const names = loadFields();
     if (names) {
-      setFields((f) => ({ ...f, ...names }));
-      setFieldsRemembered(true);
+      const nextFields = { recipient: names.recipient ?? '', sender: names.sender ?? '', date: '' };
+      setFields((f) => ({ ...f, ...nextFields }));
+      setLayers((ls) => {
+        const nextLayers = syncFieldsToLayers(ls, nextFields, initialTpl);
+        if (prevSnap.current) {
+          prevSnap.current = {
+            ...prevSnap.current,
+            fields: { ...prevSnap.current.fields, ...nextFields },
+            layers: nextLayers,
+          };
+        }
+        return nextLayers;
+      });
     }
+
+    // 다시 꾸미기 복원
     const saved = props.restoreCode ? loadSavedDesigns().find((d) => d.code === props.restoreCode) : null;
     if (saved?.snapshot) {
       void restore(saved.snapshot, `${saved.code} 디자인을 불러왔어요. 고친 뒤 저장하면 새 코드가 나와요.`, false);
       return;
     }
-    if (props.restoreCode) setBanner('이 기기에서 저장한 디자인을 찾지 못해 새로 꾸며요. 다른 기기에서 저장했다면 그 기기에서 다시 꾸며 주세요.');
-    setResume(loadAutosave(product.productNo));
-    {
-      const l = textLayer(presetText(event, purpose));
-      autoLayer.current = l;
-      setLayers((ls) => (ls.length ? ls : [l]));
-      setTab(props.images.length ? 'image' : 'text');
+    if (props.restoreCode) {
+      setBanner('이 기기에서 저장한 디자인을 찾지 못해 새로 꾸며요.');
     }
-  }, []); // 처음 한 번만
+
+    // 자동 보관 불러오기 확인
+    const autoSnap = loadAutosave(product.productNo);
+    if (autoSnap) {
+      setResume(autoSnap);
+    }
+  }, []);
+
+  // 보관된 편집 상태 복원 함수
+  const restore = async (stored: unknown, message: string, keepSaving: boolean) => {
+    const r = await fromStored(stored, {
+      styleIds: styles.map((x) => x.id),
+      events: events.map((e) => e.id),
+    });
+    setResume(null);
+    if (!r) return setBanner('저장해 둔 디자인을 읽지 못했어요. 새로 꾸며 주세요.');
+    const d = r.snap;
+    setPurpose(d.purpose ?? 'return');
+    isRestoring.current = true;
+    setSettled(
+      Object.fromEntries(
+        d.layers.flatMap((l) => (l.type === 'text' ? [[l.id, fillPlaceholders(l.text, d.fields)]] : [])),
+      ),
+    );
+
+    const draftFormat = classifyDraftFormat(d);
+    let restoredLayers = d.layers;
+    let bannerMsg = r.missingPhotos
+      ? `${message} 올렸던 사진 ${r.missingPhotos}장은 이 기기에 남아 있지 않아 빠졌어요.`
+      : message;
+
+    if (draftFormat === 'legacy_confirmed') {
+      // 이전 형식으로 확실히 식별되는 초안: 기존 메인 문구를 role-main으로 정규화하여 복원
+      const firstTextIdx = restoredLayers.findIndex(
+        (l) => l.type === 'text' && !['role-recipient', 'role-sender', 'role-date'].includes(l.id),
+      );
+      if (firstTextIdx >= 0) {
+        restoredLayers = restoredLayers.map((l, i) =>
+          i === firstTextIdx ? { ...l, id: 'role-main' } : l,
+        );
+      }
+    } else if (draftFormat === 'ambiguous') {
+      // 형식을 확실히 구분할 수 없는 초안: 첫 텍스트의 역할을 임의로 바꾸지 않고 원래 레이어 보존, 안내 표기
+      bannerMsg = `${bannerMsg} (이전 버전에서 작성된 문구는 기본 문구 입력란과 분리되어 유지됩니다.)`;
+    }
+    // 신규 초안('v2')인 경우: role-main이 없으면 의도적으로 메인 문구가 없는 상태이므로 layers 임의 변경 없음!
+
+    setStyleId(d.styleId);
+    setWithSticker(d.withSticker);
+    setShape(d.shape);
+    setSizeCm(d.sizeCm);
+    setBackground(d.background);
+    setLayers(restoredLayers);
+    setFields(d.fields);
+
+    hasChosenImage.current = restoredLayers.some((l) => l.type === 'image');
+    autoTextEdited.current = true; // 복원된 디자인은 고객 작성 문구로 보호
+    setNamesChecked(false); // 다른 초안을 불러왔을 때 이전 디자인의 철자 확인 체크가 유지되지 않도록 초기화
+
+    // 복원된 레이어 중 메인 텍스트 추출
+    const restoredMain = extractMainTextFromLayers(restoredLayers, draftFormat);
+    setMainText(restoredMain);
+
+    setEvent(keepSaving && props.event ? props.event : d.event);
+    setQuantity(keepSaving && props.quantity > 1 ? props.quantity : d.quantity);
+    setSelectedId(null);
+    setConsent(false);
+    // 복원만으로 원본 자동 보관을 갱신하지 않는다. 이후 편집부터 다시 보관한다.
+    autosaving.current = false;
+    setBanner(bannerMsg);
+
+    // ★ 불러온 디자인을 실행 취소의 시작점(Baseline)으로 설정:
+    // 실행 취소를 눌러 복원 전 디자인이나 빈 화면으로 돌아가지 않도록 history 초기화
+    history.current = [];
+    prevSnap.current = {
+      layers: restoredLayers,
+      background: d.background,
+      shape: d.shape,
+      sizeCm: d.sizeCm,
+      selectedTemplateId: null,
+      fields: { ...d.fields },
+      mainText: restoredMain,
+      autoTextEdited: true,
+      hasChosenImage: hasChosenImage.current,
+    };
+    setCanUndo(false);
+    lastPush.current = 0;
+  };
+
+  // 메인 문구 입력 변경 시: role-main 텍스트 레이어 내용 실시간 갱신
+  const handleMainTextChange = (text: string) => {
+    autoTextEdited.current = true;
+    setMainText(text);
+    setLayers((ls) => syncMainTextToLayers(ls, text, currentTemplate));
+  };
+
+  // 받는 분, 보내는 사람, 날짜 입력 변경 시: 해당 레이어 실시간 동기화
+  const handleFieldsChange = (newFields: DesignDraft['fields']) => {
+    setFields(newFields);
+    setNamesChecked(false); // 이름 또는 날짜가 변경되면 철자 재확인 필요
+    setLayers((ls) => syncFieldsToLayers(ls, newFields, currentTemplate));
+  };
+
+  // 선물 목적(답례 vs 축하) 변경
+  const handlePurposeChange = (nextPurpose: GiftPurpose) => {
+    if (nextPurpose === purpose) return;
+    const customUploads = layers.filter((l): l is EditorImageLayer => l.type === 'image' && Boolean(l.uploaded));
+    const hasCustomEdits = autoTextEdited.current || customUploads.length > 0 || hasChosenImage.current;
+
+    if (hasCustomEdits) {
+      if (
+        !window.confirm(
+          '선물 목적을 변경하면 해당 목적에 어울리는 추천 템플릿과 기본 문구로 교체됩니다. 직접 입력하신 이름과 사진은 유지됩니다. 계속하시겠습니까?'
+        )
+      ) {
+        return;
+      }
+    }
+
+    setPurpose(nextPurpose);
+    const matchingStyle = availableStyles.find((s) => matchesTarget(s, event, nextPurpose, product.productNo));
+    if (matchingStyle) setStyleId(matchingStyle.id);
+
+    const nextTemplates = getEventTemplates({
+      event,
+      purpose: nextPurpose,
+      relation: props.relation,
+      images: props.images,
+    });
+    if (nextTemplates.length > 0) {
+      applyTemplate(nextTemplates[0], false);
+    }
+  };
+
+  // 행사 변경
+  const handleEventChange = (nextEvent: DesignCategory) => {
+    if (nextEvent === event) return;
+    const customUploads = layers.filter((l): l is EditorImageLayer => l.type === 'image' && Boolean(l.uploaded));
+    const hasCustomEdits = autoTextEdited.current || customUploads.length > 0 || hasChosenImage.current;
+
+    if (hasCustomEdits) {
+      if (
+        !window.confirm(
+          '행사를 변경하면 해당 행사에 어울리는 추천 템플릿과 기본 문구로 교체됩니다. 직접 입력하신 이름과 사진은 유지됩니다. 계속하시겠습니까?'
+        )
+      ) {
+        return;
+      }
+    }
+
+    setEvent(nextEvent);
+    const matchingStyle = availableStyles.find((s) => matchesTarget(s, nextEvent, purpose, product.productNo));
+    if (matchingStyle) setStyleId(matchingStyle.id);
+
+    const nextTemplates = getEventTemplates({
+      event: nextEvent,
+      purpose,
+      relation: props.relation,
+      images: props.images,
+    });
+    if (nextTemplates.length > 0) {
+      applyTemplate(nextTemplates[0], false);
+    }
+  };
+
+  // 자동 보관 (LocalStorage)
+  const snapshot: EditorSnapshot = {
+    version: 2,
+    purpose,
+    styleId,
+    withSticker,
+    shape,
+    sizeCm,
+    background,
+    layers,
+    fields,
+    event,
+    quantity,
+  };
 
   useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const fit = (width: number) => setDisplaySize(Math.floor(Math.min(width, 420)));
-    fit(el.clientWidth);
-    const ro = new ResizeObserver(([entry]) => fit(entry.contentRect.width));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [withSticker]);
-
-  // 꾸미던 내용 자동 보관: 고객이 스티커에 손댄 뒤부터 (처음 깔린 그대로는 남기지 않는다)
-  const snapshot: EditorSnapshot = { styleId, withSticker, shape, sizeCm, background, layers, fields, event, quantity, purpose };
-  useEffect(() => {
+    if (resume !== null) return; // 기존 초안 복원 알림 중에는 덮어쓰지 않음
     if (!canUndo && !autosaving.current) return;
     autosaving.current = true;
     autosaveTimer.current = setTimeout(() => autosave(product.productNo, snapshot), 800);
     return () => clearTimeout(autosaveTimer.current);
-  }, [canUndo, styleId, withSticker, shape, sizeCm, background, layers, fields, event, quantity, purpose]);
+  }, [resume, canUndo, styleId, withSticker, shape, sizeCm, background, layers, fields, event, quantity, purpose]);
 
-  const selected = layers.find((l) => l.id === selectedId) ?? null;
+  // 자리표시자 바인딩된 렌더용 레이어
   const rendered = useMemo(
     () => layers.map((l) => (l.type === 'text' ? { ...l, text: fillPlaceholders(l.text, fields) } : l)),
     [layers, fields],
   );
-  const usedPlaceholders = useMemo(() => {
-    const all = layers.filter((l) => l.type === 'text').map((l) => (l as TextLayer).text).join(' ');
-    return { recipient: all.includes('{받는분}'), sender: all.includes('{보내는분}'), date: all.includes('{날짜}') };
-  }, [layers]);
-  const hasBlank = rendered.some((l) => l.type === 'text' && l.text.includes(PLACEHOLDER_BLANK));
 
-  // 긴 이름 자동 맞춤: 문구 글자가 바뀌어 안전선을 조금 넘으면 글자 크기를 줄인다.
-  // 많이 넘치면(0.5배 미만) 위치 문제라 경고만 하고, 맞춘 뒤 고객이 키운 크기는 건드리지 않는다
+  // 긴 이름 자동 맞춤 (안전선 초과 시 폰트 축소)
   useEffect(() => {
     const done: Record<string, string> = {};
     for (const l of rendered) {
       const r = textRects[l.id];
-      if (l.type !== 'text' || !r || r.text !== l.text || r.fontSize !== l.fontSize || settled[l.id] === l.text) continue; // 지금 글자로 잰 값만
+      if (l.type !== 'text' || !r || r.text !== l.text || r.fontSize !== l.fontSize || settled[l.id] === l.text) continue;
       const prev = fitTries.current[l.id];
       const tries = prev?.text === l.text ? prev.tries : 0;
       const k = fitScale(shape, sizeCm, r);
@@ -270,143 +654,65 @@ export function PackagingEditor(props: Props) {
         continue;
       }
       fitTries.current[l.id] = { text: l.text, tries: tries + 1 };
-      update(l.id, { fontSize: Math.max(MIN_AUTO_FONT, Math.floor(l.fontSize * k * 0.97)) }, true);
+      isAutoFitting.current = true;
+      updateLayer(l.id, { fontSize: Math.max(MIN_AUTO_FONT, Math.floor(l.fontSize * k * 0.97)) });
     }
     if (Object.keys(done).length) setSettled((m) => ({ ...m, ...done }));
   }, [textRects]);
 
-  // 글자 잘림 경고: 맞춤을 마친 문구 중 안전선을 넘는 것
+  // 유효성 경고 검사
   const overflowBoxes = withSticker
     ? rendered.flatMap((l) => {
-      const r = textRects[l.id];
-      return l.type === 'text' && r && r.text === l.text && settled[l.id] === l.text && fitScale(shape, sizeCm, r) < 1 ? [r] : [];
-    })
+        const r = textRects[l.id];
+        return l.type === 'text' && r && r.text === l.text && settled[l.id] === l.text && fitScale(shape, sizeCm, r) < 1 ? [r] : [];
+      })
     : [];
-  // 문구끼리 겹쳐 읽기 어려운 것
+
   const textBoxes = withSticker ? rendered.flatMap((l) => (l.type === 'text' && textRects[l.id] ? [textRects[l.id]] : [])) : [];
   const overlapBoxes = textBoxes.filter((a, i) => textBoxes.some((b, j) => i !== j && overlaps(a, b)));
-  // 행사와 어긋난 말
   const caution = withSticker ? [...new Set(rendered.flatMap((l) => (l.type === 'text' ? cautionWords(event, l.text) : [])))] : [];
-  // 이름·날짜를 넣었으면 저장 전에 철자 확인을 받는다
-  const namesUsed = withSticker && Boolean(
-    (usedPlaceholders.recipient && fields.recipient.trim()) || (usedPlaceholders.sender && fields.sender.trim()) || (usedPlaceholders.date && fields.date.trim()),
-  );
-  useEffect(() => setNamesChecked(false), [fields]);
+
+  const namesUsed = withSticker && isNamesUsedInLayers(layers);
+
   const uploads = layers.filter((l): l is EditorImageLayer => l.type === 'image' && Boolean(l.uploaded));
   const lowRes = uploads.some((l) => effectiveDpi(l.naturalWidth ?? 0, l.width * l.scaleX, sizeCm) < MIN_PRINT_DPI);
 
-  const update = (id: string, patch: Partial<EditorLayer>, automatic = false) => {
-    if (!automatic && autoLayer.current?.id === id) autoTextEdited.current = true;
+  // 레이어 수정 함수
+  const updateLayer = (id: string, patch: Partial<EditorLayer>) => {
+    if ('text' in patch && typeof (patch as { text?: unknown }).text === 'string') {
+      autoTextEdited.current = true;
+      const val = (patch as { text: string }).text;
+      if (id === 'role-main') {
+        setMainText(val);
+      } else if (id === 'role-recipient') {
+        setFields((f) => ({ ...f, recipient: val }));
+        setNamesChecked(false);
+      } else if (id === 'role-sender') {
+        setFields((f) => ({ ...f, sender: val }));
+        setNamesChecked(false);
+      } else if (id === 'role-date') {
+        setFields((f) => ({ ...f, date: val }));
+        setNamesChecked(false);
+      }
+    }
     setLayers((ls) => ls.map((l) => (l.id === id ? ({ ...l, ...patch } as EditorLayer) : l)));
   };
 
-  // 저장 형식이 레이어 12개까지만 담으므로 그 이상은 처음부터 막는다 (넘치면 다시 꾸미기 때 조용히 빠진다)
-  const layerFull = () => {
-    if (layers.length < MAX_LAYERS) return false;
-    setError(`스티커에는 이미지·문구를 ${MAX_LAYERS}개까지 넣을 수 있어요.`);
-    return true;
-  };
-
-  // 바탕 이미지는 한 장: 맨 아래가 이미지면 바꾸고, 아니면 맨 아래에 넣는다
-  const setBaseImage = (layer: EditorImageLayer) => {
-    const defaultTextId = !hasChosenImage.current && !autoTextEdited.current && autoLayer.current?.type === 'text' ? autoLayer.current.id : null;
-    hasChosenImage.current = true;
-    setLayers((ls) => {
-      const old = ls[0]?.type === 'image' ? (ls[0] as EditorImageLayer) : null;
-      return [layer, ...(old ? ls.slice(1) : ls).filter((l) => l.id !== defaultTextId)];
-    });
-    setSelectedId(null);
-  };
-
-  const pickImage = async (img: DesignImage, auto = false) => {
-    if (!auto && layers[0]?.type !== 'image' && layerFull()) return;
-    const seq = ++pickSeq.current;
-    try {
-      const { w, h } = await loadNatural(img.imageUrl);
-      if (seq !== pickSeq.current) return;
-      const layer = coverLayer(img.imageUrl, w, h);
-      if (auto) autoLayer.current = layer;
-      setBaseImage(layer);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  };
-
-  // 행사를 고르면 바탕이 추천 이미지(직접 올린 사진 아님)일 때 새 행사의 첫 이미지로 바꾸고, 고객이 넣은 문구는 그대로 둔다.
-  // 화면이 처음 자동으로 깐 것(손대기 전)은 새 행사 것으로 통째로 바꾼다
-  const chooseEvent = (id: EventType) => {
-    setEvent(id);
-    const untouched = layers.length === 0 || (layers.length === 1 && layers[0] === autoLayer.current);
-    if (untouched) {
-      ++pickSeq.current;
-      const l = textLayer(presetText(id, purpose));
-      autoLayer.current = l;
-      autoTextEdited.current = false;
-      setLayers([l]);
-    }
-  };
-
-  const applyPreset = (nextPurpose: GiftPurpose = purpose) => {
-    if (layers.length && !(layers.length === 1 && layers[0] === autoLayer.current) && !window.confirm('직접 꾸민 내용을 기본 문구로 바꿀까요?')) return;
-    ++pickSeq.current;
-    const l = textLayer(presetText(event, nextPurpose));
-    autoLayer.current = l;
-    autoTextEdited.current = false;
-    setPurpose(nextPurpose);
-    setLayers([l]); setBackground('#ffffff'); setSelectedId(null); setTab('text');
-    setWithSticker(true);
-    const matching = styles.find((s) => matchesTarget(s, event, nextPurpose, product.productNo));
-    if (matching) setStyleId(matching.id);
-  };
-
-  const onUpload = async (file: File | undefined) => {
-    setError(null);
-    if (!file) return;
-    if (!['image/jpeg', 'image/png'].includes(file.type)) return setError('JPG 또는 PNG 사진만 올릴 수 있어요.');
-    if (file.size > MAX_UPLOAD_BYTES) return setError('사진은 10MB까지 올릴 수 있어요.');
-    if (layers[0]?.type !== 'image' && layerFull()) return;
-    const seq = ++pickSeq.current;
-    const url = URL.createObjectURL(file);
-    try {
-      const { w, h } = await loadNatural(url);
-      if (seq !== pickSeq.current) return URL.revokeObjectURL(url);
-      const photoId = newId();
-      void putPhoto(photoId, file); // 다시 꾸미기·이어서 꾸미기 때 꺼낼 원본
-      setBaseImage(coverLayer(url, w, h, { uploaded: true, naturalWidth: w, photoId }));
-    } catch {
-      URL.revokeObjectURL(url);
-      setError('사진을 읽을 수 없어요. 다른 사진을 골라 주세요.');
-    }
-  };
-
-  // 새 문구는 이미 있는 문구와 겹치지 않는 높이에 놓는다
-  const placeText = (text: string, want: number, fontSize: number) => {
-    const boxes = layers.flatMap((l) => (l.type === 'text' && textRects[l.id] ? [textRects[l.id]] : []));
-    return textLayer(text, freeTextY(boxes, want, fontSize * 1.3 * text.split('\n').length, sizeCm));
-  };
-
-  const pickText = (t: DesignText) => {
-    if (selected?.type === 'text') update(selected.id, { text: t.text });
-    else if (!layerFull()) {
-      const hasImage = layers.some((l) => l.type === 'image');
-      const l = placeText(t.text, hasImage ? 780 : 500, hasImage ? 64 : 78);
-      if (hasImage) Object.assign(l, { fontSize: 64, color: '#ffffff', stroke: '#1f2a26' });
-      setLayers((ls) => [...ls, l]);
-      setSelectedId(l.id);
-    }
-  };
-
-  const addText = () => {
-    if (layerFull()) return;
-    const l = placeText('감사합니다', 500, 78);
-    setLayers((ls) => [...ls, l]);
-    setSelectedId(l.id);
-    setTab('text');
-  };
-
   const removeSelected = () => {
-    if (!selected) return;
-    setLayers((ls) => ls.filter((l) => l.id !== selected.id));
+    if (!selectedId) return;
+    if (selectedId === 'role-main') {
+      setMainText('');
+    } else if (selectedId === 'role-recipient') {
+      setFields((f) => ({ ...f, recipient: '' }));
+      setNamesChecked(false);
+    } else if (selectedId === 'role-sender') {
+      setFields((f) => ({ ...f, sender: '' }));
+      setNamesChecked(false);
+    } else if (selectedId === 'role-date') {
+      setFields((f) => ({ ...f, date: '' }));
+      setNamesChecked(false);
+    }
+    setLayers((ls) => ls.filter((l) => l.id !== selectedId));
     setSelectedId(null);
   };
 
@@ -421,22 +727,131 @@ export function PackagingEditor(props: Props) {
     });
   };
 
+  // 사진 업로드 핸들러
+  const handleUpload = async (file: File | undefined) => {
+    setError(null);
+    if (!file) return;
+    if (!['image/jpeg', 'image/png'].includes(file.type)) return setError('JPG 또는 PNG 사진만 올릴 수 있어요.');
+    if (file.size > MAX_UPLOAD_BYTES) return setError('사진은 10MB까지 올릴 수 있어요.');
+    const seq = ++pickSeq.current;
+    const url = URL.createObjectURL(file);
+    try {
+      const { w, h } = await loadNatural(url);
+      if (seq !== pickSeq.current) return URL.revokeObjectURL(url);
+      const photoId = newId();
+      void putPhoto(photoId, file);
+      const newLayer = coverLayer(url, w, h, { uploaded: true, naturalWidth: w, photoId });
+
+      // 첫 이미지 선택이고 고객이 메인 문구를 수정하지 않았다면 기본 메인 문구(role-main)만 제거
+      // 고객이 입력한 이름(role-sender), 받는 분(role-recipient), 날짜(role-date), 추가 문구는 반드시 유지
+      setLayers((ls) => {
+        const { nextLayers, shouldClearMainText } = applyImageSelectionToLayers(ls, newLayer, {
+          hasChosenImage: hasChosenImage.current,
+          autoTextEdited: autoTextEdited.current,
+        });
+        if (shouldClearMainText) {
+          setMainText('');
+        }
+        return nextLayers;
+      });
+      hasChosenImage.current = true;
+      setSelectedId(null);
+    } catch {
+      URL.revokeObjectURL(url);
+      setError('사진을 읽을 수 없어요. 다른 사진을 골라 주세요.');
+    }
+  };
+
+  // 추천 이미지 선택
+  const handlePickImage = async (img: DesignImage) => {
+    const seq = ++pickSeq.current;
+    try {
+      const { w, h } = await loadNatural(img.imageUrl);
+      if (seq !== pickSeq.current) return;
+      const layer = coverLayer(img.imageUrl, w, h);
+
+      // 첫 이미지 선택이고 고객이 메인 문구를 수정하지 않았다면 기본 메인 문구(role-main)만 제거
+      // 고객이 입력한 이름(role-sender), 받는 분(role-recipient), 날짜(role-date), 추가 문구는 반드시 유지
+      setLayers((ls) => {
+        const { nextLayers, shouldClearMainText } = applyImageSelectionToLayers(ls, layer, {
+          hasChosenImage: hasChosenImage.current,
+          autoTextEdited: autoTextEdited.current,
+        });
+        if (shouldClearMainText) {
+          setMainText('');
+        }
+        return nextLayers;
+      });
+      hasChosenImage.current = true;
+      setSelectedId(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  // 텍스트 추가
+  const handleAddText = (initialText = '감사합니다') => {
+    if (layers.length >= 12) return setError('스티커에는 최대 12개까지 요소를 넣을 수 있습니다.');
+    autoTextEdited.current = true;
+    const font = currentTemplate?.font ?? 'serif';
+    const color = currentTemplate?.textColor ?? '#1f2a26';
+    const newL: TextLayer = {
+      id: newId(),
+      type: 'text',
+      text: initialText,
+      x: 500,
+      y: 500,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      font,
+      fontSize: 66,
+      color,
+      stroke: null,
+      shadow: false,
+    };
+    setLayers((ls) => [...ls, newL]);
+    setSelectedId(newL.id);
+  };
+
+  // 추천 문구 선택
+  const handlePickText = (t: DesignText) => {
+    autoTextEdited.current = true;
+    if (selectedId) {
+      const selectedLayer = layers.find((l) => l.id === selectedId);
+      if (selectedLayer && selectedLayer.type === 'text') {
+        updateLayer(selectedId, { text: t.text });
+        if (selectedId === 'role-main') {
+          setMainText(t.text);
+        }
+        return;
+      }
+    }
+
+    // 선택된 레이어가 없거나 텍스트가 아닌 경우 메인 문구에 추천 문구 그대로 적용
+    setMainText(t.text);
+    setLayers((ls) => syncMainTextToLayers(ls, t.text, currentTemplate));
+  };
+
+  // 최종 디자인 저장 & 코드 발급
   const save = async () => {
     setError(null);
     if (!styleId) return setError('포장 스타일을 골라 주세요.');
-    if (withSticker && layers.length === 0) return setError('스티커에 이미지나 문구를 하나 이상 넣어 주세요.');
+    if (withSticker && layers.length === 0) return setError('스티커에 문구나 이미지를 하나 이상 넣어 주세요.');
     if (withSticker && uploads.length > 0 && !consent) return setError('올린 사진의 사용 권한을 확인해 주세요.');
     if (namesUsed && !namesChecked) return setError('이름과 날짜 철자를 확인했다고 체크해 주세요.');
-    if (overlapBoxes.length > 0 && !window.confirm('문구가 서로 겹쳐 읽기 어려울 수 있어요. 그대로 저장할까요?')) return;
-    if (overflowBoxes.length > 0 && !window.confirm('빨간 상자로 표시한 글자가 자르는 선에 걸려 잘릴 수 있어요. 그대로 저장할까요?')) return;
+    if (overflowBoxes.length > 0 && !window.confirm('자르는 선에 걸려 글자가 잘릴 수 있어요. 그대로 저장할까요?')) return;
+    if (overlapBoxes.length > 0 && !window.confirm('문구가 서로 겹쳐 있어요. 그대로 저장할까요?')) return;
+
     setSaving(true);
     setSelectedId(null);
     try {
       const form = new FormData();
       let preview: string | null = null;
       let draft: DesignDraft | null = null;
+
       if (withSticker) {
-        if (!apiRef.current) throw new Error('편집기가 아직 준비되지 않았습니다.');
+        if (!apiRef.current) throw new Error('편집기 캔버스가 아직 준비되지 않았습니다.');
         const blob = await apiRef.current.exportPng(printPixels(sizeCm));
         form.set('print', blob, 'print.png');
         preview = URL.createObjectURL(blob);
@@ -451,506 +866,270 @@ export function PackagingEditor(props: Props) {
           }),
         };
       }
-      form.set('meta', JSON.stringify({
-        productNo: product.productNo, quantity, event, styleId,
-        sticker: withSticker ? { shape, sizeCm } : null, draft,
-      }));
+
+      form.set(
+        'meta',
+        JSON.stringify({
+          productNo: product.productNo,
+          quantity,
+          event,
+          styleId,
+          sticker: withSticker ? { shape, sizeCm } : null,
+          draft,
+        }),
+      );
+
       const res = await saveDesignAction(form);
       if (!res.ok) {
         if (preview) URL.revokeObjectURL(preview);
-        return setError(res.message);
+        return setError(`디자인 저장에 실패했습니다: ${res.message}. 작성하신 문구와 편집 내용은 그대로 유지되어 있으니 다시 시도해 주세요.`);
       }
-      let copied = false;
-      try {
-        await navigator.clipboard.writeText(res.code);
-        copied = true;
-      } catch {
-        // 브라우저가 자동 복사를 막으면 복사 버튼으로 안내
-      }
-      if (result?.preview) URL.revokeObjectURL(result.preview);
-      setResult({ code: res.code, copied, preview });
+
+      setResult({ code: res.code, preview });
       clearTimeout(autosaveTimer.current);
-      clearAutosave(); // 저장했으니 '꾸미던 디자인'으로 다시 띄우지 않는다
+      clearAutosave();
       rememberFields(fields);
-      // 이 기기의 '내 디자인'에 남긴다 (코드를 잃어버려도 다시 찾고, 다시 꾸밀 수 있게)
+
       const thumbBlob = preview ? await fetch(preview).then((r) => r.blob()).catch(() => null) : null;
-      if (thumbBlob) void downscale(thumbBlob, PREVIEW_PX, shape, cut / 100).then((b) => b && savePreview(res.code, b)); // '내 스티커 그림 받기'용
+      if (thumbBlob) {
+        void savePreview(res.code, thumbBlob);
+      }
       rememberDesign({
-        code: res.code, productName: product.name, productUrl: product.url, quantity,
-        savedAt: new Date().toISOString(), thumb: thumbBlob ? await makeThumb(thumbBlob) : null,
-        productNo: product.productNo, snapshot: toStored(snapshot),
+        code: res.code,
+        productName: product.name,
+        productUrl: product.url,
+        quantity,
+        savedAt: new Date().toISOString(),
+        thumb: thumbBlob ? await makeThumb(thumbBlob) : null,
+        productNo: product.productNo,
+        snapshot: toStored(snapshot),
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(`디자인 저장에 실패했습니다. (${e instanceof Error ? e.message : String(e)}) 작성하신 문구와 편집 내용은 안전하게 보존되어 있으니 다시 시도해 주세요.`);
     } finally {
       setSaving(false);
     }
   };
 
-  const copyAgain = async () => {
-    if (!result) return;
-    try {
-      await navigator.clipboard.writeText(result.code);
-      setResult({ ...result, copied: true });
-    } catch {
-      setError('복사가 막혀 있어요. 코드를 길게 눌러 직접 복사해 주세요.');
-    }
-  };
-
-  const editMore = () => {
-    if (result?.preview) URL.revokeObjectURL(result.preview);
-    setResult(null);
-  };
-
-  const style = styles.find((s) => s.id === styleId);
-  const cut = (bleedUnits(sizeCm) / CANVAS_UNITS) * 100; // 재단 여백(%): 미리보기는 자르는 선 안쪽만 보여 준다
+  const selectedStyle = styles.find((s) => s.id === styleId);
+  const cut = (bleedUnits(sizeCm) / CANVAS_UNITS) * 100;
   const cutClip = shape === 'circle' ? `circle(${50 - cut}% at 50% 50%)` : `inset(${cut}%)`;
 
-  const openView = async (kind: 'mockup' | 'real') => {
-    if (!apiRef.current) return;
-    setError(null);
-    setSelectedId(null);
-    try {
-      const blob = await apiRef.current.exportPng(kind === 'real' ? printPixels(sizeCm) : 600);
-      const png = URL.createObjectURL(blob);
-      setView((old) => {
-        if (old) URL.revokeObjectURL(old.png);
-        return { kind, png };
-      });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  };
-  const closeView = () => {
-    if (view) URL.revokeObjectURL(view.png);
-    setView(null);
-  };
-
-  // PC에서 저장하면 휴대폰으로 이어서 주문할 QR을 보여 준다 (휴대폰은 내 디자인에서 코드를 조회해 모바일 쇼핑몰로 간다)
-  useEffect(() => {
-    setQr(null);
-    if (!result || isMobileUA()) return;
-    let live = true;
-    void import('qrcode-generator')
-      .then(({ default: qrcode }) => {
-        const q = qrcode(0, 'M');
-        q.addData(`${location.origin}/packaging/mine?code=${result.code}`);
-        q.make();
-        if (live) setQr(q.createDataURL(4, 2));
-      })
-      .catch(() => {}); // QR이 없어도 코드·주문 버튼으로 주문할 수 있다
-    return () => { live = false; };
-  }, [result?.code]);
-
   return (
-    <>
-      <h1 style={{ fontSize: 24, marginTop: 8 }}>선물을 정성껏<br />싸 드릴게요</h1>
-      <p className="lead" style={{ marginBottom: 18 }}>포장지를 고르고, 스티커에 문구와 그림을 넣어 주세요. 포장과 스티커는 무료입니다.</p>
+    <div className="pkg-page-wrapper">
+      {/* 1. 상단 단계 내비게이션 바 */}
+      <StepNavigation currentStep={currentStep} onStepClick={setCurrentStep} />
+
+      {/* 2. 상품 정보 & 선물 목적 요약 헤더 */}
+      <ProductHeader
+        product={product}
+        quantity={quantity}
+        onQuantityChange={setQuantity}
+        purpose={purpose}
+        onPurposeChange={handlePurposeChange}
+        eventName={eventName}
+        relationName={props.relationName}
+        backHref={backHref}
+        backLabel={backLabel}
+      />
+
+      {/* 자동 보관 알림 */}
       {resume !== null && (
-        <div className="notice editor-resume" role="status">
-          <span>꾸미다 만 디자인이 있어요.</span>
+        <div className="notice editor-resume" role="status" style={{ marginTop: 12 }}>
+          <span>이전에 꾸미다 만 디자인이 보관되어 있습니다.</span>
           <span className="row" style={{ gap: 6 }}>
-            <button type="button" className="btn small" onClick={() => void restore(resume, '꾸미던 디자인을 다시 열었어요.', true)}>이어서 꾸미기</button>
-            <button type="button" className="btn ghost small" onClick={() => { clearAutosave(); setResume(null); }}>새로 시작</button>
+            <button
+              type="button"
+              className="btn small"
+              onClick={() => void restore(resume, '보관된 디자인을 불러왔습니다.', true)}
+            >
+              이어서 꾸미기
+            </button>
+            <button
+              type="button"
+              className="btn ghost small"
+              onClick={() => {
+                clearAutosave();
+                setResume(null);
+              }}
+            >
+              새로 시작
+            </button>
           </span>
         </div>
       )}
-      {banner && <p className="notice" role="status" style={{ margin: '0 0 14px' }}>{banner}</p>}
 
-      <section className="product-strip">
-        {product.image && <Image src={product.image} alt="" width={68} height={68} priority style={{ objectFit: 'cover' }} />}
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: 14.5, lineHeight: 1.4 }}>{product.name}</div>
-          <div className="small muted num">{won(product.price)}{eventName ? `, ${eventName}` : ''}</div>
-          <label className="small row" style={{ gap: 6, margin: '4px 0 0' }}>
-            수량
-            <QtyInput className="qty-input" value={quantity} onValue={setQuantity} aria-label="수량" />
-            개
-          </label>
-        </div>
-      </section>
+      {banner && (
+        <p className="notice" role="status" style={{ margin: '12px 0 0' }}>
+          {banner}
+        </p>
+      )}
 
-      <section className="step">
-        <h2 className="step-label"><span className="step-no">1</span>포장지</h2>
-        <div className="chips" role="group" aria-label="선물의 목적">
-          <button type="button" className="chip" aria-pressed={purpose === 'return'} onClick={() => applyPreset('return')}>감사 답례</button>
-          <button type="button" className="chip" aria-pressed={purpose === 'celebration'} onClick={() => applyPreset('celebration')}>{event === 'funeral' ? '위로 선물' : '축하 선물'}</button>
-        </div>
-        <p className="small muted">{purpose === 'return' ? '함께해 주신 분께 감사하는 문구로 시작해요.' : '축하·위로의 마음을 전하는 문구로 시작해요.'} 포장지를 고르고 문구를 확인해 주세요.</p>
-        <button type="button" className="btn ghost small" onClick={() => applyPreset()}>기본 문구로 빠르게 꾸미기</button>
-        {!styleId && <p className="small" role="status">포장지를 하나 골라 주세요.</p>}
-        <div className="style-grid">
-          {styles.filter((s) => !s.targeting?.productNos?.length || s.targeting.productNos.includes(product.productNo)).map((s) => (
-            <button key={s.id} type="button" className="thumb" aria-pressed={s.id === styleId} onClick={() => setStyleId(s.id)}>
-              {/* 화면에는 썸네일만 필요: 원본(최대 1200px) 대신 줄인 그림을 받는다 */}
-              <Image src={s.imageUrl} alt="" width={240} height={240} sizes="(max-width: 480px) 30vw, 150px" />
-              <span>{s.name}</span>
-            </button>
-          ))}
-        </div>
-        {style?.description && <p className="small muted" style={{ margin: '8px 0 0' }}>{style.description}</p>}
-      </section>
-
-      <section className="step">
-        <h2 className="step-label"><span className="step-no">2</span>함께 넣을 인쇄물</h2>
-        <div className="chips">
-          <button type="button" className="chip" aria-pressed={withSticker} onClick={() => setWithSticker(true)}>스티커 (무료)</button>
-          <button type="button" className="chip" disabled title="준비 중">엽서 (준비 중)</button>
-          <button type="button" className="chip" disabled title="준비 중">띠지 (준비 중)</button>
-          <button type="button" className="chip" aria-pressed={!withSticker} onClick={() => setWithSticker(false)}>인쇄물 없이</button>
-        </div>
-      </section>
-
-      {withSticker && (
-        <section className="step">
-          <h2 className="step-label"><span className="step-no">3</span>스티커 꾸미기</h2>
-          <div className="small" style={{ fontWeight: 600, marginBottom: 8, color: 'var(--ink-soft)' }}>
-            어떤 자리인가요? <span className="muted" style={{ fontWeight: 400 }}>고르면 어울리는 그림과 문구가 먼저 나와요</span>
-          </div>
-          <div className="chips event-chips">
-            {events.map((e) => (
-              <button key={e.id} type="button" className="chip" aria-pressed={event === e.id} onClick={() => chooseEvent(e.id)}>{e.name}</button>
-            ))}
-          </div>
-          <div className="row" style={{ gap: 8 }}>
-            <div className="chips">
-              <button type="button" className="chip" aria-pressed={shape === 'circle'} onClick={() => setShape('circle')}>● 원형</button>
-              <button type="button" className="chip" aria-pressed={shape === 'square'} onClick={() => setShape('square')}>■ 사각</button>
-            </div>
-            <div className="chips">
-              {STICKER_SIZES.map((s) => (
-                <button key={s} type="button" className="chip" aria-pressed={sizeCm === s} onClick={() => setSizeCm(s)}>{s}×{s}cm</button>
-              ))}
-            </div>
-          </div>
-
-          <div ref={wrapRef} className="stage-wrap" style={{ marginTop: 14 }}>
-            {displaySize > 0 && (
-              <StickerCanvas
-                displaySize={displaySize}
-                shape={shape}
-                sizeCm={sizeCm}
-                background={background}
-                layers={rendered}
-                fontFamilies={fontFamilies}
-                selectedId={selectedId}
-                onSelect={setSelectedId}
-                onChange={update}
-                apiRef={apiRef}
-                onTextRects={setTextRects}
-                warnBoxes={[...overflowBoxes, ...overlapBoxes]}
-              />
-            )}
-          </div>
-          <div className="row" style={{ justifyContent: 'center', gap: 8, marginTop: 10 }}>
-            <button type="button" className="btn ghost small" disabled={!canUndo} onClick={undo}>되돌리기</button>
-            <button type="button" className="btn ghost small" disabled={layers.length === 0} onClick={clearAll}>모두 지우기</button>
-            <button type="button" className="btn ghost small" disabled={layers.length === 0 || !displaySize} onClick={() => void openView('mockup')}>포장된 모습</button>
-            <button type="button" className="btn ghost small" disabled={layers.length === 0 || !displaySize} onClick={() => void openView('real')}>실제 크기</button>
-          </div>
-          <p className="guide-note">
-            <span className="cut">빨간 점선: 자르는 선</span>
-            <span>회색 점선 안에 글자를 두면 안전해요</span>
-          </p>
-          {overflowBoxes.length > 0 && (
-            <p className="small" role="status" style={{ color: 'var(--red)', margin: '6px 0 0', textAlign: 'center' }}>
-              빨간 상자 글자가 회색 점선 밖으로 나가 잘릴 수 있어요. 안쪽으로 옮기거나 크기를 줄여 주세요.
-            </p>
-          )}
-          {overlapBoxes.length > 0 && (
-            <p className="small" role="status" style={{ color: 'var(--red)', margin: '6px 0 0', textAlign: 'center' }}>
-              문구가 서로 겹쳐 있어요. 빨간 상자 문구를 끌어서 떼어 놓아 주세요.
-            </p>
-          )}
-          {caution.length > 0 && (
-            <p className="small" role="status" style={{ color: 'var(--brass)', margin: '6px 0 0', textAlign: 'center' }}>
-              ‘{caution.join('’, ‘')}’ 같은 말은 {event ? categoryNames[event] : ''} 자리와 어울리지 않을 수 있어요. 한 번 더 살펴봐 주세요.
-            </p>
-          )}
-          {lowRes && (
-            <p className="small" style={{ color: 'var(--red)', margin: '6px 0 0', textAlign: 'center' }}>
-              올린 사진의 해상도가 낮아 인쇄하면 흐릿할 수 있어요. 가로 {printPixels(sizeCm)}px 이상 사진을 권장해요.
-            </p>
+      {/* 3. 메인 작업 레이아웃: 좌측 편집 도구 (~40%) + 우측 실시간 Sticky 미리보기 (~60%) */}
+      <main className="pkg-workstation-layout">
+        <section className="pkg-left-column" aria-label="포장 제작 편집 도구">
+          {currentStep === 1 && (
+            <Step1Wrapping
+              styles={availableStyles}
+              styleId={styleId}
+              onSelectStyle={setStyleId}
+              productNo={product.productNo}
+              event={event}
+              purpose={purpose}
+              eventName={eventName}
+              onNext={() => setCurrentStep(2)}
+            />
           )}
 
-          {selected && (
-            <div className="layer-bar">
-              <span className="small" style={{ fontWeight: 600 }}>{selected.type === 'text' ? '선택한 문구' : '선택한 이미지'}</span>
-              <span style={{ flex: 1 }} />
-              <button type="button" className="btn ghost small" onClick={() => moveSelected(-1)}>뒤로</button>
-              <button type="button" className="btn ghost small" onClick={() => moveSelected(1)}>앞으로</button>
-              <button type="button" className="btn ghost small" style={{ color: 'var(--red)', borderColor: 'var(--red)' }} onClick={removeSelected}>삭제</button>
-            </div>
+          {currentStep === 2 && (
+            <Step2Message
+              withSticker={withSticker}
+              setWithSticker={setWithSticker}
+              event={event}
+              setEvent={handleEventChange}
+              events={events}
+              eventName={eventName}
+              relationName={props.relationName}
+              templates={templates}
+              selectedTemplateId={selectedTemplateId}
+              onSelectTemplate={(tpl) => applyTemplate(tpl, true)}
+              mainText={mainText}
+              onMainTextChange={handleMainTextChange}
+              fields={fields}
+              onFieldsChange={handleFieldsChange}
+              shape={shape}
+              setShape={setShape}
+              sizeCm={sizeCm}
+              setSizeCm={setSizeCm}
+              background={background}
+              setBackground={setBackground}
+              layers={rendered}
+              selectedId={selectedId}
+              onSelectLayer={setSelectedId}
+              onUpdateLayer={updateLayer}
+              onAddText={handleAddText}
+              onRemoveSelected={removeSelected}
+              onMoveSelected={moveSelected}
+              onUpload={handleUpload}
+              consent={consent}
+              setConsent={setConsent}
+              canUndo={canUndo}
+              onUndo={undo}
+              onClearAll={clearAll}
+              images={images}
+              otherImages={otherImages}
+              categoryNames={categoryNames}
+              onPickImage={handlePickImage}
+              nearTexts={texts}
+              otherTexts={otherTexts}
+              onPickText={handlePickText}
+              overflowBoxes={overflowBoxes}
+              overlapBoxes={overlapBoxes}
+              caution={caution}
+              lowRes={lowRes}
+              onPrev={() => setCurrentStep(1)}
+              onNext={() => setCurrentStep(3)}
+            />
           )}
 
-          <div className="tabs" role="tablist" style={{ marginTop: 14 }}>
-            <button type="button" role="tab" aria-selected={tab === 'image'} onClick={() => setTab('image')}>이미지</button>
-            <button type="button" role="tab" aria-selected={tab === 'text'} onClick={() => setTab('text')}>문구</button>
-          </div>
-
-          {tab === 'image' ? (
-            <div className="tab-body">
-              <div className="row" style={{ gap: 8 }}>
-                <button type="button" className="btn small" onClick={() => fileRef.current?.click()}>내 사진 올리기</button>
-                <button
-                  type="button"
-                  className="btn ghost small"
-                  onClick={() => setNotice('AI 이미지 만들기는 곧 열릴 예정이에요. 지금은 추천 이미지나 내 사진으로 꾸며 주세요.')}
-                >
-                  AI로 그림 만들기 <span className="pill gray" style={{ padding: '0 6px', fontSize: 11 }}>준비 중</span>
-                </button>
-                <input ref={fileRef} type="file" accept="image/jpeg,image/png" hidden onChange={(e) => { void onUpload(e.target.files?.[0]); e.target.value = ''; }} />
-              </div>
-              {notice && <p className="small muted" style={{ margin: '8px 0 0' }}>{notice}</p>}
-              <p className="small muted" style={{ margin: '8px 0 0' }}>JPG·PNG, 10MB까지. 직접 찍었거나 사용 권한이 있는 사진만 올려 주세요.</p>
-              {uploads.length > 0 && (
-                <label className="small row" style={{ gap: 6, marginTop: 6 }}>
-                  <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-                  올린 사진은 제가 찍었거나 사용 권한이 있는 사진입니다.
-                </label>
-              )}
-
-              <div className="field-label" style={{ marginTop: 16 }}>행사에 맞는 추천 이미지</div>
-              {!images.length && <p className="small muted">{props.images.length ? '이 목적에 맞는 추천 이미지가 아직 없어요. 아래 등록된 이미지에서 직접 골라 주세요.' : '등록된 이미지가 없어요. 내 사진이나 문구로 꾸밀 수 있어요.'}</p>}
-              <div className="sticker-grid">
-                {images.map((img) => (
-                  <button key={img.id} type="button" className="thumb" onClick={() => void pickImage(img)}
-                    aria-pressed={layers[0]?.type === 'image' && layers[0].src === img.imageUrl}>
-                    <Image src={img.imageUrl} alt={img.name} width={200} height={200} sizes="(max-width: 480px) 22vw, 110px" />
-                    <span>{img.name || categoryNames[img.category] || '추천 이미지'}</span>
-                  </button>
-                ))}
-              </div>
-
-              {otherImages.length > 0 && <>
-                <div className="field-label" style={{ marginTop: 16 }}>등록된 이미지 직접 고르기</div>
-                <p className="small muted">다른 행사나 목적의 이미지가 있을 수 있어요. 담긴 문구를 확인하고 선택해 주세요.</p>
-                <div className="sticker-grid">{otherImages.map((img) => <button key={img.id} type="button" className="thumb" onClick={() => void pickImage(img)} aria-label={img.name || categoryNames[img.category] || '이미지'} aria-pressed={layers[0]?.type === 'image' && layers[0].src === img.imageUrl}><Image src={img.imageUrl} alt={img.name} width={200} height={200} sizes="(max-width: 480px) 22vw, 110px" loading="lazy" /><span>{img.name || categoryNames[img.category] || '이미지'}</span></button>)}</div>
-              </>}
-              <div className="field-label" style={{ marginTop: 16 }}>바탕색</div>
-              <div className="row" style={{ gap: 8 }}>
-                {BACKGROUNDS.map((c) => (
-                  <button key={c} type="button" className="swatch" style={{ background: c }} aria-pressed={background === c} aria-label={`바탕색 ${c}`} onClick={() => setBackground(c)} />
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="tab-body">
-              {(usedPlaceholders.recipient || usedPlaceholders.sender || usedPlaceholders.date) && (
-                <div className="name-fields">
-                  {usedPlaceholders.recipient && (
-                    <label>받는 분<input className="num-input" spellCheck={false} autoComplete="off" value={fields.recipient} maxLength={30} placeholder="예: 김영희" onChange={(e) => setFields({ ...fields, recipient: e.target.value })} /></label>
-                  )}
-                  {usedPlaceholders.sender && (
-                    <label>보내는 분<input className="num-input" spellCheck={false} autoComplete="off" value={fields.sender} maxLength={30} placeholder="예: 홍길동·김영희" onChange={(e) => setFields({ ...fields, sender: e.target.value })} /></label>
-                  )}
-                  {usedPlaceholders.date && (
-                    <div className="date-row">
-                      <label>날짜<input className="num-input" spellCheck={false} autoComplete="off" value={fields.date} maxLength={30} placeholder="예: 2026년 12월 5일" onChange={(e) => setFields({ ...fields, date: e.target.value })} /></label>
-                      <button type="button" className="btn ghost small" onClick={() => setFields({ ...fields, date: todayLabel() })}>오늘</button>
-                    </div>
-                  )}
-                  {fieldsRemembered && ((usedPlaceholders.recipient && fields.recipient) || (usedPlaceholders.sender && fields.sender)) && (
-                    <p className="small muted" style={{ margin: 0 }}>
-                      지난번에 쓴 이름을 넣어 두었어요 (이 기기에만 기억).{' '}
-                      <button type="button" className="link-btn" onClick={() => { forgetFields(); setFields({ ...fields, recipient: '', sender: '' }); setFieldsRemembered(false); }}>지우기</button>
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {selected?.type === 'text' && <TextControls layer={selected} onChange={(p) => update(selected.id, p)} />}
-
-              <div className="spread" style={{ marginTop: 16 }}>
-                <div className="field-label">추천 문구 {selected?.type === 'text' ? '(누르면 선택한 문구가 바뀌어요)' : ''}</div>
-                <button type="button" className="btn ghost small" onClick={addText}>+ 문구 추가</button>
-              </div>
-              <div className="text-list">
-                {nearTexts.map((t) => <TextChoice key={t.id} t={t} fields={fields} onPick={pickText} />)}
-              </div>
-              {otherTexts.length > 0 && (
-                <details style={{ marginTop: 8 }}>
-                  <summary className="small muted" style={{ cursor: 'pointer' }}>다른 행사 문구 더 보기</summary>
-                  <div className="text-list">
-                    {otherTexts.map((t) => <TextChoice key={t.id} t={t} fields={fields} onPick={pickText} label={categoryNames[t.category]} />)}
-                  </div>
-                </details>
-              )}
-            </div>
+          {currentStep === 3 && (
+            <Step3Review
+              product={product}
+              quantity={quantity}
+              style={selectedStyle}
+              withSticker={withSticker}
+              shape={shape}
+              sizeCm={sizeCm}
+              layers={rendered}
+              namesUsed={namesUsed}
+              namesChecked={namesChecked}
+              setNamesChecked={setNamesChecked}
+              uploadsCount={uploads.length}
+              consent={consent}
+              setConsent={setConsent}
+              overflowBoxes={overflowBoxes}
+              overlapBoxes={overlapBoxes}
+              saving={saving}
+              error={error}
+              onGoStep={setCurrentStep}
+              onSave={save}
+              onOpenRealSize={() => setRealSizeOpen(true)}
+            />
           )}
         </section>
-      )}
 
-      <div className="sticky-cta">
-        {error && <p className="summary-line" style={{ color: 'var(--danger)' }} role="alert">{error}</p>}
-        {withSticker && hasBlank && !error && (
-          <p className="summary-line" style={{ color: 'var(--brass)' }}>
-            {PLACEHOLDER_BLANK} 자리에 이름을 넣어 주세요. 그대로 저장하면 {PLACEHOLDER_BLANK}로 인쇄돼요.
-          </p>
-        )}
-        {namesUsed && (
-          <div className="name-check">
-            <label>
-              <input type="checkbox" checked={namesChecked} onChange={(e) => setNamesChecked(e.target.checked)} />
-              이름과 날짜 철자를 확인했어요
-            </label>
-            <button type="button" className="link-btn" onClick={() => void openView('real')}>실제 크기로 보기</button>
-          </div>
-        )}
-        <button type="button" className="btn block" disabled={saving || !styleId} onClick={() => void save()}>
-          {saving ? '저장하는 중…' : '디자인 저장하고 코드 받기'}
-        </button>
-      </div>
-
-      {result && (
-        <div className="modal-back" role="dialog" aria-modal="true" aria-label="디자인 코드">
-          <div className="modal card">
-            <h2 style={{ fontSize: 20, textAlign: 'center' }}>디자인이 접수됐어요</h2>
-            {result.preview && <span className="saved-preview"><img src={result.preview} alt="저장한 스티커" width={140} height={140} style={{ clipPath: cutClip }} /></span>}
-            <div className="design-code">{result.code}</div>
-            <p className="small" style={{ textAlign: 'center', margin: '4px 0 0', color: result.copied ? 'var(--green)' : 'var(--muted)' }}>
-              {result.copied ? '코드가 복사됐어요.' : '아래 버튼으로 코드를 복사해 주세요.'}
-            </p>
-            <ol className="steps-list">
-              <li>‘주문하러 가기’를 누르면 상품 페이지가 열리고 수량이 <b>{quantity}개</b>로 맞춰져 있어요.</li>
-              <li>‘바로 구매’를 눌러요. 로그인 화면이 나오면 <b>‘비회원 구매’</b>로도 주문할 수 있어요.</li>
-              <li>주문서의 <b>‘온답 포장 디자인 코드’</b> 칸에 코드가 자동으로 들어가요. 비어 있으면 붙여 넣어 주세요.</li>
-            </ol>
-            {qr && (
-              <div className="qr-box">
-                <img src={qr} alt="휴대폰으로 이어서 주문하는 QR 코드" width={116} height={116} />
-                <p className="small" style={{ margin: 0 }}>휴대폰으로 주문하려면 카메라로 찍어 보세요. 이 디자인 코드로 바로 이어져요.</p>
-              </div>
-            )}
-            <div style={{ display: 'grid', gap: 8, marginTop: 16 }}>
-              {/* 카페24에서 온 고객은 같은 창으로 돌려보내고, 온답 화면에서 온 고객은 새 창으로 연다 */}
-              <a className="btn block" href={orderUrl(product.url, result.code, quantity)} target={from === 'cafe24' ? '_self' : '_blank'} rel="noreferrer">주문하러 가기</a>
-              <button type="button" className="btn ghost block" onClick={() => void copyAgain()}>코드 복사</button>
-              <button type="button" className="btn ghost block" style={{ border: 'none', background: 'transparent' }} onClick={editMore}>디자인 더 고치기</button>
-              <p className="small muted" style={{ margin: 0, textAlign: 'center' }}>
-                고친 뒤 다시 저장하면 새 코드가 나옵니다. 저장한 디자인은 <a className="text-link" href="/packaging/mine">내 디자인</a>에서 다시 볼 수 있어요.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {view?.kind === 'mockup' && (
-        <div className="modal-back" role="dialog" aria-modal="true" aria-label="포장된 모습" onClick={(e) => { if (e.target === e.currentTarget) closeView(); }}>
-          <div className="modal card">
-            <h2 style={{ fontSize: 18, textAlign: 'center' }}>포장된 모습</h2>
-            <div className="mockup" style={{ backgroundImage: style ? `url("${style.imageUrl}")` : undefined }}>
-              <span className="mockup-sticker" style={{ width: `${sizeCm === 6 ? 34 : 24}%` }}>
-                <img src={view.png} alt="포장 위에 붙인 스티커" style={{ clipPath: cutClip }} />
-              </span>
-            </div>
-            <p className="small muted" style={{ margin: '10px 0 0' }}>
-              {style?.name ?? ''} 포장에 {sizeCm}cm {shape === 'circle' ? '원형' : '사각'} 스티커를 붙인 모습이에요. 실제 무늬·색과 조금 다를 수 있어요.
-            </p>
-            <button type="button" className="btn ghost block" style={{ marginTop: 14 }} onClick={closeView}>닫기</button>
-          </div>
-        </div>
-      )}
-      {view?.kind === 'real' && <RealSize png={view.png} sizeCm={sizeCm} shape={shape} clip={cutClip} onClose={closeView} />}
-    </>
-  );
-}
-
-// 실제 크기로 보기: 화면 1mm 배율로 스티커를 그린다. 배율은 신용카드에 대 보고 고칠 수 있다
-function RealSize({ png, sizeCm, shape, clip, onClose }: { png: string; sizeCm: number; shape: StickerShape; clip: string; onClose(): void }) {
-  const [pxPerMm, setPxPerMm] = useState(loadPxPerMm);
-  return (
-    <div className="real-view" role="dialog" aria-modal="true" aria-label="실제 크기로 보기">
-      <div className="real-stage">
-        <img src={png} alt="실제 크기 스티커" style={{ width: totalCm(sizeCm) * 10 * pxPerMm, clipPath: clip }} />
-      </div>
-      <div className="real-panel">
-        <p style={{ margin: 0, fontWeight: 600 }}>{shape === 'circle' ? '지름' : '한 변'} {sizeCm}cm, 실제 인쇄 크기예요</p>
-        <p className="small muted" style={{ margin: '2px 0 0' }}>이 크기에서 이름과 날짜가 잘 읽히는지, 철자가 맞는지 확인해 주세요.</p>
-        <details className="disclosure" style={{ marginTop: 10 }}>
-          <summary>화면 크기 맞추기</summary>
-          <p className="small muted" style={{ margin: '8px 0' }}>신용카드 짧은 변(5.4cm)을 화면에 대고, 아래 막대가 카드와 같은 길이가 되게 조절해 주세요.</p>
-          <div className="card-ruler" style={{ width: CARD_SHORT_MM * pxPerMm }} />
-          <input
-            type="range" min={PX_PER_MM_RANGE[0]} max={PX_PER_MM_RANGE[1]} step={0.02} value={pxPerMm} aria-label="화면 배율"
-            style={{ width: '100%', marginTop: 8 }}
-            onChange={(e) => { const v = Number(e.target.value); setPxPerMm(v); savePxPerMm(v); }}
+        {/* 우측 실시간 Sticky 미리보기 패널 */}
+        <div className="pkg-right-column">
+          <PreviewPane
+            currentStep={currentStep}
+            style={selectedStyle}
+            withSticker={withSticker}
+            shape={shape}
+            sizeCm={sizeCm}
+            background={background}
+            layers={rendered}
+            fontFamilies={fontFamilies}
+            selectedId={selectedId}
+            onSelectId={setSelectedId}
+            onUpdateLayer={updateLayer}
+            apiRef={apiRef}
+            onTextRects={setTextRects}
+            warnBoxes={[...overflowBoxes, ...overlapBoxes]}
+            onOpenRealSize={() => setRealSizeOpen(true)}
           />
-        </details>
-        <button type="button" className="btn block" style={{ marginTop: 12 }} onClick={onClose}>닫기</button>
-      </div>
+        </div>
+      </main>
+
+      {/* 디자인 완료 모달 */}
+      {result && (
+        <ResultModal
+          code={result.code}
+          preview={result.preview}
+          cutClip={cutClip}
+          product={product}
+          quantity={quantity}
+          from={from}
+          onEditMore={() => setResult(null)}
+        />
+      )}
+
+      {/* 실제 크기 보기 모달 */}
+      {realSizeOpen && apiRef.current && (
+        <RealSizeModalWrapper
+          apiRef={apiRef}
+          sizeCm={sizeCm}
+          shape={shape}
+          cutClip={cutClip}
+          onClose={() => setRealSizeOpen(false)}
+        />
+      )}
     </div>
   );
 }
 
-// 인쇄 파일(최대 756px)을 공유·보관용 화면 그림으로 줄인다. 재단 여백은 잘라 실제 스티커 모양만 남긴다
-async function downscale(blob: Blob, size: number, shape: StickerShape, cutRatio: number): Promise<Blob | null> {
-  try {
-    const bmp = await createImageBitmap(blob);
-    const canvas = document.createElement('canvas');
-    const s = (canvas.width = canvas.height = Math.min(size, bmp.width));
-    const ctx = canvas.getContext('2d')!;
-    const cut = s * cutRatio;
-    ctx.beginPath();
-    if (shape === 'circle') ctx.arc(s / 2, s / 2, s / 2 - cut, 0, Math.PI * 2);
-    else ctx.rect(cut, cut, s - 2 * cut, s - 2 * cut);
-    ctx.clip();
-    ctx.drawImage(bmp, 0, 0, s, s);
-    return await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-  } catch {
-    return null;
-  }
-}
+// 실제 크기 보기용 비동기 이미지 래퍼
+function RealSizeModalWrapper({
+  apiRef,
+  sizeCm,
+  shape,
+  cutClip,
+  onClose,
+}: {
+  apiRef: { current: CanvasApi | null };
+  sizeCm: StickerSizeCm;
+  shape: StickerShape;
+  cutClip: string;
+  onClose: () => void;
+}) {
+  const [png, setPng] = useState<string | null>(null);
 
-function TextChoice({ t, fields, onPick, label }: { t: DesignText; fields: DesignDraft['fields']; onPick(t: DesignText): void; label?: string }) {
-  return (
-    <button type="button" className="text-choice" onClick={() => onPick(t)}>
-      {label && <span className="pill gray" style={{ fontSize: 11, padding: '0 6px', marginRight: 6 }}>{label}</span>}
-      <span style={{ whiteSpace: 'pre-line' }}>{fillPlaceholders(t.text, fields)}</span>
-    </button>
-  );
-}
+  useEffect(() => {
+    if (!apiRef.current) return;
+    void apiRef.current.exportPng(printPixels(sizeCm)).then((blob) => {
+      setPng(URL.createObjectURL(blob));
+    });
+  }, [apiRef, sizeCm]);
 
-function TextControls({ layer, onChange }: { layer: TextLayer; onChange(p: Partial<TextLayer>): void }) {
-  return (
-    <div className="text-controls">
-      <textarea
-        spellCheck={false}
-        value={layer.text}
-        maxLength={200}
-        rows={2}
-        onChange={(e) => onChange({ text: e.target.value })}
-        aria-label="문구"
-      />
-      <p className="small muted" style={{ margin: 0 }}>{'{받는분} {보내는분} {날짜}'}는 위에 적은 내용으로 바뀌어요.</p>
-      <div className="chips">
-        {FONTS.map((f) => (
-          <button key={f.id} type="button" className="chip" aria-pressed={layer.font === f.id} onClick={() => onChange({ font: f.id })}>{f.label}</button>
-        ))}
-      </div>
-      <label className="small row" style={{ gap: 8 }}>
-        크기
-        <input type="range" min={28} max={200} value={layer.fontSize} onChange={(e) => onChange({ fontSize: Number(e.target.value), scaleX: 1, scaleY: 1 })} style={{ flex: 1 }} />
-      </label>
-      <div className="row" style={{ gap: 6 }}>
-        <span className="small" style={{ width: 36 }}>색</span>
-        {COLORS.map((c) => (
-          <button key={c} type="button" className="swatch" style={{ background: c }} aria-pressed={layer.color === c} aria-label={`글자색 ${c}`} onClick={() => onChange({ color: c })} />
-        ))}
-      </div>
-      <div className="row" style={{ gap: 6 }}>
-        <label className="small row" style={{ gap: 4, width: 70 }}>
-          <input type="checkbox" checked={Boolean(layer.stroke)} onChange={(e) => onChange({ stroke: e.target.checked ? (layer.color === '#ffffff' ? '#1f2a26' : '#ffffff') : null })} />
-          테두리
-        </label>
-        {layer.stroke && COLORS.map((c) => (
-          <button key={c} type="button" className="swatch small" style={{ background: c }} aria-pressed={layer.stroke === c} aria-label={`테두리색 ${c}`} onClick={() => onChange({ stroke: c })} />
-        ))}
-      </div>
-      <label className="small row" style={{ gap: 4 }}>
-        <input type="checkbox" checked={layer.shadow} onChange={(e) => onChange({ shadow: e.target.checked })} />
-        그림자
-      </label>
-    </div>
-  );
+  if (!png) return null;
+  return <RealSizeModal png={png} sizeCm={sizeCm} shape={shape} clip={cutClip} onClose={onClose} />;
 }

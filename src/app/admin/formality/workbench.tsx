@@ -67,9 +67,9 @@ export function FormalityWorkbench({
   pilotEvidence?: ProductEvidence[];
 }) {
   const samples = useMemo(() => formalitySamples(catalog), [catalog]);
-  const [workspace, setWorkspace] = useState<FormalityWorkspace>(() => samples.workspace);
+  const [workspace, setWorkspace] = useState<FormalityWorkspace>(() => ({ format: 'ondap-formality-v2', source: 'catalog', policy: initialPolicy(catalog), evidence: structuredClone(pilotEvidence) }));
   const [input, setInput] = useState<FormalityInput>({ ...SAMPLE_INPUT });
-  const [selectedNo, setSelectedNo] = useState(samples.catalog.products[0].productNo);
+  const [selectedNo, setSelectedNo] = useState(catalog.products[0]?.productNo ?? 0);
   const [message, setMessage] = useState('');
   const [tableFilter, setTableFilter] = useState<'all' | 'eligible' | 'ineligible' | 'unreviewed'>('all');
   const [searchQuery, setSearchQuery] = useState('');

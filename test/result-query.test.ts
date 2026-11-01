@@ -14,6 +14,35 @@ test('결과 주소: 고쳐 보낸 값도 안전한 범위로 읽는다', () => 
   assert.equal(parseResultQuery({ exclude: Array.from({ length: 15 }, (_, i) => i + 1).join(',') }).exclude.length, 10);
 });
 
+test('전체 예산 보존: 1,000,001원/3개의 원래 총액 보존 및 수량 변경 계산', () => {
+  const q = parseResultQuery({
+    event: 'wedding',
+    relation: 'business',
+    budgetMode: 'total',
+    totalBudget: '1000001',
+    qty: '3',
+  });
+  assert.equal(q.totalBudget, 1000001);
+  assert.equal(q.budgetMode, 'total');
+  assert.equal(q.budget, 333333); // floor(1000001 / 3) = 333333
+
+  // URL 생성 시 totalBudget 및 budgetMode가 포함된다
+  const href = resultHref(q);
+  assert.match(href, /totalBudget=1000001/);
+  assert.match(href, /budgetMode=total/);
+
+  // 수량이 4로 바뀌었을 때 parseResultQuery가 전체 예산 기준 1개당 예산을 재계산
+  const q2 = parseResultQuery({
+    event: 'wedding',
+    relation: 'business',
+    budgetMode: 'total',
+    totalBudget: '1000001',
+    qty: '4',
+  });
+  assert.equal(q2.totalBudget, 1000001);
+  assert.equal(q2.budget, 250000); // floor(1000001 / 4) = 250000
+});
+
 test('결과 주소 만들기: 바꾼 값만 반영하고 빈 값은 뺀다', () => {
   const q = parseResultQuery({ event: 'wedding', relation: 'business', budget: '50000', qty: '10' });
   assert.equal(resultHref(q), '/result?event=wedding&relation=business&qty=10&budget=50000');

@@ -4,7 +4,15 @@
 import { useState } from 'react';
 import { isMobileUA } from '@/lib/device.ts';
 
-export function ShareButton({ title }: { title: string }) {
+export function ShareButton({
+  title,
+  className = 'btn ghost small',
+  label = '결과 공유',
+}: {
+  title: string;
+  className?: string;
+  label?: string;
+}) {
   const [done, setDone] = useState<string | null>(null);
 
   const share = async () => {
@@ -25,8 +33,8 @@ export function ShareButton({ title }: { title: string }) {
   };
 
   return (
-    <span className="row" style={{ gap: 8 }}>
-      <button type="button" className="btn ghost small" onClick={() => void share()}>결과 공유</button>
+    <span className="row" style={{ gap: 8, alignItems: 'center' }}>
+      <button type="button" className={className} onClick={() => void share()}>{label}</button>
       {done && <span className="small muted" role="status">{done}</span>}
     </span>
   );
