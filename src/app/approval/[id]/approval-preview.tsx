@@ -322,7 +322,11 @@ export function ApprovalPreview({ model }: { model: ApprovalDocumentModel }) {
                     lineHeight: '1.45',
                   }}
                 >
-                  <b>{r.tier}</b> (격식지수 {r.matchScore}점)<br />
+                  <b>{r.tier}</b> (
+                    {r.candidate.model === 'core-contract-v1'
+                      ? `추천점수 ${Math.round(r.recommendationScore ?? r.matchScore)}점 · 희소값 ${Math.round(r.rarityValue ?? 0)}점`
+                      : `${r.candidate.model === 'v2' ? '상품 희소값' : '격식지수'} ${r.matchScore}점`}
+                  )<br />
                   {r.reason}
                 </td>
               ))}

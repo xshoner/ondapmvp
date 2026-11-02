@@ -3,7 +3,7 @@ import sharp from 'sharp';
 import { BlankFileMaker, HWPXWriter } from 'ownhwpx';
 import * as fflate from 'fflate';
 import type { ApprovalDocumentModel } from './types.ts';
-import { getCachedImagePath } from '../data/approval-repository.ts';
+import { getCachedImagePath, readProductImageBytes } from '../data/approval-repository.ts';
 import { won } from '../lib/result-query.ts';
 import { createStyleRegistry } from './hwpxStyles.ts';
 
@@ -121,7 +121,8 @@ export async function generateApprovalHwpx(model: ApprovalDocumentModel): Promis
   for (const { candidate } of candidateRows) {
     if (!candidate.localImageFilename) continue;
     try {
-      const bytes = await fs.readFile(getCachedImagePath(candidate.localImageFilename));
+      const bytes = await readProductImageBytes(candidate.localImageFilename);
+      if (!bytes) continue;
       const metadata = await sharp(bytes).metadata();
       if (metadata.format === 'png' && metadata.width && metadata.height) {
         images.set(candidate.productNo, { bytes, width: metadata.width, height: metadata.height });
@@ -544,14 +545,19 @@ export async function generateApprovalHwpx(model: ApprovalDocumentModel): Promis
 
   const compFeaturesRow: TableCellSpec[] = [
     { text: '핵심 특징', isHeader: true, align: 'CENTER' },
-    ...candidateRows.map((r) => ({
-      paragraphs: [
-        { text: `${r.tier} (${r.candidate.model === 'v2' ? '상품 희소값' : '격식지수'} ${r.matchScore}점)`, charPrId: reg.roles.VALUE_BOLD.charPrId, align: 'LEFT' as const },
-        { text: r.reason, charPrId: reg.roles.VALUE.charPrId, align: 'LEFT' as const },
-      ],
-      borderFillId: reg.borders.CELL,
-      align: 'LEFT' as const,
-    })),
+    ...candidateRows.map((r) => {
+      const scoreLabel = r.candidate.model === 'core-contract-v1'
+        ? `추천점수 ${Math.round(r.recommendationScore ?? r.matchScore)}점 · 희소값 ${Math.round(r.rarityValue ?? 0)}점`
+        : `${r.candidate.model === 'v2' ? '상품 희소값' : '격식지수'} ${r.matchScore}점`;
+      return {
+        paragraphs: [
+          { text: `${r.tier} (${scoreLabel})`, charPrId: reg.roles.VALUE_BOLD.charPrId, align: 'LEFT' as const },
+          { text: r.reason, charPrId: reg.roles.VALUE.charPrId, align: 'LEFT' as const },
+        ],
+        borderFillId: reg.borders.CELL,
+        align: 'LEFT' as const,
+      };
+    }),
   ];
 
   const compareRows = [compHeaderRow, compPhotoRow, compNameRow, compPriceRow, compTotalRow, compFeaturesRow];

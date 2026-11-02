@@ -10,6 +10,7 @@ import { recommendationResultHref } from '../../recommendation/query.ts';
 import { parseResultQuery } from '../../lib/result-query.ts';
 import { RememberQuery, FeedbackBox } from '../result/client-bits.tsx';
 import { ShareButton } from '../result/share-button.tsx';
+import { CreateApprovalButton } from '../result/create-approval-button.tsx';
 import { CoreFinderForm } from './finder-form.tsx';
 import { CoreNoticeBanner } from './notice-banner.tsx';
 import { CoreMainPick, CoreOtherPick } from './pick-cards.tsx';
@@ -344,7 +345,7 @@ export function CustomerRecommendationView({
               <CoreCompareTable items={items} quantity={successfulReq!.quantity} />
             )}
 
-            {/* 부가 기능 (공유 기능) */}
+            {/* 부가 기능 (공유 및 결재 문서) */}
             <section
               style={{
                 marginTop: 24,
@@ -360,6 +361,19 @@ export function CustomerRecommendationView({
                 <span style={{ fontSize: 13, color: 'var(--muted, #666)' }}>추천 결과 공유</span>
                 <ShareButton title={`${EVENT_NAMES[successfulReq!.event]} 답례품`} href={shareHref} label="결과 링크 복사" />
               </div>
+              {approvalEnabled && successfulQuery && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, borderTop: '1px solid var(--line, #E6E1D8)' }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>지출결의·품의서 작성</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted, #666)' }}>화면과 동일한 상품·수량·예산으로 기안</div>
+                  </div>
+                  <CreateApprovalButton
+                    query={successfulQuery}
+                    candidates={items.map((i) => ({ productNo: i.productNo, price: i.unitPrice }))}
+                    label="결재 문서 만들기"
+                  />
+                </div>
+              )}
             </section>
           </main>
         ) : activeResponse && (

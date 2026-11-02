@@ -1,7 +1,7 @@
 import type { ResultQuery } from '../lib/result-query.ts';
 
 export interface ApprovalCandidate {
-  model?: 'v2';
+  model?: 'v2' | 'core-contract-v1';
   rank: number; // 1, 2, 3
   productNo: number;
   productName: string;
@@ -10,6 +10,14 @@ export interface ApprovalCandidate {
   localImageFilename?: string; // data/approval-drafts/images/{draftId}_{productNo}.png
   tier: string;
   matchScore: number;
+  recommendationScore?: number; // S (추천점수)
+  rarityValue?: number; // R (상품 희소값)
+  eventFormality?: number; // F (행사 격식)
+  eventFitScore?: number; // E (행사 적합도)
+  priceValueScore?: number | null; // V (가격 적합도)
+  evidenceCount?: number;
+  assessmentMethod?: string;
+  reasons?: string[];
   reason: string;
   region: string;
   category: string;
@@ -21,13 +29,15 @@ export interface ApprovalCandidate {
 
 export interface ApprovalDraftSource {
   query: ResultQuery;
-  budgetMode?: 'per_item' | 'total';
+  budgetMode?: 'per_item' | 'total' | 'none';
   originalTotalBudget: number | null; // 원래 입력된 전체 예산 (null이면 1개당 예산 모드 또는 미입력)
   modelVersion: string;
+  policyVersion?: string;
   catalogSyncedAt: string;
   snapshotAt: string;
   candidates: ApprovalCandidate[];
   recommendNotice?: string | null;
+  exclusions?: { productNo: number; code: string; message: string }[];
 }
 
 export interface ApprovalDraftEditable {
@@ -56,6 +66,7 @@ export interface ApprovalDraft {
   revision: number; // 1부터 시작
   createdAt: string; // ISO 8601
   updatedAt: string; // ISO 8601
+  creatorTokenHash?: string; // SHA-256 hash of creator secret token
   source: ApprovalDraftSource;
   editable: ApprovalDraftEditable;
 }
@@ -72,6 +83,8 @@ export interface CandidateCalculatedRow {
   shippingNote: string;
   tier: string;
   matchScore: number;
+  recommendationScore?: number; // S (추천점수)
+  rarityValue?: number; // R (상품 희소값)
   reason: string;
   region: string;
   category: string;

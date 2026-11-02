@@ -3,7 +3,7 @@ import path from 'node:path';
 import { PDFDocument, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import type { ApprovalDocumentModel, CandidateCalculatedRow } from './types.ts';
-import { getCachedImagePath } from '../data/approval-repository.ts';
+import { getCachedImagePath, readProductImageBytes } from '../data/approval-repository.ts';
 import { won } from '../lib/result-query.ts';
 
 const INK_DARK = rgb(0.08, 0.1, 0.15); // #141A26 (Black)
@@ -306,10 +306,13 @@ export async function generateApprovalPdf(model: ApprovalDocumentModel): Promise
   for (const r of model.candidateRows) {
     if (r.candidate.localImageFilename) {
       try {
-        const imgPath = getCachedImagePath(r.candidate.localImageFilename);
-        const imgBytes = await fs.readFile(imgPath);
-        const embedded = await doc.embedPng(imgBytes).catch(() => null);
-        candidateImages.push(embedded);
+        const imgBytes = await readProductImageBytes(r.candidate.localImageFilename);
+        if (imgBytes) {
+          const embedded = await doc.embedPng(imgBytes).catch(() => null);
+          candidateImages.push(embedded);
+        } else {
+          candidateImages.push(null);
+        }
       } catch {
         candidateImages.push(null);
       }
@@ -427,7 +430,15 @@ export async function generateApprovalPdf(model: ApprovalDocumentModel): Promise
     ['상품명', (r) => (r.isSelected ? `▶ ${r.candidate.productName}` : r.candidate.productName), true],
     ['단가 / 수량', (r) => `${won(r.unitPrice)} / ${r.quantity.toLocaleString('ko-KR')}개`],
     ['상품 합계', (r) => won(r.itemTotal), true],
-    ['핵심 특징', (r) => `${r.tier} (${r.candidate.model === 'v2' ? '상품 희소값' : '격식지수'} ${r.matchScore}점)\n${r.reason}`],
+    [
+      '핵심 특징',
+      (r) => {
+        const scoreLabel = r.candidate.model === 'core-contract-v1'
+          ? `추천점수 ${Math.round(r.recommendationScore ?? r.matchScore)}점 · 희소값 ${Math.round(r.rarityValue ?? 0)}점`
+          : `${r.candidate.model === 'v2' ? '상품 희소값' : '격식지수'} ${r.matchScore}점`;
+        return `${r.tier} (${scoreLabel})\n${r.reason}`;
+      },
+    ],
   ];
 
   for (const [label, getter, isItemBold] of compItems) {

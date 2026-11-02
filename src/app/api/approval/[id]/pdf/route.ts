@@ -1,4 +1,5 @@
 import { isApprovalEnabled, isValidApprovalOrigin } from '../../../../../approval/guard.ts';
+import { canAccessDraft } from '../../../../../approval/auth.ts';
 import { getDraft, isValidUUID } from '../../../../../data/approval-repository.ts';
 import { buildDocumentModel } from '../../../../../approval/calc.ts';
 import { generateApprovalPdf } from '../../../../../approval/pdf.ts';
@@ -31,6 +32,13 @@ export async function GET(req: Request, context: RouteContext) {
   const draft = await getDraft(id);
   if (!draft) {
     return new Response(null, { status: 404 });
+  }
+
+  if (!(await canAccessDraft(req, draft))) {
+    return new Response(JSON.stringify({ error: 'forbidden', message: '문서 작성자만 다운로드할 수 있습니다.' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   const model = buildDocumentModel(draft);

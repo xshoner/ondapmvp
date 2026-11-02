@@ -1,7 +1,6 @@
 import crypto from 'node:crypto';
 import { isApprovalEnabled, isValidApprovalOrigin } from '../../../approval/guard.ts';
-import { loadRecommendationCatalog, loadSyncInfo } from '../../../data/catalog.ts';
-import { recommend } from '../../../engine/recommend.ts';
+import { loadCatalog, loadSyncInfo } from '../../../data/catalog.ts';
 import { isDepopulationArea } from '../../../engine/formality.ts';
 import { parseResultQuery, type ResultQuery } from '../../../lib/result-query.ts';
 import {
@@ -13,6 +12,13 @@ import {
   defaultPurposeText,
   getEventName,
 } from '../../../approval/calc.ts';
+import {
+  generateCreatorToken,
+  hashCreatorToken,
+  buildCreatorCookie,
+} from '../../../approval/auth.ts';
+import { recommendForCustomer } from '../../../recommendation/server.ts';
+import type { RecommendationRequest, EventId, RelationId } from '../../../recommendation/contracts.ts';
 import type { ApprovalCandidate, ApprovalDraft } from '../../../approval/types.ts';
 
 export const runtime = 'nodejs';
@@ -46,30 +52,46 @@ export async function POST(req: Request) {
   }
 
   const query = parseResultQuery(body.query as unknown as Record<string, string | string[] | undefined>);
-  const catalog = loadRecommendationCatalog();
   const syncInfo = loadSyncInfo();
-  const result = recommend(catalog, {
-    event: query.event as any,
-    relation: query.relation as any,
-    budgetMax: query.budget ?? undefined,
-    quantity: query.qty,
-    exclude: query.exclude,
-  });
 
-  if (result.results.length === 0) {
+  // 고객 /result와 완전히 동일한 공통 추천 서버(recommendForCustomer) 호출
+  const recRequest: RecommendationRequest = {
+    event: query.event as EventId,
+    relation: query.relation as RelationId,
+    quantity: query.qty,
+    budget:
+      query.budgetMode === 'total' && query.totalBudget != null
+        ? { mode: 'total', amount: query.totalBudget }
+        : query.budget != null
+        ? { mode: 'per_item', amount: query.budget }
+        : { mode: 'none' },
+    excludedProductNos: query.exclude ?? [],
+  };
+
+  const recResult = await recommendForCustomer(recRequest);
+  if (!recResult.ok) {
+    return Response.json(
+      { error: recResult.error.code, message: recResult.error.message },
+      { status: 400 },
+    );
+  }
+
+  const { items, policyVersion, notices, exclusions } = recResult.data;
+
+  if (items.length === 0) {
     return Response.json(
       { error: 'no_candidates', message: '추천 결과가 없습니다. 조건을 확인해 주세요.' },
       { status: 400 },
     );
   }
 
-  // 화면 기대값(expectedCandidates)과 현재 카탈로그 추천 결과 비교
+  // 화면 기대값(expectedCandidates)과 최신 추천 결과 비교 (조용히 다른 문서가 만들어지는 것 방지)
   if (body.expectedCandidates && Array.isArray(body.expectedCandidates) && body.expectedCandidates.length > 0) {
     const isMatched =
-      body.expectedCandidates.length === result.results.length &&
+      body.expectedCandidates.length === items.length &&
       body.expectedCandidates.every((exp, idx) => {
-        const actual = result.results[idx];
-        return actual && exp.productNo === actual.product.productNo && exp.price === actual.product.price;
+        const actual = items[idx];
+        return actual && exp.productNo === actual.productNo && exp.price === actual.unitPrice;
       });
 
     if (!isMatched) {
@@ -77,10 +99,10 @@ export async function POST(req: Request) {
         {
           error: 'catalog_changed',
           message: '추천 상품 또는 판매가가 변경되었습니다. 최신 추천 결과를 확인해 주세요.',
-          currentCandidates: result.results.map((r) => ({
-            productNo: r.product.productNo,
-            productName: r.product.name,
-            price: r.product.price,
+          currentCandidates: items.map((r) => ({
+            productNo: r.productNo,
+            productName: r.name,
+            price: r.unitPrice,
           })),
         },
         { status: 409 },
@@ -89,36 +111,55 @@ export async function POST(req: Request) {
   }
 
   const draftId = crypto.randomUUID();
+  const creatorToken = generateCreatorToken();
+  const creatorTokenHash = hashCreatorToken(creatorToken);
   const snapshotAt = new Date().toISOString();
 
-  // 후보 상품 사본 고정 및 이미지 캐싱 시도
+  let catalogData: ReturnType<typeof loadCatalog> | null = null;
+  try {
+    catalogData = loadCatalog();
+  } catch {}
+
+  // 후보 상품 사본 고정 (R: 상품 희소값, S: 추천점수 구분 보관)
   const candidates: ApprovalCandidate[] = await Promise.all(
-    result.results.map(async (r, idx) => {
-      const p = r.product;
-      const attr = r.attributes;
+    items.map(async (r, idx) => {
       let localImageFilename: string | undefined;
 
-      if (p.image) {
-        const cached = await cacheProductImage(p.image, draftId, p.productNo).catch(() => null);
+      if (r.imageUrl) {
+        const cached = await cacheProductImage(r.imageUrl, draftId, r.productNo).catch(() => null);
         if (cached) localImageFilename = cached;
       }
 
+      const attr = catalogData?.attributes.find((a) => a.productNo === r.productNo);
+      const region = attr?.region || '기타';
+      const category = attr?.category || '일반';
+      const story = attr?.story || undefined;
+      const isDepop = catalogData ? isDepopulationArea(catalogData.config, region) : false;
+
       return {
-        rank: idx + 1,
-        model: r.model,
-        productNo: p.productNo,
-        productName: p.name,
-        price: p.price,
-        imageUrl: p.image || '',
+        model: 'core-contract-v1',
+        rank: r.rank ?? idx + 1,
+        productNo: r.productNo,
+        productName: r.name,
+        price: r.unitPrice,
+        imageUrl: r.imageUrl || '',
         localImageFilename,
-        tier: r.tier,
-        matchScore: r.matchScore,
-        reason: r.reason,
-        region: attr.region,
-        category: attr.category,
-        isDepopulationArea: isDepopulationArea(catalog.config, attr.region),
-        story: attr.story,
-        attributesReviewed: attr.reviewed,
+        tier: `추천 ${idx + 1}순위`,
+        matchScore: r.recommendationScore,
+        recommendationScore: r.recommendationScore, // S (추천점수)
+        rarityValue: r.rarityValue, // R (상품 희소값)
+        eventFormality: r.eventFormality, // F (행사 격식)
+        eventFitScore: r.eventFitScore, // E (행사 적합도)
+        priceValueScore: r.priceValueScore, // V (가격 적합도)
+        evidenceCount: r.evidenceCount,
+        assessmentMethod: r.assessmentMethod,
+        reasons: r.reasons,
+        reason: r.reasons?.[0] || '자리에 알맞은 격식과 실용성을 갖춘 상품입니다.',
+        region,
+        category,
+        isDepopulationArea: isDepop,
+        story,
+        attributesReviewed: r.evidenceCount >= 2,
       };
     }),
   );
@@ -132,15 +173,18 @@ export async function POST(req: Request) {
     revision: 1,
     createdAt: snapshotAt,
     updatedAt: snapshotAt,
+    creatorTokenHash,
     source: {
       query,
-      budgetMode: query.budgetMode,
+      budgetMode: (query.budgetMode ?? (query.budget == null ? 'none' : 'per_item')) as 'per_item' | 'total' | 'none',
       originalTotalBudget: query.totalBudget ?? null,
-      modelVersion: catalog.formalityEvidence ? 'v2' : catalog.config.modelVersion,
+      modelVersion: 'core-contract-v1',
+      policyVersion,
       catalogSyncedAt: syncInfo.syncedAt || snapshotAt,
       snapshotAt,
       candidates,
-      recommendNotice: result.notice,
+      recommendNotice: notices && notices.length > 0 ? notices.map((n) => n.message).join('\n') : null,
+      exclusions,
     },
     editable: {
       eventName: `${getEventName(query.event)} 답례품`,
@@ -161,9 +205,20 @@ export async function POST(req: Request) {
   await saveDraft(draft);
   const model = buildDocumentModel(draft);
 
-  return Response.json({
-    id: draft.id,
-    draft,
-    model,
-  });
+  const cookieHeader = buildCreatorCookie(draft.id, creatorToken);
+
+  return Response.json(
+    {
+      id: draft.id,
+      token: creatorToken,
+      draft,
+      model,
+    },
+    {
+      status: 200,
+      headers: {
+        'Set-Cookie': cookieHeader,
+      },
+    },
+  );
 }

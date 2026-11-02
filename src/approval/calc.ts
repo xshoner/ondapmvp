@@ -205,6 +205,14 @@ export function buildSelectedReason(
     conclusion = `위와 같은 추천 사유를 종합적으로 검토하여 ${rankText}으로 선정합니다.`;
   }
 
+  if (candidate.model === 'core-contract-v1') {
+    const sScore = Math.round(candidate.recommendationScore ?? candidate.matchScore);
+    const rScore = Math.round(candidate.rarityValue ?? 0);
+    const scoreLabel = `추천점수(S) ${sScore}점 · 희소값(R) ${rScore}점`;
+    const tierPart = candidate.tier ? `(${candidate.tier})` : '';
+    return `${eName}(${rName}) 자리에 맞춘 ${scoreLabel}${tierPart ? ` ${tierPart}` : ''}의 추천 상품입니다. ${cleanReason} ${conclusion}`;
+  }
+
   return `${eName}(${rName}) 자리에 맞춘 ${candidate.model === 'v2' ? '상품 희소값' : '격식지수'} ${scoreText}점(${candidate.tier})의 추천 상품입니다. ${cleanReason} ${conclusion}`;
 }
 
@@ -350,7 +358,9 @@ export function buildDocumentModel(draft: ApprovalDraft): ApprovalDocumentModel 
       shippingFee: cShipFee,
       shippingNote: cShipFee === 0 ? '무료 배송' : won(cShipFee),
       tier: c.tier,
-      matchScore: Math.round(c.matchScore),
+      matchScore: Math.round(c.recommendationScore ?? c.matchScore),
+      recommendationScore: c.recommendationScore,
+      rarityValue: c.rarityValue,
       reason: c.reason || '해당 자리 추천 상품',
       region: c.region || '기타',
       category: c.category || '일반',

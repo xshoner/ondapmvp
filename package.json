@@ -47,7 +47,7 @@
     "docx": "^9.15.0",
     "fflate": "0.8.3",
     "konva": "10.7.0",
-    "next": "16.3.8",
+    "next": "16.4.3",
     "ownhwpx": "^0.2.16",
     "pdf-lib": "1.17.1",
     "qrcode-generator": "2.0.4",

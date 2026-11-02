@@ -16,7 +16,7 @@ import {
   HeightRule,
 } from 'docx';
 import type { ApprovalDocumentModel } from './types.ts';
-import { getCachedImagePath } from '../data/approval-repository.ts';
+import { getCachedImagePath, readProductImageBytes } from '../data/approval-repository.ts';
 import { won } from '../lib/result-query.ts';
 
 const INK_DARK = '111827';
@@ -397,8 +397,7 @@ export async function generateApprovalDocx(model: ApprovalDocumentModel): Promis
   for (const row of candidateRows) {
     if (row.candidate.localImageFilename) {
       try {
-        const imgPath = getCachedImagePath(row.candidate.localImageFilename);
-        const imgBytes = await fs.readFile(imgPath);
+        const imgBytes = await readProductImageBytes(row.candidate.localImageFilename);
         candidateImages.push(imgBytes);
       } catch {
         candidateImages.push(null);
@@ -569,7 +568,13 @@ export async function generateApprovalDocx(model: ApprovalDocumentModel): Promis
               children: [
                 new Paragraph({
                   children: [
-                    new TextRun({ text: `${r.tier} (${r.candidate.model === 'v2' ? '상품 희소값' : '격식지수'} ${r.matchScore}점)`, bold: true, size: 22 }),
+                    new TextRun({
+                      text: r.candidate.model === 'core-contract-v1'
+                        ? `${r.tier} (추천점수 ${Math.round(r.recommendationScore ?? r.matchScore)}점 · 희소값 ${Math.round(r.rarityValue ?? 0)}점)`
+                        : `${r.tier} (${r.candidate.model === 'v2' ? '상품 희소값' : '격식지수'} ${r.matchScore}점)`,
+                      bold: true,
+                      size: 22,
+                    }),
                   ],
                 }),
                 new Paragraph({

@@ -1,4 +1,5 @@
 import { isApprovalEnabled, isValidApprovalOrigin } from '../../../../approval/guard.ts';
+import { canAccessDraft } from '../../../../approval/auth.ts';
 import {
   getDraft,
   updateDraftEditable,
@@ -38,6 +39,10 @@ export async function GET(req: Request, context: RouteContext) {
     return new Response(null, { status: 404 });
   }
 
+  if (!(await canAccessDraft(req, draft))) {
+    return Response.json({ error: 'forbidden', message: '문서 작성자만 조회할 수 있습니다.' }, { status: 403 });
+  }
+
   // 레거시 초안 호환성: 이전 시스템 기본값으로 생성된 문구가 남아있다면 행사에 맞게 자동 보정 (사용자 직접 입력 문구는 보존)
   if (draft.editable.purpose && isLegacyDefaultPurpose(draft.editable.purpose, draft.source.query.event, draft.source.query.relation)) {
     draft.editable.purpose = sanitizePurposeText(draft.editable.purpose, draft.source.query.event, draft.source.query.relation);
@@ -67,6 +72,10 @@ export async function PATCH(req: Request, context: RouteContext) {
   const existing = await getDraft(id);
   if (!existing) {
     return new Response(null, { status: 404 });
+  }
+
+  if (!(await canAccessDraft(req, existing))) {
+    return Response.json({ error: 'forbidden', message: '문서 작성자만 수정할 수 있습니다.' }, { status: 403 });
   }
 
   let body: {
@@ -211,6 +220,15 @@ export async function DELETE(req: Request, context: RouteContext) {
   const { id } = await context.params;
   if (!isValidUUID(id)) {
     return new Response(null, { status: 404 });
+  }
+
+  const existing = await getDraft(id);
+  if (!existing) {
+    return new Response(null, { status: 404 });
+  }
+
+  if (!(await canAccessDraft(req, existing))) {
+    return Response.json({ error: 'forbidden', message: '문서 작성자만 삭제할 수 있습니다.' }, { status: 403 });
   }
 
   const deleted = await deleteDraft(id);

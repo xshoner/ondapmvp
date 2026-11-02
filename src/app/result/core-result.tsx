@@ -7,6 +7,19 @@ import '../recommendation-ui/recommendation-ui.css';
 
 const services = { recommend: recommendAndLog };
 
-export function CoreResult({ response }: { response: RecommendationResponse }) {
-  return <CustomerRecommendationView services={services} initialRequest={response.request} initialResponse={response} />;
+export function CoreResult({
+  response,
+  approvalEnabled,
+}: {
+  response: RecommendationResponse;
+  approvalEnabled?: boolean;
+}) {
+  return (
+    <CustomerRecommendationView
+      services={services}
+      initialRequest={response.request}
+      initialResponse={response}
+      approvalEnabled={approvalEnabled}
+    />
+  );
 }

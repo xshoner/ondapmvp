@@ -25,3 +25,4 @@ next-env.d.ts
 /data/operation-events.json
 /data/formality-pilot.json
 /backups/
+/tmp/
