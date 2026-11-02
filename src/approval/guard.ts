@@ -9,55 +9,18 @@ export function isApprovalEnabled(): boolean {
   return process.env.NODE_ENV === 'development' && dataSource() === 'local';
 }
 
-function isAllowedHostname(hostname: string, currentHost: string): boolean {
-  if (hostname === '127.0.0.1' || hostname === 'localhost') {
-    return true;
-  }
-  const hostWithoutPort = currentHost.split(':')[0];
-  if (hostWithoutPort && (hostname === hostWithoutPort || hostname.endsWith(`.${hostWithoutPort}`))) {
-    return true;
-  }
-  if (process.env.NEXT_PUBLIC_SITE_URL) {
-    try {
-      const siteUrl = new URL(process.env.NEXT_PUBLIC_SITE_URL);
-      if (hostname === siteUrl.hostname) return true;
-    } catch {}
-  }
-  return false;
-}
-
-// 외부 사이트의 문서 접근·변경 차단 (CSRF / Origin 검증)
+// 다른 포트·하위 도메인의 요청은 같은 출처로 취급하지 않는다.
 export function isValidApprovalOrigin(req: Request): boolean {
-  const origin = req.headers.get('origin');
-  const referer = req.headers.get('referer');
-  const host = req.headers.get('host') || '';
-
-  if (origin) {
-    try {
-      const u = new URL(origin);
-      if (!isAllowedHostname(u.hostname, host)) {
-        return false;
-      }
-    } catch {
-      return false;
-    }
+  const url = new URL(req.url);
+  const host = req.headers.get('host') || url.host;
+  const allowed = new Set([`${url.protocol}//${host}`]);
+  if (process.env.NEXT_PUBLIC_SITE_URL) {
+    try { allowed.add(new URL(process.env.NEXT_PUBLIC_SITE_URL).origin); } catch { return false; }
   }
-
-  if (referer) {
-    try {
-      const u = new URL(referer);
-      if (!isAllowedHostname(u.hostname, host)) {
-        return false;
-      }
-    } catch {
-      return false;
-    }
+  for (const header of ['origin', 'referer']) {
+    const value = req.headers.get(header);
+    if (!value) continue;
+    try { if (!allowed.has(new URL(value).origin)) return false; } catch { return false; }
   }
-
-  const hostWithoutPort = host.split(':')[0];
-  if (hostWithoutPort && !isAllowedHostname(hostWithoutPort, host)) {
-    return false;
-  }
-
   return true;
 }

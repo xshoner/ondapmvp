@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { getAdminStatus } from '../lib/admin-guard.ts';
+import { dataSource } from '../lib/supabase/env.ts';
 import type { ApprovalDraft } from './types.ts';
 
 export function generateCreatorToken(): string {
@@ -11,7 +12,7 @@ export function hashCreatorToken(token: string): string {
 }
 
 export function buildCreatorCookie(draftId: string, token: string): string {
-  return `ondap_approval_${draftId}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`;
+  return `ondap_approval_${draftId}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
 }
 
 export function extractCreatorToken(req: Request, draftId: string): string | null {
@@ -25,50 +26,27 @@ export function extractCreatorToken(req: Request, draftId: string): string | nul
     const cookieName = `ondap_approval_${draftId}`;
     const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${cookieName}=([^;]+)`));
     if (match && match[1]) {
-      return decodeURIComponent(match[1].trim());
+      try { return decodeURIComponent(match[1].trim()); } catch { return null; }
     }
   }
 
-  // 3. 쿼리 스트링 ?token=
-  try {
-    const url = new URL(req.url);
-    const queryToken = url.searchParams.get('token');
-    if (queryToken && queryToken.trim()) return queryToken.trim();
-  } catch {}
 
   return null;
 }
 
 export async function canAccessDraft(req: Request, draft: ApprovalDraft): Promise<boolean> {
-  // 레거시 초안 호환성: 토큰 해시가 없는 과거 초안은 접근 허용
-  if (!draft.creatorTokenHash) {
-    return true;
-  }
-
-  // Supabase 모드에서 실제 로그인 및 인증된 관리자는 조회 허용
-  try {
-    const admin = await getAdminStatus();
-    if (admin.allowed && admin.mode === 'supabase') {
-      return true;
-    }
-  } catch {}
-
-  const token = extractCreatorToken(req, draft.id);
-  if (!token) {
-    return false;
-  }
-
-  return verifyToken(token, draft.creatorTokenHash);
+  return canAccessDraftWithToken(extractCreatorToken(req, draft.id), draft);
 }
 
 export async function canAccessDraftWithToken(
   token: string | null | undefined,
   draft: ApprovalDraft,
 ): Promise<boolean> {
-  if (!draft.creatorTokenHash) {
+  if (!draft.creatorTokenHash && process.env.NODE_ENV === 'development' && dataSource() === 'local') {
     return true;
   }
 
+  if (draft.creatorTokenHash && token && verifyToken(token, draft.creatorTokenHash)) return true;
   try {
     const admin = await getAdminStatus();
     if (admin.allowed && admin.mode === 'supabase') {
@@ -76,11 +54,7 @@ export async function canAccessDraftWithToken(
     }
   } catch {}
 
-  if (!token || !token.trim()) {
-    return false;
-  }
-
-  return verifyToken(token, draft.creatorTokenHash);
+  return false;
 }
 
 function verifyToken(token: string, expectedHash: string): boolean {

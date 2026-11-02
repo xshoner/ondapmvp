@@ -1,7 +1,5 @@
 import crypto from 'node:crypto';
 import { isApprovalEnabled, isValidApprovalOrigin } from '../../../approval/guard.ts';
-import { loadCatalog, loadSyncInfo } from '../../../data/catalog.ts';
-import { isDepopulationArea } from '../../../engine/formality.ts';
 import { parseResultQuery, type ResultQuery } from '../../../lib/result-query.ts';
 import {
   saveDraft,
@@ -18,7 +16,9 @@ import {
   buildCreatorCookie,
 } from '../../../approval/auth.ts';
 import { recommendForCustomer } from '../../../recommendation/server.ts';
-import type { RecommendationRequest, EventId, RelationId } from '../../../recommendation/contracts.ts';
+import { requestFromSearchParams, recommendationResultHref } from '../../../recommendation/query.ts';
+import { parseRecommendationRequest } from '../../../recommendation/validation.ts';
+import type { RecommendationResponse, RecommendationRequest } from '../../../recommendation/contracts.ts';
 import type { ApprovalCandidate, ApprovalDraft } from '../../../approval/types.ts';
 
 export const runtime = 'nodejs';
@@ -38,6 +38,8 @@ export async function POST(req: Request) {
 
   let body: {
     query?: ResultQuery;
+    request?: RecommendationRequest;
+    expectedResponse?: RecommendationResponse;
     expectedCandidates?: { productNo: number; price: number }[];
   };
 
@@ -47,26 +49,19 @@ export async function POST(req: Request) {
     return Response.json({ error: 'invalid_json' }, { status: 400 });
   }
 
-  if (!body.query || !body.query.event || !body.query.relation) {
+  if (!body || (!body.request && (!body.query || !body.query.event || !body.query.relation))) {
     return Response.json({ error: 'missing_query' }, { status: 400 });
   }
 
-  const query = parseResultQuery(body.query as unknown as Record<string, string | string[] | undefined>);
-  const syncInfo = loadSyncInfo();
-
-  // 고객 /result와 완전히 동일한 공통 추천 서버(recommendForCustomer) 호출
-  const recRequest: RecommendationRequest = {
-    event: query.event as EventId,
-    relation: query.relation as RelationId,
-    quantity: query.qty,
-    budget:
-      query.budgetMode === 'total' && query.totalBudget != null
-        ? { mode: 'total', amount: query.totalBudget }
-        : query.budget != null
-        ? { mode: 'per_item', amount: query.budget }
-        : { mode: 'none' },
-    excludedProductNos: query.exclude ?? [],
-  };
+  let recRequest: RecommendationRequest;
+  try {
+    const raw = body.query!;
+    recRequest = body.request ? parseRecommendationRequest(body.request) : requestFromSearchParams({
+      ...Object.fromEntries(Object.entries(raw).filter(([key]) => key !== 'exclude').map(([key, value]) => [key, String(value ?? '')])),
+      exclude: Array.isArray(raw.exclude) ? raw.exclude.join(',') : '',
+    });
+  } catch { return Response.json({ error: 'invalid_query', message: '추천 조건을 다시 확인해 주세요.' }, { status: 400 }); }
+  const query = parseResultQuery(Object.fromEntries(new URLSearchParams(recommendationResultHref(recRequest).split('?')[1])));
 
   const recResult = await recommendForCustomer(recRequest);
   if (!recResult.ok) {
@@ -77,6 +72,10 @@ export async function POST(req: Request) {
   }
 
   const { items, policyVersion, notices, exclusions } = recResult.data;
+  if (body.expectedResponse && (body.expectedResponse.policyVersion !== policyVersion || JSON.stringify(body.expectedResponse.items) !== JSON.stringify(items))) {
+    return Response.json({ error: 'catalog_changed', message: '추천 기준이나 상품 정보가 변경되었습니다. 최신 추천 결과를 확인해 주세요.' }, { status: 409 });
+  }
+
 
   if (items.length === 0) {
     return Response.json(
@@ -115,11 +114,6 @@ export async function POST(req: Request) {
   const creatorTokenHash = hashCreatorToken(creatorToken);
   const snapshotAt = new Date().toISOString();
 
-  let catalogData: ReturnType<typeof loadCatalog> | null = null;
-  try {
-    catalogData = loadCatalog();
-  } catch {}
-
   // 후보 상품 사본 고정 (R: 상품 희소값, S: 추천점수 구분 보관)
   const candidates: ApprovalCandidate[] = await Promise.all(
     items.map(async (r, idx) => {
@@ -129,12 +123,6 @@ export async function POST(req: Request) {
         const cached = await cacheProductImage(r.imageUrl, draftId, r.productNo).catch(() => null);
         if (cached) localImageFilename = cached;
       }
-
-      const attr = catalogData?.attributes.find((a) => a.productNo === r.productNo);
-      const region = attr?.region || '기타';
-      const category = attr?.category || '일반';
-      const story = attr?.story || undefined;
-      const isDepop = catalogData ? isDepopulationArea(catalogData.config, region) : false;
 
       return {
         model: 'core-contract-v1',
@@ -155,10 +143,9 @@ export async function POST(req: Request) {
         assessmentMethod: r.assessmentMethod,
         reasons: r.reasons,
         reason: r.reasons?.[0] || '자리에 알맞은 격식과 실용성을 갖춘 상품입니다.',
-        region,
-        category,
-        isDepopulationArea: isDepop,
-        story,
+        region: '',
+        category: '',
+        isDepopulationArea: false,
         attributesReviewed: r.evidenceCount >= 2,
       };
     }),
@@ -180,7 +167,7 @@ export async function POST(req: Request) {
       originalTotalBudget: query.totalBudget ?? null,
       modelVersion: 'core-contract-v1',
       policyVersion,
-      catalogSyncedAt: syncInfo.syncedAt || snapshotAt,
+      catalogSyncedAt: snapshotAt,
       snapshotAt,
       candidates,
       recommendNotice: notices && notices.length > 0 ? notices.map((n) => n.message).join('\n') : null,

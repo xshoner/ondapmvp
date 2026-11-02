@@ -434,7 +434,7 @@ export async function generateApprovalPdf(model: ApprovalDocumentModel): Promise
       '핵심 특징',
       (r) => {
         const scoreLabel = r.candidate.model === 'core-contract-v1'
-          ? `추천점수 ${Math.round(r.recommendationScore ?? r.matchScore)}점 · 희소값 ${Math.round(r.rarityValue ?? 0)}점`
+          ? `추천점수 ${(r.recommendationScore ?? r.matchScore).toFixed(1)}점 · 희소값 ${(r.rarityValue ?? 0).toFixed(1)}점`
           : `${r.candidate.model === 'v2' ? '상품 희소값' : '격식지수'} ${r.matchScore}점`;
         return `${r.tier} (${scoreLabel})\n${r.reason}`;
       },

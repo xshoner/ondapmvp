@@ -2,21 +2,15 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { ResultQuery } from '@/lib/result-query.ts';
-
-interface CandidateExpected {
-  productNo: number;
-  price: number;
-}
+import type { RecommendationResponse } from '@/recommendation/contracts.ts';
+import { recommendationResultHref } from '@/recommendation/query.ts';
 
 export function CreateApprovalButton({
-  query,
-  candidates,
+  response,
   className = 'btn ghost',
   label = '결재 문서(품의서) 작성하기',
 }: {
-  query: ResultQuery;
-  candidates: CandidateExpected[];
+  response: RecommendationResponse;
   className?: string;
   label?: string;
 }) {
@@ -34,15 +28,15 @@ export function CreateApprovalButton({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          query,
-          expectedCandidates: candidates,
+          request: response.request,
+          expectedResponse: response,
         }),
       });
 
       if (res.status === 409) {
         const data = await res.json();
         alert(data.message || '추천 상품 정보가 변경되었습니다. 최신 추천을 확인해 주세요.');
-        window.location.reload();
+        window.location.href = recommendationResultHref(response.request);
         return;
       }
 

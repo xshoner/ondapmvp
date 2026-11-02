@@ -206,8 +206,8 @@ export function buildSelectedReason(
   }
 
   if (candidate.model === 'core-contract-v1') {
-    const sScore = Math.round(candidate.recommendationScore ?? candidate.matchScore);
-    const rScore = Math.round(candidate.rarityValue ?? 0);
+    const sScore = (candidate.recommendationScore ?? candidate.matchScore).toFixed(1);
+    const rScore = (candidate.rarityValue ?? 0).toFixed(1);
     const scoreLabel = `추천점수(S) ${sScore}점 · 희소값(R) ${rScore}점`;
     const tierPart = candidate.tier ? `(${candidate.tier})` : '';
     return `${eName}(${rName}) 자리에 맞춘 ${scoreLabel}${tierPart ? ` ${tierPart}` : ''}의 추천 상품입니다. ${cleanReason} ${conclusion}`;

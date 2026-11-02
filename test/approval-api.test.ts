@@ -117,6 +117,7 @@ test('POST /api/approval: 정상 초안 생성, 새 추천 결과 및 사본 고
   assert.equal(typeof cand0.recommendationScore, 'number');
   assert.equal(typeof cand0.rarityValue, 'number');
   assert.equal(cand0.model, 'core-contract-v1');
+  assert.ok(json.model.selectedReason.includes(cand0.recommendationScore.toFixed(1)));
 
   createdId = json.id;
   createdToken = json.token;
@@ -380,4 +381,27 @@ test('DELETE /api/approval/[id]: 초안 삭제 후 조회 차단', async () => {
   const getRes = await getDraftRoute(getReq, { params: Promise.resolve({ id: createdId }) });
   assert.equal(getRes.status, 404);
   createdId = ''; // 정리 완료
+});
+
+test('new request preserves multiple exclusions and rejects stale score snapshots and invalid totals', async () => {
+  const { recommendForCustomer } = await import('../src/recommendation/server.ts');
+  const base = { event: 'wedding', relation: 'senior', quantity: 10, budget: { mode: 'none' }, excludedProductNos: [] } as const;
+  const initial = await recommendForCustomer({ ...base, excludedProductNos: [] });
+  assert.ok(initial.ok);
+  const excluded = initial.data.items.slice(0, 2).map(item => item.productNo);
+  const request = { ...base, excludedProductNos: excluded };
+  const expected = await recommendForCustomer(request);
+  assert.ok(expected.ok);
+  const send = (body: unknown) => createDraftRoute(new Request('http://127.0.0.1:3000/api/approval', { method: 'POST', headers: { Origin: 'http://127.0.0.1:3000', 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
+  const changed = structuredClone(expected.data); changed.items[0].recommendationScore -= 1;
+  assert.equal((await send({ request, expectedResponse: changed })).status, 409);
+  const response = await send({ request, expectedResponse: expected.data });
+  assert.equal(response.status, 200);
+  const created = await response.json();
+  try {
+    assert.deepEqual(created.draft.source.query.exclude, excluded);
+    assert.ok(created.draft.source.candidates.every((item: {productNo: number}) => !excluded.includes(item.productNo)));
+    assert.equal(created.draft.source.candidates[0].recommendationScore, expected.data.items[0].recommendationScore);
+  } finally { await deleteDraft(created.id); }
+  assert.equal((await send({ query: { event: 'wedding', relation: 'senior', qty: 10, budgetMode: 'total', budget: 50000, exclude: [] } })).status, 400);
 });

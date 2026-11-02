@@ -10,10 +10,9 @@ export const dynamic = 'force-dynamic';
 
 interface PageProps {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ token?: string }>;
 }
 
-export default async function ApprovalPage({ params, searchParams }: PageProps) {
+export default async function ApprovalPage({ params }: PageProps) {
   if (!isApprovalEnabled()) {
     notFound();
   }
@@ -28,11 +27,10 @@ export default async function ApprovalPage({ params, searchParams }: PageProps) 
     notFound();
   }
 
-  // 작성자 권한 확인 (쿠키 또는 query token 또는 관리자 권한)
+  // 작성자 권한 확인 (작성자 쿠키 또는 관리자 권한)
   const cookieStore = await cookies();
   const cookieToken = cookieStore.get(`ondap_approval_${id}`)?.value;
-  const sParams = searchParams ? await searchParams : undefined;
-  const token = cookieToken || sParams?.token;
+  const token = cookieToken;
 
   const hasAccess = await canAccessDraftWithToken(token, draft);
   if (!hasAccess) {

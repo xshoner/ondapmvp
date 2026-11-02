@@ -218,9 +218,20 @@ await q(`select public.sync_product_snapshot($1::jsonb,$2::timestamptz)`, [JSON.
 const [remainingEvidence] = await q(`select count(*)::int n from public.product_evidence where product_no = 27`);
 check('상품이 목록에서 빠져도 동기화가 성공하고 검수 근거는 보존됨', remainingEvidence.n === 1);
 await db.exec(`reset role; select set_config('request.jwt.claims','{"role":"service_role"}',false);`);
+const approvalId = '99999999-2222-4333-8444-555555555555';
+await asAnon();
+await expectError('결재 초안: 익명 고객의 테이블 직접 접근 차단', () => q(`select * from public.approval_drafts`), /permission denied/);
+await asAdmin();
+await q(`insert into public.approval_drafts (id, creator_token_hash, data) values ($1, repeat('a',64), '{"source":{"candidates":[]}}')`, [approvalId]);
+const firstApprovalSave = await q(`update public.approval_drafts set revision=revision+1 where id=$1 and revision=1 returning id`, [approvalId]);
+const staleApprovalSave = await q(`update public.approval_drafts set revision=revision+1 where id=$1 and revision=1 returning id`, [approvalId]);
+check('결재 초안: 같은 개정의 중복 갱신 방지', firstApprovalSave.length === 1 && staleApprovalSave.length === 0);
+await db.exec(`reset role; select set_config('request.jwt.claims','{"role":"service_role"}',false);`);
 const [formalityBackup] = await q(`select public.export_application_snapshot() as s`);
-check('백업에 상품 근거와 정책 포함', formalityBackup.s.schemaVersion === '20261031' && formalityBackup.s.tables.product_evidence.some(x => x.product_no === 27) && Array.isArray(formalityBackup.s.tables.formality_policies));
+check('백업에 상품 근거와 정책 포함', formalityBackup.s.schemaVersion === '20261102' && formalityBackup.s.tables.product_evidence.some(x => x.product_no === 27) && Array.isArray(formalityBackup.s.tables.formality_policies));
 await recovered.exec(restoreSql(formalityBackup.s));
+const [{ n: restoredApprovals }] = (await recovered.query(`select count(*)::int n from public.approval_drafts where id = '${approvalId}' and revision = 2`)).rows;
+check('시험 DB 복구에 결재 초안·개정·작성자 해시 포함', restoredApprovals === 1 && formalityBackup.s.tables.approval_drafts[0].creator_token_hash === 'a'.repeat(64));
 const [{ n: restoredEvidence }] = (await recovered.query(`select count(*)::int n from public.product_evidence where product_no = 27`)).rows;
 check('시험 DB 복구에 상품 근거 포함', restoredEvidence === 1);
 

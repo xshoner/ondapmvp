@@ -414,7 +414,7 @@ export function ApprovalEditorView({
                           {c.rank === 1 ? '1안(추천)' : `${c.rank}안`}
                         </span>
                         <span style={{ fontSize: 11, color: '#64748B' }}>
-                          {c.tier} · {Math.round(c.matchScore)}점
+                          {c.tier} · {c.model === 'core-contract-v1' ? `추천점수 ${(c.recommendationScore ?? c.matchScore).toFixed(1)}` : Math.round(c.matchScore)}점
                         </span>
                       </div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: '#0F172A' }}>

@@ -454,11 +454,12 @@ export async function cacheProductImage(imageUrl: string, draftId: string, produ
     if (dataSource() === 'supabase') {
       try {
         const client = await getServiceClient();
-        await client.storage.from('approval-assets').upload(`${draftId}/${productNo}.png`, processed, {
+        const { error } = await client.storage.from('approval-assets').upload(`${draftId}/${productNo}.png`, processed, {
           contentType: 'image/png',
           upsert: true,
         });
-      } catch {}
+        if (error) return null;
+      } catch { return null; }
     }
 
     return filename;

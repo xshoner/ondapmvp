@@ -6,7 +6,7 @@ const target = resolve(process.argv[2] ?? '');
 if (!process.argv[2]) throw new Error('검증할 백업 폴더를 지정해 주세요.');
 const raw = readFileSync(join(target, 'snapshot.json'), 'utf8');
 const manifest = JSON.parse(readFileSync(join(target, 'manifest.json'), 'utf8'));
-if (!['20261027', '20261031'].includes(manifest.schemaVersion) || manifest.snapshotSha256 !== sha256(raw) || !Array.isArray(manifest.files)) throw new Error('스냅샷 검증 실패.');
+if (!['20261027', '20261031', '20261102'].includes(manifest.schemaVersion) || manifest.snapshotSha256 !== sha256(raw) || !Array.isArray(manifest.files)) throw new Error('스냅샷 검증 실패.');
 const snapshot = JSON.parse(raw); validateSnapshot(snapshot);
 if (manifest.schemaVersion !== snapshot.schemaVersion) throw new Error('백업 버전이 일치하지 않습니다.');
 const saved = new Set<string>();

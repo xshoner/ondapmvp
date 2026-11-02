@@ -368,8 +368,7 @@ export function CustomerRecommendationView({
                     <div style={{ fontSize: 12, color: 'var(--muted, #666)' }}>화면과 동일한 상품·수량·예산으로 기안</div>
                   </div>
                   <CreateApprovalButton
-                    query={successfulQuery}
-                    candidates={items.map((i) => ({ productNo: i.productNo, price: i.unitPrice }))}
+                    response={activeResponse!}
                     label="결재 문서 만들기"
                   />
                 </div>
