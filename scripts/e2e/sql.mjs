@@ -206,6 +206,13 @@ await asAdmin();
 await q(`insert into public.product_evidence (product_no, reviewed, rarity_score, factors, description) values (27, true, 0.85, '{"skill":{"score":8,"basis":"전승"}}', '장인 설명')`);
 const [evRow] = await q(`select product_no, reviewed, rarity_score from public.product_evidence where product_no = 27`);
 check('격식지수 v2: 관리자는 상품 근거를 저장하고 조회할 수 있음', evRow.product_no === 27 && evRow.reviewed === true && Math.abs(Number(evRow.rarity_score) - 0.85) < 0.0001);
+const [coreBefore] = await q(`select updated_at, factors from public.product_evidence where product_no = 27`);
+const firstCoreSave = await q(`update public.product_evidence set description = '첫 저장', updated_at = updated_at + interval '1 millisecond' where product_no = 27 and updated_at = $1 returning factors`, [coreBefore.updated_at]);
+const staleCoreSave = await q(`update public.product_evidence set description = '충돌한 저장' where product_no = 27 and updated_at = $1 returning product_no`, [coreBefore.updated_at]);
+check('새 추천 저장: 같은 개정으로 두 번 저장하면 두 번째는 갱신하지 않음', firstCoreSave.length === 1 && staleCoreSave.length === 0);
+const [coreAfter] = await q(`select description, factors from public.product_evidence where product_no = 27`);
+check('새 추천 저장: 충돌한 내용이 기존 근거와 첫 저장을 덮어쓰지 않음', coreAfter.description === '첫 저장' && JSON.stringify(coreAfter.factors) === JSON.stringify(coreBefore.factors));
+
 const [beforeRemoval] = await q(`select jsonb_agg(to_jsonb(p)) as products,max(synced_at)::text as version from public.products p`);
 await q(`select public.sync_product_snapshot($1::jsonb,$2::timestamptz)`, [JSON.stringify(beforeRemoval.products.filter(p => p.product_no !== 27)), beforeRemoval.version]);
 const [remainingEvidence] = await q(`select count(*)::int n from public.product_evidence where product_no = 27`);

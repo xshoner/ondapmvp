@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useTransition } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ApprovalDraft, ApprovalDraftEditable, ApprovalDocumentModel } from '@/approval/types.ts';
 import { buildDocumentModel, validateQuantity } from '@/approval/calc.ts';
 import { resultHref, won } from '@/lib/result-query.ts';
+import { createApprovalAutosave, type SaveStatus } from '@/approval/autosave.ts';
 import { ApprovalPreview } from './approval-preview.tsx';
 
 export function ApprovalEditorView({
@@ -17,99 +18,57 @@ export function ApprovalEditorView({
   const router = useRouter();
   const [draft, setDraft] = useState<ApprovalDraft>(initialDraft);
   const [model, setModel] = useState<ApprovalDocumentModel>(initialModel);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error' | 'conflict'>('saved');
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<'input' | 'preview'>('input'); // 모바일 탭 전환
 
-  const isSavingRef = useRef(false);
-  const pendingPatchRef = useRef<Partial<ApprovalDraftEditable> | null>(null);
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // 로컬 변경 반영 및 모델 즉시 재계산
-  function handleFieldChange<K extends keyof ApprovalDraftEditable>(key: K, value: ApprovalDraftEditable[K]) {
-    setDraft((prev) => {
-      const updatedEditable = { ...prev.editable, [key]: value };
-      const updatedDraft: ApprovalDraft = { ...prev, editable: updatedEditable };
-
-      try {
-        const newModel = buildDocumentModel(updatedDraft);
-        setModel(newModel);
-      } catch {}
-
-      return updatedDraft;
-    });
-
-    // 패치 대기열 등록
-    pendingPatchRef.current = { ...(pendingPatchRef.current || {}), [key]: value };
-    setSaveStatus('saving');
-
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-    }
-
-    autoSaveTimerRef.current = setTimeout(() => {
-      flushSave();
-    }, 500);
-  }
-
-  // 서버에 수정분 저장
-  async function flushSave() {
-    if (!pendingPatchRef.current || isSavingRef.current) return;
-    const patch = { ...pendingPatchRef.current };
-    pendingPatchRef.current = null;
-    isSavingRef.current = true;
-    setSaveStatus('saving');
-    setErrorMessage(null);
-
-    try {
-      const res = await fetch(`/api/approval/${draft.id}`, {
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autosaveRef = useRef<ReturnType<typeof createApprovalAutosave> | null>(null);
+  if (!autosaveRef.current) {
+    autosaveRef.current = createApprovalAutosave(initialDraft, async (patch, revision) => {
+      const res = await fetch(`/api/approval/${initialDraft.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          patch,
-          expectedRevision: draft.revision,
-        }),
+        body: JSON.stringify({ patch, expectedRevision: revision }),
       });
-
-      if (res.status === 409) {
-        setSaveStatus('conflict');
-        setErrorMessage('다른 곳에서 문서가 변경되었습니다. 최신 내용을 다시 불러와 주세요.');
-        isSavingRef.current = false;
-        return;
-      }
-
       if (!res.ok) {
-        throw new Error('저장에 실패했습니다.');
+        const error = new Error('저장 실패');
+        if (res.status === 409) error.name = 'RevisionConflictError';
+        throw error;
       }
-
-      const data = await res.json();
-      setDraft(data.draft);
-      setModel(data.model);
-      setSaveStatus('saved');
-    } catch (err: unknown) {
-      setSaveStatus('error');
-      setErrorMessage(err instanceof Error ? err.message : '저장 실패');
-      // 실패 시 미반영 패치를 다시 병합
-      pendingPatchRef.current = { ...patch, ...(pendingPatchRef.current || {}) };
-    } finally {
-      isSavingRef.current = false;
-      // 대기 중인 패치가 더 있으면 재실행
-      if (pendingPatchRef.current) {
-        flushSave();
-      }
-    }
+      return (await res.json()).draft;
+    }, (next) => {
+      setDraft(next);
+      try { setModel(buildDocumentModel(next)); } catch {}
+    }, (state, message) => {
+      setSaveStatus(state);
+      setErrorMessage(message);
+    });
   }
 
-  // 다운로드 전 미저장분 즉시 저장 보장
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (autosaveRef.current?.dirty()) { event.preventDefault(); event.returnValue = ''; }
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => {
+      window.removeEventListener('beforeunload', warn);
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, []);
+
+  function handleFieldChange<K extends keyof ApprovalDraftEditable>(key: K, value: ApprovalDraftEditable[K]) {
+    autosaveRef.current!.edit({ [key]: value });
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => { void flushSave(); }, 500);
+  }
+
+  async function flushSave() { return autosaveRef.current!.flush(); }
+
   async function ensureSavedBeforeDownload(type: 'docx' | 'pdf' | 'hwpx') {
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-    }
-    if (pendingPatchRef.current) {
-      await flushSave();
-    }
-    window.location.href = `/api/approval/${draft.id}/${type}`;
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    if (await flushSave()) window.location.href = `/api/approval/${draft.id}/${type}`;
   }
 
   // 클립보드 품의 요약 복사
@@ -152,6 +111,9 @@ export function ApprovalEditorView({
     if (draft.source.query.budget !== null) {
       p.set('budget', String(draft.source.query.budget));
     }
+    if (draft.source.query.budgetMode) p.set('budgetMode', draft.source.query.budgetMode);
+    if (draft.source.query.totalBudget != null) p.set('totalBudget', String(draft.source.query.totalBudget));
+    if (draft.source.query.exclude.length) p.set('exclude', draft.source.query.exclude.join(','));
     return `/packaging?${p.toString()}`;
   };
 
@@ -234,7 +196,7 @@ export function ApprovalEditorView({
             >
               {saveStatus === 'saved' && '✓ 저장됨'}
               {saveStatus === 'saving' && '⟳ 저장 중…'}
-              {saveStatus === 'error' && '⚠ 저장 실패 (재시도 중)'}
+              {saveStatus === 'error' && '⚠ 저장 실패'}
               {saveStatus === 'conflict' && '⚠ 개정 충돌'}
             </span>
           </div>
@@ -346,7 +308,7 @@ export function ApprovalEditorView({
               <button
                 type="button"
                 className="btn small"
-                onClick={flushSave}
+                onClick={() => void flushSave()}
                 style={{ marginLeft: 8 }}
               >
                 다시 시도

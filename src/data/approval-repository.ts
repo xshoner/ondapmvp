@@ -1,9 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import sharp from 'sharp';
+import { dataDir } from '../lib/paths.ts';
 import type { ApprovalDraft, ApprovalDraftEditable } from '../approval/types.ts';
 
-const DRAFTS_DIR = path.resolve(process.cwd(), 'data', 'approval-drafts');
+const DRAFTS_DIR = path.resolve(dataDir, 'approval-drafts');
 const IMAGES_DIR = path.resolve(DRAFTS_DIR, 'images');
 
 // 문서 ID별 동시 저장 직렬화 잠금 큐
