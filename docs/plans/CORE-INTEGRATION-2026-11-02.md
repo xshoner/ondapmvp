@@ -45,3 +45,11 @@
 - 운영 DB 새 마이그레이션 미적용, DB/스토리지 쓰기 검증 미실시, 물리 모바일·한컴오피스 실열기 미실시. ENABLE_APPROVAL_DOCS는 운영에 설정하지 않았고 배포/원격push도 하지 않았다.
 - 다음 사용자 작업: 저장소 CLAUDE.md의 운영 DB 규칙에 따라 supabase/migrations/20261102000000_approval_drafts.sql만 SQL Editor에서 직접 실행. setup.sql은 기존 운영DB에서 실행하지 않는다. 적용 확인 후 기능 기본비활성 상태로 실제 영구저장/권한/충돌 검증을 진행한다.
 - 최종 Next16.4.3 webpack빌드 통과(코드 보완과 실제 브라우저 검사 이후 재실행).
+
+## 운영 배포 완료 — 2026-11-02
+
+- 사용자 명시 지시로 검증 커밋7dcf176/4fe1725를 통합하고 코드5a24fa7을 main 및 작업 브랜치로 push했다.
+- Vercel ondapmvp 운영 배포 dpl_6QwRrfMQc4DkQVXMpoXoEDEnGq7Z Ready 확인. 공식 별칭 https://ondapmvp.vercel.app . 실행 함수 서울icn1.
+- 운영 ENABLE_APPROVAL_DOCS=true, NEXT_PUBLIC_SITE_URL=https://ondapmvp.vercel.app 설정. 기존 서버 비밀값은 복호화/출력하지 않음.
+- 실제 운영 HTTP 검사: 고객 추천 및 결재 버튼, 신규 비공개 초안 생성과 예산800000/수량20 사본, 작성자 쿠키로revision2 저장, 익명GET403, HWPX/DOCX/PDF 다운로드200, 개발전용경로404 전부 통과. 봇 헤더로 추천 로그 오염을 피했고 시험 초안과 관련 자산은 DELETE204로 정리했다.
+- 실제 모바일·한컴오피스 시각 배치 검수는 아직 미실시. 로컬 브라우저 검증과 파일 구조 검사로 대체했다고 주장하지 않는다.
