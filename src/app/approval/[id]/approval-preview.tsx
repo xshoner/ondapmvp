@@ -269,9 +269,6 @@ export function ApprovalPreview({ model }: { model: ApprovalDocumentModel }) {
                       [사진 없음]
                     </div>
                   )}
-                  <span style={{ fontSize: 11, color: '#6B7280', display: 'block', marginTop: 4 }}>
-                    참고 상품 사진
-                  </span>
                 </td>
               ))}
             </tr>

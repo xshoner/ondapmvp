@@ -233,7 +233,6 @@ export async function generateApprovalHwpx(model: ApprovalDocumentModel): Promis
           const sourceW = (cell.imagePixelWidth ?? 1) * 75;
           const sourceH = (cell.imagePixelHeight ?? 1) * 75;
           const cellPId = nextId++;
-          const capPId = nextId++;
           subParas = `
 <hp:p id="${cellPId}" paraPrIDRef="${reg.paras.CENTER}" styleIDRef="${reg.styles.NORMAL}" pageBreak="0" columnBreak="0" merged="0">
   <hp:run charPrIDRef="${charPr}">
@@ -248,11 +247,6 @@ export async function generateApprovalHwpx(model: ApprovalDocumentModel): Promis
       <hp:imgClip left="0" right="${sourceW}" top="0" bottom="${sourceH}"/><hp:inMargin left="0" right="0" top="0" bottom="0"/><hp:imgDim dimwidth="${sourceW}" dimheight="${sourceH}"/>
       <hc:img binaryItemIDRef="${cell.imageRef}" bright="0" contrast="0" effect="REAL_PIC" alpha="0"/>
     </hp:pic>
-  </hp:run>
-</hp:p>
-<hp:p id="${capPId}" paraPrIDRef="${reg.paras.CENTER}" styleIDRef="${reg.styles.NORMAL}" pageBreak="0" columnBreak="0" merged="0">
-  <hp:run charPrIDRef="${reg.roles.NOTE.charPrId}">
-    <hp:t>참고 상품 사진</hp:t>
   </hp:run>
 </hp:p>`;
         } else if (cell.paragraphs && cell.paragraphs.length > 0) {

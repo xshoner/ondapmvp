@@ -189,6 +189,10 @@ export function isEngineJudgmentText(text: string | null | undefined): boolean {
 
 // 결재 문서 대안 비교표 및 선정 사유에 사용할 확인된 상품 자체의 특징 추출 [Requirement 3]
 export function buildProductKeyFeature(candidate: ApprovalCandidate): string {
+  if (candidate.model === 'core-contract-v1') {
+    return candidate.story && !isEngineJudgmentText(candidate.story) ? candidate.story.trim() : '확인 필요';
+  }
+
   // 1. candidate.reason이 확인된 상품 특징이고 엔진 판정 문구가 아닌 경우
   if (candidate.reason && candidate.reason.trim() && !isEngineJudgmentText(candidate.reason)) {
     return candidate.reason.trim();

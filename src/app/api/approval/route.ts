@@ -16,6 +16,7 @@ import {
   buildCreatorCookie,
 } from '../../../approval/auth.ts';
 import { recommendForCustomer } from '../../../recommendation/server.ts';
+import { loadCafe24Features } from '../../../approval/cafe24-features.ts';
 import { requestFromSearchParams, recommendationResultHref } from '../../../recommendation/query.ts';
 import { parseRecommendationRequest } from '../../../recommendation/validation.ts';
 import type { RecommendationResponse, RecommendationRequest } from '../../../recommendation/contracts.ts';
@@ -114,6 +115,14 @@ export async function POST(req: Request) {
   const creatorTokenHash = hashCreatorToken(creatorToken);
   const snapshotAt = new Date().toISOString();
 
+  // 외부 서비스 지연이 결재 문서 생성을 막지 않도록 한다.
+  let featureTimeout: ReturnType<typeof setTimeout> | undefined;
+  const features = await Promise.race([
+    loadCafe24Features(items.map((item) => item.productNo)),
+    new Promise<Map<number, string>>((resolve) => { featureTimeout = setTimeout(() => resolve(new Map()), 15000); }),
+  ]);
+  clearTimeout(featureTimeout);
+
   // 후보 상품 사본 고정 (R: 상품 희소값, S: 추천점수 구분 보관)
   const candidates: ApprovalCandidate[] = await Promise.all(
     items.map(async (r, idx) => {
@@ -143,6 +152,7 @@ export async function POST(req: Request) {
         assessmentMethod: r.assessmentMethod,
         reasons: r.reasons,
         reason: r.reasons?.[0] || '자리에 알맞은 격식과 실용성을 갖춘 상품입니다.',
+        story: features.get(r.productNo),
         region: '',
         category: '',
         isDepopulationArea: false,

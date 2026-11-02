@@ -461,10 +461,6 @@ export async function generateApprovalDocx(model: ApprovalDocumentModel): Promis
               }),
             ],
           }),
-          new Paragraph({
-            alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: '참고 상품 사진', size: 16, color: INK_MUTED })],
-          }),
         ];
       } else {
         cellChildren = [
