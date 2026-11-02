@@ -166,3 +166,15 @@ test('AI grounding accepts only exact source extracts, valid factors and integer
   for (const key of ['story', 'skill', 'distribution'] as const) assert.equal(result.factors[key].score, null);
   assert.throws(() => groundSuggestion(1, source, { factors: [{ key: 'history', score: 8, basis: '외부 정보' }] }));
 });
+
+
+test('AI 제안은 근거가 있는 중간 정수 점수를 기준점으로 바꾸지 않는다', () => {
+  const description = '제작 경험 10년. 특정 지역에서 생산. 계절에만 판매. 3대째 이어온 제조 방식.';
+  const result = groundSuggestion(1, description, { factors: [
+    { key: 'skill', score: 3, basis: '제작 경험 10년' },
+    { key: 'locality', score: 6, basis: '특정 지역에서 생산' },
+    { key: 'distribution', score: 7, basis: '계절에만 판매' },
+    { key: 'history', score: 9, basis: '3대째 이어온 제조 방식' },
+  ] });
+  assert.deepEqual(['skill', 'locality', 'distribution', 'history'].map(k => result.factors[k as keyof typeof result.factors].score), [3, 6, 7, 9]);
+});
