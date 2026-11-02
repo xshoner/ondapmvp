@@ -8,15 +8,17 @@ export function ShareButton({
   title,
   className = 'btn ghost small',
   label = '결과 공유',
+  href,
 }: {
   title: string;
   className?: string;
   label?: string;
+  href?: string;
 }) {
   const [done, setDone] = useState<string | null>(null);
 
   const share = async () => {
-    const url = location.href;
+    const url = href ? new URL(href, location.origin).href : location.href;
     try {
       if (navigator.share && isMobileUA()) {
         await navigator.share({ title, text: `${title} 온답 답례 추천 결과입니다.`, url });

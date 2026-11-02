@@ -9,6 +9,7 @@ import type {
 import { recommendationResultHref } from '../../recommendation/query.ts';
 import { parseResultQuery } from '../../lib/result-query.ts';
 import { RememberQuery, FeedbackBox } from '../result/client-bits.tsx';
+import { ShareButton } from '../result/share-button.tsx';
 import { CoreFinderForm } from './finder-form.tsx';
 import { CoreNoticeBanner } from './notice-banner.tsx';
 import { CoreMainPick, CoreOtherPick } from './pick-cards.tsx';
@@ -357,27 +358,7 @@ export function CustomerRecommendationView({
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 13, color: 'var(--muted, #666)' }}>추천 결과 공유</span>
-                <button
-                  type="button"
-                  data-testid="share-button"
-                  onClick={() => {
-                    const fullUrl = `${window.location.origin}${shareHref}`;
-                    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                      navigator.clipboard.writeText(fullUrl);
-                      alert('성공 조건이 담긴 추천 결과 링크가 복사되었습니다.');
-                    }
-                  }}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: 6,
-                    border: '1px solid var(--line, #E6E1D8)',
-                    background: '#FFF',
-                    fontSize: 13,
-                    cursor: 'pointer',
-                  }}
-                >
-                  결과 링크 복사
-                </button>
+                <ShareButton title={`${EVENT_NAMES[successfulReq!.event]} 답례품`} href={shareHref} label="결과 링크 복사" />
               </div>
             </section>
           </main>

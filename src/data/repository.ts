@@ -1,3 +1,5 @@
+import type { RecommendationResponse } from '../recommendation/contracts.ts';
+import { recommendationLogRow } from '../recommendation/logging.ts';
 // 앱(서버 컴포넌트·서버 액션)이 쓰는 데이터 입구.
 // ONDAP_DATA_SOURCE=supabase 이면 Supabase, 아니면 로컬 JSON(data/)을 쓴다.
 // CLI 스크립트와 테스트는 src/data/catalog.ts(로컬 JSON)를 직접 쓴다.
@@ -9,7 +11,7 @@ import { dataSource } from '../lib/supabase/env.ts';
 import { createClient } from '../lib/supabase/server.ts';
 import { createServiceClient } from '../lib/supabase/service.ts';
 import { v2Attributes } from '../engine/eligibility.ts';
-import type { Cafe24Product, Catalog, EngineConfig, ProductAttributes, RecommendResult } from '../engine/types.ts';
+import type { Cafe24Product, Catalog, EngineConfig, ProductAttributes } from '../engine/types.ts';
 import type { FeedbackLog, FeedbackReason } from '../lib/feedback.ts';
 import { cache } from 'react';
 import { reportOperation } from '../lib/operations.ts';
@@ -155,19 +157,12 @@ export async function saveExpectation(key: string, productNo: number | null): Pr
 }
 
 // 고객 추천 기록. 실패해도 화면은 계속 보여준다
-export async function logRecommendation(result: RecommendResult, modelVersion: string, client?: Awaited<ReturnType<typeof createClient>>): Promise<void> {
+export async function logRecommendation(result: RecommendationResponse, client?: Awaited<ReturnType<typeof createClient>>): Promise<void> {
   if (dataSource() === 'local') return;
   const startedAt = Date.now();
   try {
     const db = client ?? await createClient();
-    const { error } = await db.from('recommendation_logs').insert({
-      event: result.input.event,
-      relation: result.input.relation,
-      budget_max: result.input.budgetMax ?? null,
-      quantity: result.input.quantity ?? null,
-      result_product_nos: result.results.map((r) => r.product.productNo),
-      model_version: modelVersion,
-    });
+    const { error } = await db.from('recommendation_logs').insert(recommendationLogRow(result));
     if (error) await recordOperation('recommendation_log', 'error', startedAt, 'db_write');
     else reportOperation('recommendation_log', 'ok', startedAt);
   } catch (e) {

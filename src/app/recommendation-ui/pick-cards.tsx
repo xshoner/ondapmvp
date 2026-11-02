@@ -1,6 +1,7 @@
 'use client';
 
 import type { RecommendationItem } from '../../recommendation/contracts.ts';
+import { SavePickButton } from '../result/client-bits.tsx';
 import { CoreScoreBreakdown } from './score-breakdown.tsx';
 import { shippingFee } from '../../lib/result-query.ts';
 import { won } from './types.ts';
@@ -156,6 +157,7 @@ export function CoreMainPick({
           </div>
         </details>
 
+        {!preview && <SavePickButton variant="inline" pick={{ productNo: item.productNo, name: item.name, price: item.unitPrice, image: item.imageUrl, url: item.productUrl }} />}
         {/* 버튼 액션 */}
         <div style={{ display: 'grid', gap: 8 }}>
           <a
@@ -305,6 +307,7 @@ export function CoreOtherPick({
           </div>
         </details>
 
+        {!preview && <SavePickButton variant="inline" pick={{ productNo: item.productNo, name: item.name, price: item.unitPrice, image: item.imageUrl, url: item.productUrl }} />}
         {/* 액션 버튼 */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <a

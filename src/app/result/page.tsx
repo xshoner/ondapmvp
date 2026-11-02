@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { requestFromSearchParams, recommendationResultHref } from '@/recommendation/query.ts';
-import { recommendForCustomer } from '@/recommendation/server.ts';
+import { recommendAndLog } from './recommend.ts';
 import { EVENT_NAMES } from '../recommendation-ui/types.ts';
 import { CoreResult } from './core-result.tsx';
 
@@ -20,7 +20,7 @@ export default async function ResultPage({ searchParams }: { searchParams: Searc
   let request;
   try { request = requestFromSearchParams(await searchParams); }
   catch { return <main className="mobile"><h1>추천 조건을 확인해 주세요</h1><p>행사와 받는 분, 예산을 다시 확인해 주세요.</p><a className="btn block" href="/">조건 고르기</a></main>; }
-  const result = await recommendForCustomer(request);
+  const result = await recommendAndLog(request);
   if (!result.ok) return <main className="mobile"><h1>추천을 불러오지 못했어요</h1><p>{result.error.message}</p><a className="btn block" href={recommendationResultHref(request)}>다시 시도</a></main>;
   return <CoreResult response={result.data} />;
 }
