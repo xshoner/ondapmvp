@@ -8,7 +8,7 @@ export default async function FormalityPage() {
   await requireAdmin();
   const res = await loadAdminWorkspace();
   const initialWorkspace = res.ok ? res.data : undefined;
-  const initialError = !res.ok ? `[${res.error.code}] ${res.error.message}` : undefined;
+  const initialError = !res.ok ? res.error.message : undefined;
 
   return (
     <div style={{ display: 'grid', gap: 16 }}>

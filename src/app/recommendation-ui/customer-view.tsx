@@ -7,6 +7,8 @@ import type {
   RecommendationServices,
 } from '../../recommendation/contracts.ts';
 import { recommendationResultHref } from '../../recommendation/query.ts';
+import { parseResultQuery } from '../../lib/result-query.ts';
+import { RememberQuery, FeedbackBox } from '../result/client-bits.tsx';
 import { CoreFinderForm } from './finder-form.tsx';
 import { CoreNoticeBanner } from './notice-banner.tsx';
 import { CoreMainPick, CoreOtherPick } from './pick-cards.tsx';
@@ -14,7 +16,7 @@ import { CoreCompareTable } from './compare-table.tsx';
 import { EVENT_NAMES, RELATION_NAMES, won } from './types.ts';
 
 export interface CustomerRecommendationViewProps {
-  services: RecommendationServices;
+  services: Pick<RecommendationServices, 'recommend'>;
   initialRequest?: RecommendationRequest;
   initialResponse?: RecommendationResponse;
   approvalEnabled?: boolean;
@@ -136,6 +138,7 @@ export function CustomerRecommendationView({
   // 공유 링크: Codex query 도우미로 성공 응답의 정확한 조건 직렬화
   const shareHref = activeResponse ? recommendationResultHref(activeResponse.request) : '';
 
+  const successfulQuery = activeResponse ? parseResultQuery(Object.fromEntries(new URLSearchParams(shareHref.split('?')[1]))) : null;
   const successfulReq = activeResponse?.request;
   const items = activeResponse?.items ?? [];
   const mainPick = items[0];
@@ -151,6 +154,7 @@ export function CustomerRecommendationView({
 
   return (
     <div className="customer-recommendation-view" style={{ maxWidth: 640, margin: '0 auto', padding: '16px 12px' }}>
+      {successfulQuery && <RememberQuery query={successfulQuery} />}
       {/* 헤더 & 조건 요약 바 */}
       <header style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -416,6 +420,7 @@ export function CustomerRecommendationView({
           </section>
         )}
       </div>
+      {successfulQuery && items.length > 0 && <FeedbackBox query={successfulQuery} productNos={items.map((item) => item.productNo)} />}
     </div>
   );
 }
