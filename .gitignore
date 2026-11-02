@@ -26,3 +26,6 @@ next-env.d.ts
 /data/formality-pilot.json
 /backups/
 /tmp/
+
+.vercel
+.env*
