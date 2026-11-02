@@ -1,8 +1,10 @@
-// 실제 운영 Supabase 환경 검증 스크립트 (결재 초안 RLS, 원자적 저장, 동시 수정 충돌, 비공개 이미지 스토리지)
-// 주의: 운영 기존 상품/기준/고객 문서를 일절 건드리지 않으며 고유 시험 UUID로만 격리 수행 후 확실히 정리한다.
-// 비밀값, 토큰, 키 등 민감 정보는 출력하지 않는다.
+// 실제 운영 Supabase 환경 결재 저장소 및 비공개 자산 보안 검증 스크립트
+// - 운영 상품·기준·고객 문서를 일절 변경하지 않음 (시험 전/후 SHA-256 해시 대조로 무결성 입증)
+// - 비공개 버킷 실제 업로드 파일 경로로 서비스 다운로드 성공 vs 익명 다운로드 거부(404 NoSuchKey) 명확 검증
+// - 고유 시험 UUID 자산만 사용하고, 시험 데이터 정리 후 cacheNonce를 통한 실제 소거 재검증
+// - 비밀값, 토큰, 키 등 민감 정보는 출력하지 않음.
 
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { createClient } from '@supabase/supabase-js';
 import { loadEnv } from '../src/lib/env.ts';
@@ -50,8 +52,36 @@ function record(step: string, passed: boolean, detail = '') {
   console.log(`${passed ? '✔ PASS' : '✖ FAIL'}: ${step}${detail ? ` (${detail})` : ''}`);
 }
 
+async function captureOperationalSnapshots(client: any) {
+  const { data: prods } = await client.from('products').select('product_no, price, name, display, selling').order('product_no');
+  const prodsHash = createHash('sha256').update(JSON.stringify(prods ?? [])).digest('hex');
+
+  const { data: policies } = await client.from('formality_policies').select('*').order('version');
+  const policiesHash = createHash('sha256').update(JSON.stringify(policies ?? [])).digest('hex');
+
+  const { data: evidence } = await client.from('product_evidence').select('*').order('product_no');
+  const evidenceHash = createHash('sha256').update(JSON.stringify(evidence ?? [])).digest('hex');
+
+  const { data: logs, count: logCount } = await client.from('recommendation_logs').select('id, created_at', { count: 'exact' }).order('id', { ascending: false }).limit(1);
+  const latestLog = logs?.[0] ? `${logs[0].id}_${logs[0].created_at}` : 'none';
+
+  const { count: draftCount } = await client.from('approval_drafts').select('id', { count: 'exact', head: true });
+
+  return {
+    prodsCount: prods?.length ?? 0,
+    prodsHash,
+    policiesCount: policies?.length ?? 0,
+    policiesHash,
+    evidenceCount: evidence?.length ?? 0,
+    evidenceHash,
+    logCount: logCount ?? 0,
+    latestLog,
+    draftCount: draftCount ?? 0,
+  };
+}
+
 async function run() {
-  console.log('=== 실제 Supabase 환경 결재 저장소 검증 시작 ===');
+  console.log('=== 실제 Supabase 환경 결재 저장소 및 보안 검증 시작 ===');
   console.log(`[안내] 대상 Supabase 호스트: ${new URL(supabaseUrl!).hostname}`);
   console.log(`[격리] 시험용 초안 ID: ${TEST_ID} (검증 후 즉시 완전 정리)`);
 
@@ -59,6 +89,12 @@ async function run() {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const serviceClient = createServiceClient();
+
+  // ----------------------------------------------------
+  // 사전 운영 데이터 무결성 스냅샷 수집
+  // ----------------------------------------------------
+  const beforeSnapshot = await captureOperationalSnapshots(serviceClient);
+  console.log(`[사전 스냅샷] 상품 ${beforeSnapshot.prodsCount}개(해시 ${beforeSnapshot.prodsHash.slice(0, 8)}), 정책 ${beforeSnapshot.policiesCount}개, 평가 ${beforeSnapshot.evidenceCount}개, 추천로그 ${beforeSnapshot.logCount}건, 결재초안 ${beforeSnapshot.draftCount}건`);
 
   try {
     // ----------------------------------------------------
@@ -69,7 +105,6 @@ async function run() {
       .select('id')
       .limit(1);
 
-    // anon은 RLS에 의해 아예 권한 오류(42501 등)가 나거나 0건 반환되어야 함
     const anonReadBlocked = Boolean(anonSelectError) || (Array.isArray(anonSelectData) && anonSelectData.length === 0);
     record('1-1. 익명 사용자의 결재 초안 테이블 직접 조회 차단', anonReadBlocked, anonSelectError?.message ?? 'RLS 0건 제한');
 
@@ -84,18 +119,48 @@ async function run() {
     record('1-2. 익명 사용자의 결재 초안 쓰기 차단 (RLS 거부)', Boolean(anonInsertError), anonInsertError?.message ?? '');
 
     // ----------------------------------------------------
-    // 검증 2: 비공개 스토리지 버킷(approval-assets) 접근 제어
+    // 검증 2: 비공개 스토리지 버킷(approval-assets) 실제 업로드 파일 권한 차단
     // ----------------------------------------------------
-    // 버킷 정보 확인
     const { data: bucketData, error: bucketError } = await serviceClient.storage.getBucket('approval-assets');
     const isPrivateBucket = !bucketError && bucketData && bucketData.public === false;
     record('2-1. approval-assets 버킷 존재 및 비공개(public=false) 확인', isPrivateBucket, `public: ${bucketData?.public}`);
 
-    // 익명 사용자의 다운로드 시도 차단 확인
-    const { error: anonStorageError } = await anonClient.storage
+    // 실제 1x1 투명 PNG 더미 바이트 (68 bytes) 업로드
+    const testPngBuffer = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+      'base64',
+    );
+    const storagePath = `${TEST_ID}/${TEST_PRODUCT_NO}.png`;
+
+    const { error: uploadError } = await serviceClient.storage
       .from('approval-assets')
-      .download(`non-existent-${TEST_ID}/test.png`);
-    record('2-2. 익명 사용자의 비공개 자산 다운로드 차단', Boolean(anonStorageError), anonStorageError?.message ?? '');
+      .upload(storagePath, testPngBuffer, {
+        contentType: 'image/png',
+        upsert: true,
+      });
+    record('2-2. 서비스 권한으로 실제 시험 PNG 업로드 성공', !uploadError, uploadError?.message ?? '');
+
+    // 동일하게 존재하는 실제 파일 경로에 대해:
+    // 1) 서비스 권한으로 다운로드 성공 및 바이트 일치
+    const serviceDownload = await serviceClient.storage
+      .from('approval-assets')
+      .download(storagePath);
+    const serviceBytes = serviceDownload.data ? Buffer.from(await serviceDownload.data.arrayBuffer()) : null;
+    const serviceDownloadSuccess = Boolean(serviceBytes && serviceBytes.equals(testPngBuffer));
+    record('2-3. 서비스 권한으로 존재하는 파일 다운로드 성공 및 바이트 100% 일치', serviceDownloadSuccess, `길이=${serviceBytes?.length}`);
+
+    // 2) 익명 권한으로 동일한 실제 파일 경로 다운로드 시도 -> RLS에 의해 거부 (Object not found / 404 NoSuchKey)
+    const anonDownload = await anonClient.storage
+      .from('approval-assets')
+      .download(storagePath);
+    const anonBlockedProperly = anonDownload.data === null && anonDownload.error !== null && (anonDownload.error as any).statusCode === '404';
+    record('2-4. 익명 권한으로 실제 존재하는 파일 경로 다운로드 차단 (RLS 격리)', anonBlockedProperly, `에러코드=${(anonDownload.error as any)?.code}`);
+
+    // 3) 익명 direct HTTP GET fetch 요청 시도 -> 400/404 차단
+    const directAnonFetch = await fetch(`${supabaseUrl}/storage/v1/object/approval-assets/${storagePath}`, {
+      headers: { apikey: anonKey!, Authorization: `Bearer ${anonKey!}` },
+    });
+    record('2-5. 익명 HTTP GET 직접 요청 시 비공개 버킷 접근 차단', directAnonFetch.status >= 400, `HTTP 상태코드=${directAnonFetch.status}`);
 
     // ----------------------------------------------------
     // 검증 3: 서비스 역할 기반 정상 초안 생성 및 조회
@@ -182,26 +247,11 @@ async function run() {
     record('4-3. 토큰 없는 접근 거절', noTokenAccess === false);
 
     // ----------------------------------------------------
-    // 검증 5: 비공개 스토리지 업로드 및 바이트 다운로드
+    // 검증 5: readProductImageBytes를 통한 원본 바이트 복원 확인
     // ----------------------------------------------------
-    // 1x1 투명 PNG 더미 바이트 (67 bytes)
-    const testPngBuffer = Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
-      'base64',
-    );
-    const storagePath = `${TEST_ID}/${TEST_PRODUCT_NO}.png`;
-    const { error: uploadError } = await serviceClient.storage
-      .from('approval-assets')
-      .upload(storagePath, testPngBuffer, {
-        contentType: 'image/png',
-        upsert: true,
-      });
-    record('5-1. 비공개 버킷에 시험 이미지 업로드 성공', !uploadError, uploadError?.message ?? '');
-
-    // readProductImageBytes를 통한 다운로드 확인 (로컬 캐시가 없는 상태에서 Supabase 다운로드 검증)
     const downloadedBytes = await readProductImageBytes(`${TEST_ID}_${TEST_PRODUCT_NO}.png`);
     const bytesMatch = Boolean(downloadedBytes && downloadedBytes.equals(testPngBuffer));
-    record('5-2. readProductImageBytes()로 비공개 버킷에서 원본 바이트 복원 확인', bytesMatch, `길이=${downloadedBytes?.length}`);
+    record('5-1. readProductImageBytes()로 비공개 버킷에서 원본 바이트 복원 확인', bytesMatch, `길이=${downloadedBytes?.length}`);
 
     // ----------------------------------------------------
     // 검증 6: 조건부 원자적 갱신 및 개정 번호 동시 수정 충돌 방어
@@ -214,8 +264,7 @@ async function run() {
     );
     record('6-1. revision 1 -> 2 정상 조건부 갱신 성공', updatedDraft.revision === 2 && updatedDraft.editable.quantity === 40, `revision=${updatedDraft.revision}`);
 
-    // 6-2. 동시 충돌 시뮬레이션:
-    // 이미 revision이 2인데, 과거 개정번호 1로 수정을 시도하면 RevisionConflictError 발생해야 함
+    // 6-2. 과거 revision(1) 요청 시 RevisionConflictError 발생
     let conflictCaught = false;
     let reportedCurrentRevision = -1;
     try {
@@ -232,14 +281,13 @@ async function run() {
     }
     record('6-2. 과거 revision(1) 요청 시 RevisionConflictError 발생', conflictCaught && reportedCurrentRevision === 2, `보고된 현재 revision=${reportedCurrentRevision}`);
 
-    // 6-3. 충돌 후 데이터 보존 확인 (수량 50으로 덮어써지지 않고 40 유지)
+    // 6-3. 충돌 후 데이터 보존 확인
     const afterConflictDraft = await getDraft(TEST_ID);
     record('6-3. 충돌 실패 후 기존 수정값(수량 40) 완벽 보존', Boolean(afterConflictDraft && afterConflictDraft.revision === 2 && afterConflictDraft.editable.quantity === 40));
 
     // ----------------------------------------------------
     // 검증 7: 경쟁적 동시 요청 (Promise.all) 원자적 단 1건만 성공
     // ----------------------------------------------------
-    // 두 클라이언트가 동시에 revision 2인 상태에서 서로 다른 수량(60 vs 70)으로 갱신 요청
     const [p1, p2] = await Promise.allSettled([
       updateDraftEditable(TEST_ID, { quantity: 60 }, 2),
       updateDraftEditable(TEST_ID, { quantity: 70 }, 2),
@@ -264,50 +312,52 @@ async function run() {
     );
   } finally {
     // ----------------------------------------------------
-    // 검증 8: 철저한 시험 데이터 정리 (Cleanup)
+    // 검증 8: 철저한 시험 데이터 정리 (Cleanup) 및 서비스 권한 재조회
     // ----------------------------------------------------
     console.log('=== 시험 데이터 정리 시작 ===');
-    // 삭제 대상 ID가 방금 생성한 TEST_ID인지 재차 엄격 확인
     assert.equal(TEST_ID.length, 36);
 
     const deleted = await deleteDraft(TEST_ID);
     record('8-1. 시험 결재 초안 및 관련 스토리지 자산 삭제 실행', deleted === true);
 
     const recheckDraft = await getDraft(TEST_ID);
-    record('8-2. 삭제 후 재조회 시 null 반환 (완전 삭제 확인)', recheckDraft === null);
+    record('8-2. 삭제 후 결재 초안 재조회 시 null 반환 (완전 삭제 확인)', recheckDraft === null);
 
     // 스토리지 파일 목록 조회 시 0건 (완전 소거 확인)
     const { data: remainingFiles } = await serviceClient.storage
       .from('approval-assets')
       .list(TEST_ID);
     const storageEmpty = Array.isArray(remainingFiles) && remainingFiles.length === 0;
-    record('8-3. 스토리지 자산 삭제 확인 (폴더 내 잔여 파일 0건)', storageEmpty, `잔여=${remainingFiles?.length ?? 0}건`);
+    record('8-3. 스토리지 폴더 재조회 시 잔여 파일 0건 확인', storageEmpty, `잔여=${remainingFiles?.length ?? 0}건`);
 
-    // 혹시 남은 스토리지 파일 직접 확인 및 최종 소거
-    try {
-      const { data: remainingFiles } = await serviceClient.storage
-        .from('approval-assets')
-        .list(TEST_ID);
-      if (remainingFiles && remainingFiles.length > 0) {
-        await serviceClient.storage
-          .from('approval-assets')
-          .remove(remainingFiles.map((f) => `${TEST_ID}/${f.name}`));
-      }
-    } catch {}
+    // 서비스 권한으로 캐시 무효화 후 실제 파일 다운로드 재조회 시 Object not found (에러 발생 확인, null과 구분)
+    const recheckDownload = await serviceClient.storage
+      .from('approval-assets')
+      .download(`${TEST_ID}/${TEST_PRODUCT_NO}.png`, { cacheNonce: String(Date.now()) });
+    const downloadFailedProperly = recheckDownload.data === null && recheckDownload.error !== null && (recheckDownload.error as any).statusCode === '404';
+    record('8-4. 삭제 후 서비스 권한 파일 직접 재조회 시 404 NoSuchKey 오류 반환 (삭제 실증)', downloadFailedProperly, `에러코드=${(recheckDownload.error as any)?.code}`);
   }
 
   // ----------------------------------------------------
-  // 운영 무결성 확인: 상품, 근거, 정책, 추천로그 불변 확인
+  // 검증 9: 운영 데이터 무결성 전/후 SHA-256 해시 엄격 대조
   // ----------------------------------------------------
-  const { count: logCount, error: logErr } = await serviceClient
-    .from('recommendation_logs')
-    .select('*', { count: 'exact', head: true });
-  record('9-1. 운영 recommendation_logs 무결성 (시험 로그 일절 미작성)', !logErr);
+  console.log('=== 운영 데이터 무결성 전/후 대조 검증 ===');
+  const afterSnapshot = await captureOperationalSnapshots(serviceClient);
 
-  const { count: productCount, error: prodErr } = await serviceClient
-    .from('products')
-    .select('*', { count: 'exact', head: true });
-  record('9-2. 운영 products 테이블 무결성 (수정 없음)', !prodErr && (productCount ?? 0) > 0, `상품수=${productCount}`);
+  const prodUnchanged = beforeSnapshot.prodsCount === afterSnapshot.prodsCount && beforeSnapshot.prodsHash === afterSnapshot.prodsHash;
+  record('9-1. 운영 products 테이블 전/후 SHA-256 해시 일치 (상품 무결성)', prodUnchanged, `상품 ${afterSnapshot.prodsCount}개`);
+
+  const policiesUnchanged = beforeSnapshot.policiesCount === afterSnapshot.policiesCount && beforeSnapshot.policiesHash === afterSnapshot.policiesHash;
+  record('9-2. 운영 formality_policies 테이블 전/후 SHA-256 해시 일치 (정책 무결성)', policiesUnchanged, `정책 ${afterSnapshot.policiesCount}개`);
+
+  const evidenceUnchanged = beforeSnapshot.evidenceCount === afterSnapshot.evidenceCount && beforeSnapshot.evidenceHash === afterSnapshot.evidenceHash;
+  record('9-3. 운영 product_evidence 테이블 전/후 SHA-256 해시 일치 (평가 무결성)', evidenceUnchanged, `평가 ${afterSnapshot.evidenceCount}개`);
+
+  const logsUnchanged = beforeSnapshot.logCount === afterSnapshot.logCount && beforeSnapshot.latestLog === afterSnapshot.latestLog;
+  record('9-4. 운영 recommendation_logs 전/후 건수 및 최신ID 일치 (로그 오염 0건)', logsUnchanged, `총 로그 ${afterSnapshot.logCount}건`);
+
+  const draftsUnchanged = beforeSnapshot.draftCount === afterSnapshot.draftCount;
+  record('9-5. 운영 approval_drafts 테이블 잔여 행 없음 (시험 데이터 완전 소거)', draftsUnchanged, `현재 초안 ${afterSnapshot.draftCount}건`);
 
   console.log('=== 검증 요약 ===');
   const allPassed = results.every((r) => r.passed);
@@ -317,7 +367,7 @@ async function run() {
     console.error('일부 검증 항목이 실패했습니다.');
     process.exit(1);
   } else {
-    console.log('✔ 모든 실제 Supabase 결재 저장소 검증이 성공적으로 완료되었습니다.');
+    console.log('✔ 모든 실제 Supabase 결재 저장소 보안 및 무결성 검증이 완벽하게 통과되었습니다.');
   }
 }
 
