@@ -552,7 +552,7 @@ export async function generateApprovalHwpx(model: ApprovalDocumentModel): Promis
       return {
         paragraphs: [
           { text: `${r.tier} (${scoreLabel})`, charPrId: reg.roles.VALUE_BOLD.charPrId, align: 'LEFT' as const },
-          { text: r.reason, charPrId: reg.roles.VALUE.charPrId, align: 'LEFT' as const },
+          { text: r.keyFeature ?? r.reason, charPrId: reg.roles.VALUE.charPrId, align: 'LEFT' as const },
         ],
         borderFillId: reg.borders.CELL,
         align: 'LEFT' as const,

@@ -3,6 +3,7 @@
 import type { AdminWorkspace, RecommendationServices } from '@/recommendation/contracts.ts';
 import { CoreAdminWorkbench } from '@/app/recommendation-ui/admin-workbench.tsx';
 import { adminRecommendationServices } from '@/app/admin/recommendation-services.ts';
+import { loadDescription } from './intake-actions.ts';
 import '@/app/recommendation-ui/recommendation-ui.css';
 
 export function FormalityClientView({
@@ -35,6 +36,7 @@ export function FormalityClientView({
       <CoreAdminWorkbench
         services={services}
         initialWorkspace={initialWorkspace}
+        loadDescription={loadDescription}
       />
     </div>
   );

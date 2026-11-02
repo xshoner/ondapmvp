@@ -14,9 +14,19 @@ import { FACTOR_NAMES, won } from './types.ts';
 export interface AdminWorkbenchProps {
   services: RecommendationServices;
   initialWorkspace?: AdminWorkspace;
+  loadDescription?: (productNo: number) => Promise<{ ok: boolean; text?: string; error?: string }>;
 }
 
-export function CoreAdminWorkbench({ services, initialWorkspace }: AdminWorkbenchProps) {
+async function fetchDescriptionDefault(no: number): Promise<{ ok: boolean; text?: string; error?: string }> {
+  try {
+    const mod = await import('../admin/formality/intake-actions.ts');
+    return await mod.loadDescription(no);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : '상품 설명 조회 실패' };
+  }
+}
+
+export function CoreAdminWorkbench({ services, initialWorkspace, loadDescription: loadDescriptionProp }: AdminWorkbenchProps) {
   const [workspace, setWorkspace] = useState<AdminWorkspace | null>(initialWorkspace ?? null);
   const [workspaceLoading, setWorkspaceLoading] = useState(!initialWorkspace);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
@@ -73,6 +83,12 @@ export function CoreAdminWorkbench({ services, initialWorkspace }: AdminWorkbenc
   const [saveLoading, setSaveLoading] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  // 카페24 상세 설명 자동 조회 및 비동기 추적 [Requirement 1]
+  const descReqIdRef = useRef(0);
+  const [descLoading, setDescLoading] = useState(false);
+  const [descNotice, setDescNotice] = useState<{ type: 'diff' | 'applied' | 'empty' | 'error'; message: string } | null>(null);
+  const [latestCafe24Desc, setLatestCafe24Desc] = useState<string | null>(null);
 
   // 1. 초기 작업공간 로드 (오류 및 재시도 상태 완비) [P2-7]
   const loadWorkspaceData = async () => {
@@ -147,6 +163,11 @@ export function CoreAdminWorkbench({ services, initialWorkspace }: AdminWorkbenc
     setConflictRemote(null);
     setStatusMessage(null);
     setAiSuggestedKeys(new Set());
+    setDescNotice(null);
+    setLatestCafe24Desc(null);
+
+    // 상품 선택 시 카페24 상세 설명 자동 조회 트리거
+    fetchCafe24Description(selectedNo);
   }, [selectedNo, workspace]);
 
   const selectedProduct = workspace?.products.find((p) => p.productNo === selectedNo);
@@ -168,6 +189,83 @@ export function CoreAdminWorkbench({ services, initialWorkspace }: AdminWorkbenc
         : [...prev.assessments, structuredClone(assessment)];
       return { ...prev, assessments };
     });
+  };
+
+  // 카페24 상품 상세 설명 자동 조회 (레이스 컨디션 및 기존 자료 덮어쓰기 방어) [Requirement 1]
+  const fetchCafe24Description = async (targetProductNo: number) => {
+    if (!targetProductNo || targetProductNo === 0) return;
+    const currentDescReqId = ++descReqIdRef.current;
+    setDescLoading(true);
+    setDescNotice(null);
+    setLatestCafe24Desc(null);
+
+    try {
+      const fetchFn = loadDescriptionProp ?? fetchDescriptionDefault;
+      const res = await fetchFn(targetProductNo);
+
+      // 비동기 지연 응답 방어: 다른 상품으로 전환되었거나 이전 요청이면 무시
+      if (currentDescReqId !== descReqIdRef.current || activeProductNoRef.current !== targetProductNo) {
+        return;
+      }
+      setDescLoading(false);
+
+      if (!res.ok) {
+        setDescNotice({ type: 'error', message: res.error || '카페24 상세 설명 조회에 실패했습니다.' });
+        return;
+      }
+
+      const fetchedText = (res.text ?? '').trim();
+      if (!fetchedText) {
+        setDescNotice({ type: 'empty', message: '카페24에 등록된 상품 상세 설명이 없습니다.' });
+        return;
+      }
+
+      // 기존 사용자 작성 초안, 검수 완료 데이터, 또는 저장된 설명이 있는지 확인
+      const curDraft = draftsByProductRef.current.get(targetProductNo) ?? draft;
+      const curDesc = (curDraft?.description ?? '').trim();
+      const existing = workspace?.assessments.find((a) => a.productNo === targetProductNo);
+      const prod = workspace?.products.find((p) => p.productNo === targetProductNo);
+      const defaultDesc = prod?.name?.trim() ?? '';
+      const hasSavedContent = Boolean(existing && existing.description?.trim() && existing.description.trim() !== defaultDesc);
+      const isReviewed = Boolean(curDraft?.reviewed || existing?.reviewed);
+      const hasUnsavedEdits = draftsByProductRef.current.has(targetProductNo);
+
+      // 기존 검수 자료나 저장/작성된 내용이 이미 있는 경우 자동으로 덮어쓰지 않고 관리자가 선택할 수 있는 버튼 제공
+      if (isReviewed || hasUnsavedEdits || hasSavedContent || (curDesc && curDesc !== defaultDesc)) {
+        if (fetchedText !== curDesc) {
+          setLatestCafe24Desc(fetchedText);
+          setDescNotice({ type: 'diff', message: '카페24에 최신 상세 설명이 있습니다.' });
+        }
+      } else {
+        // 미검수 및 초기 기본 상태인 경우에만 안전하게 자동 채움
+        const nextDraft: ProductAssessment = {
+          ...(curDraft ?? createEmptyAssessment(targetProductNo, fetchedText)),
+          description: fetchedText,
+        };
+        draftsByProductRef.current.set(targetProductNo, structuredClone(nextDraft));
+        if (activeProductNoRef.current === targetProductNo) {
+          setDraft(nextDraft);
+          setDescNotice({ type: 'applied', message: '카페24 최신 상세 설명을 불러왔습니다.' });
+        }
+      }
+    } catch (err) {
+      if (currentDescReqId !== descReqIdRef.current || activeProductNoRef.current !== targetProductNo) return;
+      setDescLoading(false);
+      setDescNotice({
+        type: 'error',
+        message: err instanceof Error ? err.message : '카페24 상세 설명 조회 중 오류가 발생했습니다.',
+      });
+    }
+  };
+
+  const handleApplyCafe24Desc = () => {
+    if (!latestCafe24Desc || !draft) return;
+    updateDraft({
+      ...draft,
+      description: latestCafe24Desc,
+    });
+    setLatestCafe24Desc(null);
+    setDescNotice({ type: 'applied', message: '카페24 최신 상세 설명을 적용했습니다.' });
   };
 
   // 3. 지표 통계 계산 (실시간 프리뷰)
@@ -529,7 +627,7 @@ export function CoreAdminWorkbench({ services, initialWorkspace }: AdminWorkbenc
         </div>
 
         {/* 상품 리스트 */}
-        <div style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 220px)', display: 'grid', gap: 4 }}>
+        <div style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 220px)', display: 'grid', gap: 6 }}>
           {filteredProducts.map((p) => {
             const hasDraft = draftsByProductRef.current.has(p.productNo);
             const a = draftsByProductRef.current.get(p.productNo) ?? workspace.assessments.find((x) => x.productNo === p.productNo);
@@ -549,41 +647,87 @@ export function CoreAdminWorkbench({ services, initialWorkspace }: AdminWorkbenc
                   border: isSelected ? '2px solid var(--pine, #2D5A43)' : '1px solid var(--line, #E6E1D8)',
                   background: isSelected ? 'var(--paper-deep, #F6F4EF)' : '#FFF',
                   cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  width: '100%',
+                  boxSizing: 'border-box',
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 11, color: 'var(--muted, #888)' }}>#{p.productNo}</span>
-                  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                    {hasDraft && (
-                      <span style={{ fontSize: 10, color: '#D97706', fontWeight: 600 }}>✎편집중</span>
-                    )}
-                    <span
-                      style={{
-                        fontSize: 10,
-                        padding: '1px 5px',
-                        borderRadius: 3,
-                        background: isReviewed ? '#ECFDF5' : '#FEF2F2',
-                        color: isReviewed ? '#047857' : '#DC2626',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {isReviewed ? '검수 완료' : '미검수'}
-                    </span>
-                  </div>
-                </div>
+                {/* 카페24 상품 이미지 썸네일 [Requirement 1] */}
                 <div
                   style={{
-                    fontSize: 13,
-                    fontWeight: isSelected ? 600 : 400,
-                    marginTop: 2,
-                    whiteSpace: 'nowrap',
+                    width: 44,
+                    height: 44,
+                    borderRadius: 4,
                     overflow: 'hidden',
-                    textOverflow: 'ellipsis',
+                    background: '#F3F4F6',
+                    flexShrink: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: '1px solid var(--line, #E6E1D8)',
                   }}
                 >
-                  {p.name}
+                  {p.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={p.imageUrl}
+                      alt=""
+                      loading="lazy"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        if (e.currentTarget.parentElement) {
+                          e.currentTarget.parentElement.innerHTML = '<span style="font-size:10px;color:#888;">사진없음</span>';
+                        }
+                      }}
+                    />
+                  ) : (
+                    <span style={{ fontSize: 10, color: 'var(--muted, #888)' }}>사진없음</span>
+                  )}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--muted, #666)', marginTop: 2 }}>{won(p.price)}</div>
+
+                {/* 상품 정보 (긴 상품명은 2줄까지 표시) */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontSize: 11, color: 'var(--muted, #888)' }}>#{p.productNo}</span>
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      {hasDraft && (
+                        <span style={{ fontSize: 10, color: '#D97706', fontWeight: 600 }}>✎편집중</span>
+                      )}
+                      <span
+                        style={{
+                          fontSize: 10,
+                          padding: '1px 5px',
+                          borderRadius: 3,
+                          background: isReviewed ? '#ECFDF5' : '#FEF2F2',
+                          color: isReviewed ? '#047857' : '#DC2626',
+                          fontWeight: 600,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {isReviewed ? '검수 완료' : '미검수'}
+                      </span>
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      lineHeight: 1.35,
+                      fontWeight: isSelected ? 600 : 400,
+                      marginTop: 2,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    {p.name}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--muted, #666)', marginTop: 2 }}>{won(p.price)}</div>
+                </div>
               </button>
             );
           })}
@@ -591,7 +735,7 @@ export function CoreAdminWorkbench({ services, initialWorkspace }: AdminWorkbenc
       </aside>
 
       {/* 우측 본문: 5대 속성 판정 에디터 */}
-      <main>
+      <main style={{ minWidth: 0 }}>
         {selectedProduct && draft ? (
           <div>
             {/* 상품 정보 헤더 */}
@@ -604,9 +748,9 @@ export function CoreAdminWorkbench({ services, initialWorkspace }: AdminWorkbenc
                 marginBottom: 16,
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: 240 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 12, color: 'var(--muted, #888)' }}>#{selectedProduct.productNo}</span>
                     <span
                       style={{
@@ -652,7 +796,7 @@ export function CoreAdminWorkbench({ services, initialWorkspace }: AdminWorkbenc
                       </span>
                     )}
                   </div>
-                  <h1 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 6px' }}>{selectedProduct.name}</h1>
+                  <h1 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 6px', wordBreak: 'break-word' }}>{selectedProduct.name}</h1>
                   <div style={{ fontSize: 13, color: 'var(--ink-soft, #555)' }}>
                     판매가 {won(selectedProduct.price)} · 진열 {selectedProduct.display ? 'O' : 'X'} · 판매 {selectedProduct.selling ? 'O' : 'X'}
                   </div>
@@ -665,6 +809,7 @@ export function CoreAdminWorkbench({ services, initialWorkspace }: AdminWorkbenc
                     padding: '8px 14px',
                     background: 'var(--paper-deep, #F6F4EF)',
                     borderRadius: 6,
+                    minWidth: 120,
                   }}
                 >
                   <div style={{ fontSize: 11, color: 'var(--muted, #666)' }}>희소값 R (실시간 추정)</div>
@@ -677,35 +822,7 @@ export function CoreAdminWorkbench({ services, initialWorkspace }: AdminWorkbenc
                 </div>
               </div>
 
-              {/* 상품 원자료 (상세 설명) 확인 및 입력란 [P1-4] */}
-              <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--line, #E6E1D8)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <label htmlFor="product-desc" style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink, #333)' }}>
-                    상품 원자료 (상세 설명 문구)
-                  </label>
-                  <span style={{ fontSize: 11, color: 'var(--muted, #888)' }}>
-                    AI 분석 시 이 텍스트의 실제 사실에 기반해 근거를 제안합니다
-                  </span>
-                </div>
-                <textarea
-                  id="product-desc"
-                  rows={2}
-                  value={draft.description}
-                  onChange={(e) => handleDescriptionChange(e.target.value)}
-                  placeholder="상품 상세페이지 설명문, 제조사 연혁, 산지 및 생산 방식 자료를 입력하세요."
-                  style={{
-                    width: '100%',
-                    padding: '8px 10px',
-                    borderRadius: 6,
-                    border: '1px solid var(--line, #E6E1D8)',
-                    fontSize: 13,
-                    lineHeight: 1.4,
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-
-              {/* 액션 툴바 */}
+              {/* 액션 툴바: 상품 선택·원자료·검수 완료 및 저장 버튼을 쉽게 찾고 누를 수 있도록 단순화 */}
               <div
                 style={{
                   display: 'flex',
@@ -718,7 +835,7 @@ export function CoreAdminWorkbench({ services, initialWorkspace }: AdminWorkbenc
                   gap: 10,
                 }}
               >
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                   <button
                     type="button"
                     onClick={handleAiSuggest}
@@ -736,12 +853,12 @@ export function CoreAdminWorkbench({ services, initialWorkspace }: AdminWorkbenc
                   >
                     {aiLoading ? 'AI 분석 중…' : '✦ AI 제안 받기'}
                   </button>
-                  <span style={{ fontSize: 11, color: 'var(--muted, #888)', alignSelf: 'center' }}>
+                  <span style={{ fontSize: 11, color: 'var(--muted, #888)' }}>
                     ※ AI는 제안일 뿐 자동 저장되지 않습니다.
                   </span>
                 </div>
 
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                   {dirty && (
                     <button
                       type="button"
@@ -769,7 +886,8 @@ export function CoreAdminWorkbench({ services, initialWorkspace }: AdminWorkbenc
                       border: '1px solid var(--line, #E6E1D8)',
                       background: '#FFF',
                       fontSize: 13,
-                      cursor: 'pointer',
+                      fontWeight: 500,
+                      cursor: saveLoading ? 'not-allowed' : 'pointer',
                     }}
                   >
                     임시 저장 (미검수)
@@ -779,19 +897,130 @@ export function CoreAdminWorkbench({ services, initialWorkspace }: AdminWorkbenc
                     onClick={() => handleSave(true)}
                     disabled={saveLoading}
                     style={{
-                      padding: '8px 16px',
+                      padding: '9px 18px',
                       borderRadius: 6,
                       background: 'var(--pine, #2D5A43)',
                       color: '#FFF',
                       border: 'none',
                       fontWeight: 700,
-                      fontSize: 13,
+                      fontSize: 14,
                       cursor: saveLoading ? 'not-allowed' : 'pointer',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
                     }}
                   >
                     {saveLoading ? '저장 중…' : '검수 완료 및 저장'}
                   </button>
                 </div>
+              </div>
+
+              {/* 상품 원자료 (상세 설명) 확인 및 입력란 [Requirement 1] */}
+              <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--line, #E6E1D8)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <label htmlFor="product-desc" style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink, #333)' }}>
+                      상품 원자료 (상세 설명 문구)
+                    </label>
+                    {descLoading && (
+                      <span style={{ fontSize: 11, color: 'var(--pine, #2D5A43)' }}>
+                        카페24 설명 불러오는 중…
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => fetchCafe24Description(selectedProduct.productNo)}
+                    disabled={descLoading}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--muted, #666)',
+                      fontSize: 11,
+                      textDecoration: 'underline',
+                      cursor: descLoading ? 'not-allowed' : 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    카페24 설명 다시 불러오기
+                  </button>
+                </div>
+
+                {/* 카페24 설명 안내 및 적용 배너 */}
+                {descNotice && (
+                  <div
+                    style={{
+                      marginBottom: 8,
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      background:
+                        descNotice.type === 'diff'
+                          ? '#FEF3C7'
+                          : descNotice.type === 'applied'
+                          ? '#ECFDF5'
+                          : descNotice.type === 'empty'
+                          ? '#F3F4F6'
+                          : '#FEF2F2',
+                      color:
+                        descNotice.type === 'diff'
+                          ? '#92400E'
+                          : descNotice.type === 'applied'
+                          ? '#047857'
+                          : descNotice.type === 'empty'
+                          ? '#4B5563'
+                          : '#DC2626',
+                      border:
+                        descNotice.type === 'diff'
+                          ? '1px solid #FDE68A'
+                          : descNotice.type === 'applied'
+                          ? '1px solid #A7F3D0'
+                          : descNotice.type === 'empty'
+                          ? '1px solid #E5E7EB'
+                          : '1px solid #FECACA',
+                    }}
+                  >
+                    <span>{descNotice.message}</span>
+                    {descNotice.type === 'diff' && latestCafe24Desc && (
+                      <button
+                        type="button"
+                        onClick={handleApplyCafe24Desc}
+                        style={{
+                          marginLeft: 10,
+                          padding: '4px 10px',
+                          borderRadius: 4,
+                          background: '#B45309',
+                          color: '#FFF',
+                          border: 'none',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          flexShrink: 0,
+                        }}
+                      >
+                        카페24 설명 적용하기
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                <textarea
+                  id="product-desc"
+                  rows={3}
+                  value={draft.description}
+                  onChange={(e) => handleDescriptionChange(e.target.value)}
+                  placeholder="상품 상세페이지 설명문, 제조사 연혁, 산지 및 생산 방식 자료를 입력하세요."
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 6,
+                    border: '1px solid var(--line, #E6E1D8)',
+                    fontSize: 13,
+                    lineHeight: 1.45,
+                    boxSizing: 'border-box',
+                  }}
+                />
               </div>
 
               {/* 상태/오류 알림 */}

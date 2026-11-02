@@ -578,7 +578,7 @@ export async function generateApprovalDocx(model: ApprovalDocumentModel): Promis
                   ],
                 }),
                 new Paragraph({
-                  children: [new TextRun({ text: r.reason, size: 22 })],
+                  children: [new TextRun({ text: r.keyFeature ?? r.reason, size: 22 })],
                 }),
               ],
             }),

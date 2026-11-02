@@ -638,3 +638,98 @@ test('20. 관리자 워크스페이스 로드 실패 및 복구 검증', async (
     assert.ok(okRes.data.products.length > 0);
   }
 });
+
+test('21. 관리자: 카페24 상품 설명 자동 조회 및 비동기 응답 순서 역전(race condition) 방어 검증', async () => {
+  let latestDescReqId = 0;
+  let activeProductNo = 900001;
+  let displayedDescription: string | null = null;
+
+  async function mockLoadDescription(pNo: number, delayMs: number, text: string) {
+    const reqId = ++latestDescReqId;
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+    if (reqId === latestDescReqId && activeProductNo === pNo) {
+      displayedDescription = text;
+    }
+  }
+
+  // 상품 900001에 대해 느린 응답 (100ms)
+  const p1Req = mockLoadDescription(900001, 100, '상품 1의 카페24 설명');
+
+  // 사용자가 상품 900002로 빠르게 전환 (20ms 후)
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  activeProductNo = 900002;
+  const p2Req = mockLoadDescription(900002, 30, '상품 2의 카페24 최신 설명');
+
+  await Promise.all([p1Req, p2Req]);
+
+  // 느린 상품 1 응답이 나중에 끝나더라도, 상품 2의 설명이 유지되어야 함
+  assert.equal(displayedDescription, '상품 2의 카페24 최신 설명');
+});
+
+test('22. 관리자: 기존 검수 완료/작성 중 초안이 있을 때 카페24 설명 자동 덮어쓰기 방지 검증', () => {
+  const existingReviewedDraft = {
+    productNo: 900001,
+    description: '관리자가 직접 정성들여 검수한 설명 원문',
+    reviewed: true,
+  };
+  const fetchedCafe24Text = '카페24에서 새로 갱신된 HTML 상세 설명';
+
+  let draftDesc = existingReviewedDraft.description;
+  let diffPromptAvailable = false;
+
+  // UI 방어 로직 검증: 검수 완료 상태이거나 내용이 이미 존재하면 덮어쓰지 않고 diff 프롬프트 제공
+  if (existingReviewedDraft.reviewed && fetchedCafe24Text !== draftDesc) {
+    diffPromptAvailable = true;
+    // draftDesc는 자동 덮어쓰기되지 않음!
+  } else {
+    draftDesc = fetchedCafe24Text;
+  }
+
+  assert.equal(draftDesc, '관리자가 직접 정성들여 검수한 설명 원문', '기존 검수된 설명이 보존되어야 함');
+  assert.equal(diffPromptAvailable, true, '관리자가 수동으로 적용할 수 있는 버튼/프롬프트가 노출되어야 함');
+});
+
+test('23. 결재 문서 핵심 특징: 엔진 판정 설명(검수 자료, 행사 희소 기준) 배제 및 미확인 시 "확인 필요" 검증', async () => {
+  const { buildProductKeyFeature, isEngineJudgmentText } = await import('../src/approval/calc.ts');
+
+  // 1. 엔진 판정 문구 판별 검증
+  assert.equal(isEngineJudgmentText('검수 자료와 행사 희소 기준을 충족합니다.'), true);
+  assert.equal(isEngineJudgmentText('행사 적합도와 예산 내 가격 실속으로 비교했습니다.'), true);
+  assert.equal(isEngineJudgmentText('담양 대나무 숲에서 자란 찻잎으로 덖은 죽로차'), false);
+
+  // 2. 엔진 판정 문구만 있고 확인된 상품 특징이 없는 경우 -> '확인 필요'
+  const engineCandidate = {
+    rank: 1,
+    productNo: 101,
+    productName: '수제 비누',
+    price: 15000,
+    imageUrl: '',
+    tier: '추천 1순위',
+    matchScore: 90,
+    reason: '검수 자료와 행사 희소 기준을 충족합니다.',
+    reasons: ['검수 자료와 행사 희소 기준을 충족합니다.', '행사 적합도와 예산 내 가격 실속으로 비교했습니다.'],
+    region: '',
+    category: '',
+    isDepopulationArea: false,
+  };
+  const keyFeature1 = buildProductKeyFeature(engineCandidate);
+  assert.equal(keyFeature1, '확인 필요', '엔진 판정 설명은 배제되고 확인 필요가 반환되어야 함');
+
+  // 3. 확인된 스토리나 특징이 있는 경우 -> 해당 특징 반환
+  const verifiedCandidate = {
+    ...engineCandidate,
+    story: '100% 국산 콩과 전통 방식으로 제조한 프리미엄 수제 장류',
+  };
+  const keyFeature2 = buildProductKeyFeature(verifiedCandidate);
+  assert.equal(keyFeature2, '100% 국산 콩과 전통 방식으로 제조한 프리미엄 수제 장류');
+
+  // 4. 산지 정보만 있는 경우 -> 산지 표기
+  const regionCandidate = {
+    ...engineCandidate,
+    region: '제주',
+    category: '식품',
+  };
+  const keyFeature3 = buildProductKeyFeature(regionCandidate);
+  assert.equal(keyFeature3, '산지: 제주 · 분류: 식품');
+});

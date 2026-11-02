@@ -327,7 +327,7 @@ export function ApprovalPreview({ model }: { model: ApprovalDocumentModel }) {
                       ? `추천점수 ${(r.recommendationScore ?? r.matchScore).toFixed(1)}점 · 희소값 ${(r.rarityValue ?? 0).toFixed(1)}점`
                       : `${r.candidate.model === 'v2' ? '상품 희소값' : '격식지수'} ${r.matchScore}점`}
                   )<br />
-                  {r.reason}
+                  {r.keyFeature ?? r.reason}
                 </td>
               ))}
             </tr>

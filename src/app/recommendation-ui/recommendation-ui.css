@@ -40,6 +40,27 @@
   border: 1px solid var(--line, #E6E1D8);
 }
 
+.admin-workbench {
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* 태블릿 및 모바일 반응형 최적화 (가로 스크롤 제거 및 1열 전환) */
+@media (max-width: 800px) {
+  .admin-workbench {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  .admin-workbench aside {
+    border-right: none !important;
+    border-bottom: 1px solid var(--line, #E6E1D8);
+    padding-right: 0 !important;
+    padding-bottom: 16px;
+  }
+}
+
 /* 375px 모바일 화면 최적화 */
 @media (max-width: 480px) {
   .customer-recommendation-view {
@@ -48,10 +69,6 @@
 
   .dev-preview-container {
     padding: 10px 8px !important;
-  }
-
-  .admin-workbench {
-    grid-template-columns: 1fr !important;
   }
 
   .pick-card h2 {

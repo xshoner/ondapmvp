@@ -168,6 +168,64 @@ export interface SelectedReasonContext {
   budgetOverAmount?: number;
 }
 
+// 엔진 판정 설명 및 메타데이터 문구 판별 (결재 문서의 상품 핵심 특징에서 배제) [Requirement 3]
+export function isEngineJudgmentText(text: string | null | undefined): boolean {
+  if (!text || !text.trim()) return true;
+  const t = text.trim();
+  return (
+    t.includes('검수 자료') ||
+    t.includes('희소 기준') ||
+    t.includes('행사 희소') ||
+    t.includes('행사 적합도') ||
+    t.includes('가격 실속') ||
+    t.includes('실속과 격식') ||
+    t.includes('자리에 알맞은 격식') ||
+    t.includes('해당 자리 추천') ||
+    t.includes('예산을 입력하지 않아') ||
+    t.includes('특허 산식') ||
+    t.includes('조건을 충족한 상품을')
+  );
+}
+
+// 결재 문서 대안 비교표 및 선정 사유에 사용할 확인된 상품 자체의 특징 추출 [Requirement 3]
+export function buildProductKeyFeature(candidate: ApprovalCandidate): string {
+  // 1. candidate.reason이 확인된 상품 특징이고 엔진 판정 문구가 아닌 경우
+  if (candidate.reason && candidate.reason.trim() && !isEngineJudgmentText(candidate.reason)) {
+    return candidate.reason.trim();
+  }
+
+  // 2. 확인된 상품 등록 스토리(story)가 있는 경우
+  if (candidate.story && candidate.story.trim() && !isEngineJudgmentText(candidate.story)) {
+    return candidate.story.trim();
+  }
+
+  // 3. candidate.reasons 목록 중 엔진 판정 문구가 아닌 확인된 항목이 있는 경우
+  if (Array.isArray(candidate.reasons)) {
+    const validReason = candidate.reasons.find((r) => r && r.trim() && !isEngineJudgmentText(r));
+    if (validReason) {
+      return validReason.trim();
+    }
+  }
+
+  // 4. 상품의 산지/카테고리/지역 정보가 유의미하게 확인된 경우
+  const facts: string[] = [];
+  if (candidate.region && candidate.region.trim() && candidate.region.trim() !== '기타') {
+    facts.push(`산지: ${candidate.region.trim()}`);
+  }
+  if (candidate.category && candidate.category.trim() && candidate.category.trim() !== '일반') {
+    facts.push(`분류: ${candidate.category.trim()}`);
+  }
+  if (candidate.isDepopulationArea) {
+    facts.push('인구감소지역 상품');
+  }
+  if (facts.length > 0) {
+    return facts.join(' · ');
+  }
+
+  // 5. 확인 가능한 상품 특징이 없으면 추측하지 않고 '확인 필요'로 반환
+  return '확인 필요';
+}
+
 // 자동 작성 선정 사유 (규칙 기반 문구 1~2문장)
 export function buildSelectedReason(
   candidate: ApprovalCandidate,
@@ -178,8 +236,12 @@ export function buildSelectedReason(
   const eName = getEventName(event);
   const rName = getRelationName(relation);
   const scoreText = Math.round(candidate.matchScore);
-  const rawReason = (candidate.reason || '자리에 알맞은 격식과 실용성을 갖춘 상품입니다').trim();
-  const cleanReason = rawReason.endsWith('.') ? rawReason : `${rawReason}.`;
+
+  // 확인된 상품 특징만 사용 (엔진 판정 설명이나 '검수 자료' 배제)
+  const keyFeature = buildProductKeyFeature(candidate);
+  const featureSentence = keyFeature !== '확인 필요'
+    ? (keyFeature.endsWith('.') ? keyFeature : `${keyFeature}.`)
+    : '';
 
   const rankText = candidate.rank === 1 ? '1순위 안' : `${candidate.rank}안`;
 
@@ -205,15 +267,17 @@ export function buildSelectedReason(
     conclusion = `위와 같은 추천 사유를 종합적으로 검토하여 ${rankText}으로 선정합니다.`;
   }
 
+  const reasonPart = featureSentence ? ` ${featureSentence}` : '';
+
   if (candidate.model === 'core-contract-v1') {
     const sScore = (candidate.recommendationScore ?? candidate.matchScore).toFixed(1);
     const rScore = (candidate.rarityValue ?? 0).toFixed(1);
     const scoreLabel = `추천점수(S) ${sScore}점 · 희소값(R) ${rScore}점`;
     const tierPart = candidate.tier ? `(${candidate.tier})` : '';
-    return `${eName}(${rName}) 자리에 맞춘 ${scoreLabel}${tierPart ? ` ${tierPart}` : ''}의 추천 상품입니다. ${cleanReason} ${conclusion}`;
+    return `${eName}(${rName}) 자리에 맞춘 ${scoreLabel}${tierPart ? ` ${tierPart}` : ''}의 추천 상품입니다.${reasonPart} ${conclusion}`;
   }
 
-  return `${eName}(${rName}) 자리에 맞춘 ${candidate.model === 'v2' ? '상품 희소값' : '격식지수'} ${scoreText}점(${candidate.tier})의 추천 상품입니다. ${cleanReason} ${conclusion}`;
+  return `${eName}(${rName}) 자리에 맞춘 ${candidate.model === 'v2' ? '상품 희소값' : '격식지수'} ${scoreText}점(${candidate.tier})의 추천 상품입니다.${reasonPart} ${conclusion}`;
 }
 
 // 안전한 수량 검증
@@ -348,6 +412,8 @@ export function buildDocumentModel(draft: ApprovalDraft): ApprovalDocumentModel 
       storyText = `상품 등록 정보 기준: ${c.region} 특산/연계 상품`;
     }
 
+    const keyFeature = buildProductKeyFeature(c);
+
     return {
       candidate: c,
       isSelected,
@@ -361,7 +427,8 @@ export function buildDocumentModel(draft: ApprovalDraft): ApprovalDocumentModel 
       matchScore: Math.round(c.recommendationScore ?? c.matchScore),
       recommendationScore: c.recommendationScore,
       rarityValue: c.rarityValue,
-      reason: c.reason || '해당 자리 추천 상품',
+      reason: keyFeature,
+      keyFeature,
       region: c.region || '기타',
       category: c.category || '일반',
       depopulationNote: depopNote,
@@ -376,7 +443,13 @@ export function buildDocumentModel(draft: ApprovalDraft): ApprovalDocumentModel 
   }
 
   // 지역 의미 문구
-  const regionMeaningText = `상품 등록 정보 기준: ${selectedCandidate.region || '기타'} ${selectedCandidate.story || ''}`.trim();
+  const regionParts = [
+    selectedCandidate.region && selectedCandidate.region !== '기타' ? selectedCandidate.region : null,
+    selectedCandidate.story && selectedCandidate.story.trim() && !isEngineJudgmentText(selectedCandidate.story) ? selectedCandidate.story.trim() : null,
+  ].filter(Boolean);
+  const regionMeaningText = regionParts.length > 0
+    ? `상품 등록 정보 기준: ${regionParts.join(' ')}`
+    : '확인 필요 (상품 등록 정보 및 산지 정보 미등록)';
   const producerSettlementText = '정산 자료 미등록 (생산자 직접 정산액·마진율 데이터 미보유)';
 
   // 법규 및 검수 안내

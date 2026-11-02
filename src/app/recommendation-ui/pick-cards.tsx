@@ -93,9 +93,17 @@ export function CoreMainPick({
           </span>
         </div>
 
-        <h2 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 14px', lineHeight: 1.35 }}>
-          {item.name}
-        </h2>
+        {/* 제목 및 우상단 찜 버튼 [Requirement 2] */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, lineHeight: 1.35, flex: 1, wordBreak: 'keep-all' }}>
+            {item.name}
+          </h2>
+          {!preview && (
+            <div style={{ flexShrink: 0 }}>
+              <SavePickButton variant="inline" pick={{ productNo: item.productNo, name: item.name, price: item.unitPrice, image: item.imageUrl, url: item.productUrl }} />
+            </div>
+          )}
+        </div>
 
         {/* 가격 정보 테이블 */}
         <div
@@ -157,7 +165,6 @@ export function CoreMainPick({
           </div>
         </details>
 
-        {!preview && <SavePickButton variant="inline" pick={{ productNo: item.productNo, name: item.name, price: item.unitPrice, image: item.imageUrl, url: item.productUrl }} />}
         {/* 버튼 액션 */}
         <div style={{ display: 'grid', gap: 8 }}>
           <a
@@ -258,9 +265,58 @@ export function CoreOtherPick({
       }}
     >
       <div style={{ padding: '16px 18px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+        <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+          {/* 2·3위 카드 상품 썸네일 [Requirement 2] */}
+          <div
+            style={{
+              width: 80,
+              height: 80,
+              borderRadius: 6,
+              overflow: 'hidden',
+              background: '#F0ECE1',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '1px solid var(--line, #E6E1D8)',
+            }}
+          >
+            {item.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={item.imageUrl}
+                alt={item.name}
+                loading="lazy"
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  if (e.currentTarget.parentElement) {
+                    e.currentTarget.parentElement.innerHTML = '<span style="font-size:11px;color:#888;text-align:center;padding:4px;">이미지 준비 중</span>';
+                  }
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--muted, #888)',
+                  fontSize: 11,
+                  textAlign: 'center',
+                  padding: 4,
+                }}
+              >
+                이미지 준비 중
+              </div>
+            )}
+          </div>
+
+          {/* 상품 정보 영역 */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 4 }}>
               <span
                 style={{
                   fontSize: 12,
@@ -273,26 +329,39 @@ export function CoreOtherPick({
               >
                 {item.rank}위 대안 추천
               </span>
-            </div>
-            <h3 style={{ fontSize: 17, fontWeight: 700, margin: '0 0 6px' }}>{item.name}</h3>
-            <div style={{ fontSize: 14, color: 'var(--ink, #333)' }}>
-              1개 {won(item.unitPrice)} · {quantity}개 합계 <b data-testid="item-subtotal">{won(subtotal)}</b>
-            </div>
-          </div>
 
-          {/* 작은 추천점수 배지 */}
-          <div
-            style={{
-              textAlign: 'center',
-              padding: '6px 10px',
-              background: 'var(--paper-deep, #F6F4EF)',
-              borderRadius: 6,
-              minWidth: 52,
-            }}
-          >
-            <div style={{ fontSize: 10, color: 'var(--muted, #666)' }}>추천점수</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--pine, #2D5A43)' }}>
-              {item.recommendationScore.toFixed(1)}
+              {/* 작은 추천점수 배지 */}
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '2px 8px',
+                  background: 'var(--paper-deep, #F6F4EF)',
+                  borderRadius: 4,
+                  fontSize: 11,
+                }}
+                aria-label={`추천점수 ${item.recommendationScore.toFixed(1)}점`}
+              >
+                <span style={{ color: 'var(--muted, #666)' }}>추천점수</span>
+                <b style={{ color: 'var(--pine, #2D5A43)', fontSize: 13 }}>{item.recommendationScore.toFixed(1)}</b>
+              </div>
+            </div>
+
+            {/* 상품 제목 및 우상단 찜 버튼 [Requirement 2] */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, lineHeight: 1.35, flex: 1, wordBreak: 'keep-all' }}>
+                {item.name}
+              </h3>
+              {!preview && (
+                <div style={{ flexShrink: 0 }}>
+                  <SavePickButton variant="inline" pick={{ productNo: item.productNo, name: item.name, price: item.unitPrice, image: item.imageUrl, url: item.productUrl }} />
+                </div>
+              )}
+            </div>
+
+            <div style={{ fontSize: 13, color: 'var(--ink, #333)' }}>
+              1개 {won(item.unitPrice)} · {quantity}개 합계 <b data-testid="item-subtotal">{won(subtotal)}</b>
             </div>
           </div>
         </div>
@@ -307,7 +376,6 @@ export function CoreOtherPick({
           </div>
         </details>
 
-        {!preview && <SavePickButton variant="inline" pick={{ productNo: item.productNo, name: item.name, price: item.unitPrice, image: item.imageUrl, url: item.productUrl }} />}
         {/* 액션 버튼 */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <a
