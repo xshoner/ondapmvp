@@ -47,7 +47,7 @@ export async function launch({ port = 9333, mobile = false } = {}) {
       const { resolve, reject } = pending.get(msg.id);
       pending.delete(msg.id);
       msg.error ? reject(new Error(JSON.stringify(msg.error))) : resolve(msg.result);
-    } else if (msg.method === 'Runtime.consoleAPICalled' && ['error', 'warning'].includes(msg.params.type)) {
+    } else if (msg.method === 'Runtime.consoleAPICalled') {
       logs.push(`[console.${msg.params.type}] ` + msg.params.args.map((a) => a.value ?? a.description ?? '').join(' ').slice(0, 300));
     } else if (msg.method === 'Runtime.exceptionThrown') {
       logs.push('[exception] ' + (msg.params.exceptionDetails.exception?.description ?? msg.params.exceptionDetails.text).slice(0, 400));
@@ -89,7 +89,7 @@ export async function launch({ port = 9333, mobile = false } = {}) {
       const ok = await evaluate(`
         if (document.readyState !== 'complete' || document.querySelector('[hidden][id^="S:"]')) return false;
         if (!document.querySelector('script[src*="/_next/"]')) return true;
-        const el = document.querySelector('main, header, nav, body > div');
+        const el = document.querySelector('main, header, nav, body > div, .admin, .admin-body');
         return Boolean(el && Object.keys(el).some((k) => k.startsWith('__reactFiber')));
       `).catch(() => false);
       if (ok) break;

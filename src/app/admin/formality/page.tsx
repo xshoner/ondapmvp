@@ -1,13 +1,27 @@
 import { requireAdmin } from '@/lib/admin-guard.ts';
-import { loadPilot } from './intake-actions.ts';
-import { Intake } from './intake.tsx';
-import { dataSource } from '@/lib/supabase/env.ts';
+import { loadAdminWorkspace } from '@/recommendation/server.ts';
+import { FormalityClientView } from './client.tsx';
 
 export const dynamic = 'force-dynamic';
 
 export default async function FormalityPage() {
   await requireAdmin();
-  return <>
-    <Intake initial={await loadPilot()} eventTest mode={dataSource()} />
-  </>;
+  const res = await loadAdminWorkspace();
+  const initialWorkspace = res.ok ? res.data : undefined;
+  const initialError = !res.ok ? `[${res.error.code}] ${res.error.message}` : undefined;
+
+  return (
+    <div style={{ display: 'grid', gap: 16 }}>
+      <header className="page-head" style={{ marginBottom: 0 }}>
+        <h1>격식지수 판정</h1>
+        <p>
+          상품별 5가지 속성(숙련도, 산지성, 유통, 역사, 스토리)에 대한 확인된 근거와 점수를 판정하고 검수합니다.
+        </p>
+      </header>
+      <FormalityClientView
+        initialWorkspace={initialWorkspace}
+        initialError={initialError}
+      />
+    </div>
+  );
 }

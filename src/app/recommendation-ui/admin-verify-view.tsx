@@ -23,12 +23,14 @@ export interface AdminVerifyViewProps {
   services: RecommendationServices;
   initialWorkspace?: AdminWorkspace;
   isSimulatedData?: boolean;
+  environmentLabel?: string;
 }
 
 export function CoreAdminVerifyView({
   services,
   initialWorkspace,
   isSimulatedData = true,
+  environmentLabel,
 }: AdminVerifyViewProps) {
   const [budget, setBudget] = useState<number | null>(50000);
   const [selectedCell, setSelectedCell] = useState<{ event: EventId; relation: RelationId } | null>(null);
@@ -141,7 +143,7 @@ export function CoreAdminVerifyView({
                   fontWeight: 600,
                 }}
               >
-                {isSimulatedData ? '가상 시험 데이터 환경' : '운영 데이터 환경'}
+                {environmentLabel ?? (isSimulatedData ? '가상 시험 데이터 환경' : '운영 데이터 환경')}
               </span>
               {isRunning && (
                 <span style={{ fontSize: 12, color: '#0369A1', fontWeight: 600 }}>

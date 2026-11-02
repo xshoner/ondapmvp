@@ -28,10 +28,33 @@ export function CoreAdminWorkbench({ services, initialWorkspace }: AdminWorkbenc
   // 상품별 미저장 작성 초안 보관 맵: 상품 전환 시에도 입력 내용 유실 방지 [P1-2]
   const draftsByProductRef = useRef<Map<number, ProductAssessment>>(new Map());
   const editVersionsRef = useRef(new Map<number, number>());
-  const loadedProductRef = useRef<number | null>(null);
+  const loadedProductRef = useRef<number | null>(initialWorkspace?.products[0]?.productNo ?? null);
+
+  const getInitialDraft = (): ProductAssessment | null => {
+    if (!initialWorkspace || initialWorkspace.products.length === 0) return null;
+    const pNo = initialWorkspace.products[0].productNo;
+    const existing = initialWorkspace.assessments.find((a) => a.productNo === pNo);
+    if (existing) return structuredClone(existing);
+    const prod = initialWorkspace.products[0];
+    const rVersion = initialWorkspace.rubric.version ?? 'numeric-draft-1';
+    const factors = Object.fromEntries(
+      FACTOR_IDS.map((f) => [
+        f,
+        { score: null, basis: '', method: 'numeric', rubricVersion: rVersion } as FactorAssessment,
+      ]),
+    ) as Record<FactorId, FactorAssessment>;
+    return {
+      productNo: pNo,
+      description: prod?.name ?? '',
+      factors,
+      reviewed: false,
+      updatedAt: null,
+      reviewedAt: null,
+    };
+  };
 
   // 현재 선택된 상품의 편집 초안
-  const [draft, setDraft] = useState<ProductAssessment | null>(null);
+  const [draft, setDraft] = useState<ProductAssessment | null>(getInitialDraft);
   const [dirty, setDirty] = useState(false);
 
   // 충돌 발생 시 원격 최신 데이터 보관
