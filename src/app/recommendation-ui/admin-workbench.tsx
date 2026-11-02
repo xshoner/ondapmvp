@@ -166,9 +166,11 @@ export function CoreAdminWorkbench({ services, initialWorkspace, loadDescription
     setDescNotice(null);
     setLatestCafe24Desc(null);
 
-    // 상품 선택 시 카페24 상세 설명 자동 조회 트리거
-    fetchCafe24Description(selectedNo);
   }, [selectedNo, workspace]);
+
+  useEffect(() => {
+    if (workspace && selectedNo) fetchCafe24Description(selectedNo);
+  }, [selectedNo, Boolean(workspace)]);
 
   const selectedProduct = workspace?.products.find((p) => p.productNo === selectedNo);
 
@@ -195,6 +197,7 @@ export function CoreAdminWorkbench({ services, initialWorkspace, loadDescription
   const fetchCafe24Description = async (targetProductNo: number) => {
     if (!targetProductNo || targetProductNo === 0) return;
     const currentDescReqId = ++descReqIdRef.current;
+    const requestedEditVersion = editVersionsRef.current.get(targetProductNo) ?? 0;
     setDescLoading(true);
     setDescNotice(null);
     setLatestCafe24Desc(null);
@@ -221,14 +224,14 @@ export function CoreAdminWorkbench({ services, initialWorkspace, loadDescription
       }
 
       // 기존 사용자 작성 초안, 검수 완료 데이터, 또는 저장된 설명이 있는지 확인
-      const curDraft = draftsByProductRef.current.get(targetProductNo) ?? draft;
-      const curDesc = (curDraft?.description ?? '').trim();
       const existing = workspace?.assessments.find((a) => a.productNo === targetProductNo);
       const prod = workspace?.products.find((p) => p.productNo === targetProductNo);
+      const curDraft = draftsByProductRef.current.get(targetProductNo) ?? existing ?? createEmptyAssessment(targetProductNo, prod?.name ?? '');
+      const curDesc = curDraft.description.trim();
       const defaultDesc = prod?.name?.trim() ?? '';
       const hasSavedContent = Boolean(existing && existing.description?.trim() && existing.description.trim() !== defaultDesc);
       const isReviewed = Boolean(curDraft?.reviewed || existing?.reviewed);
-      const hasUnsavedEdits = draftsByProductRef.current.has(targetProductNo);
+      const hasUnsavedEdits = draftsByProductRef.current.has(targetProductNo) || (editVersionsRef.current.get(targetProductNo) ?? 0) !== requestedEditVersion;
 
       // 기존 검수 자료나 저장/작성된 내용이 이미 있는 경우 자동으로 덮어쓰지 않고 관리자가 선택할 수 있는 버튼 제공
       if (isReviewed || hasUnsavedEdits || hasSavedContent || (curDesc && curDesc !== defaultDesc)) {
@@ -239,12 +242,11 @@ export function CoreAdminWorkbench({ services, initialWorkspace, loadDescription
       } else {
         // 미검수 및 초기 기본 상태인 경우에만 안전하게 자동 채움
         const nextDraft: ProductAssessment = {
-          ...(curDraft ?? createEmptyAssessment(targetProductNo, fetchedText)),
+          ...curDraft,
           description: fetchedText,
         };
-        draftsByProductRef.current.set(targetProductNo, structuredClone(nextDraft));
         if (activeProductNoRef.current === targetProductNo) {
-          setDraft(nextDraft);
+          updateDraft(nextDraft);
           setDescNotice({ type: 'applied', message: '카페24 최신 상세 설명을 불러왔습니다.' });
         }
       }
