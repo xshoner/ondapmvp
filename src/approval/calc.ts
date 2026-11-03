@@ -242,7 +242,7 @@ export function buildSelectedReason(
   const scoreText = Math.round(candidate.matchScore);
 
   // 확인된 상품 특징만 사용 (엔진 판정 설명이나 '검수 자료' 배제)
-  const keyFeature = buildProductKeyFeature(candidate);
+  const keyFeature = candidate.model === 'core-contract-v1' ? '확인 필요' : buildProductKeyFeature(candidate);
   const featureSentence = keyFeature !== '확인 필요'
     ? (keyFeature.endsWith('.') ? keyFeature : `${keyFeature}.`)
     : '';
@@ -428,6 +428,7 @@ export function buildDocumentModel(draft: ApprovalDraft): ApprovalDocumentModel 
       shippingFee: cShipFee,
       shippingNote: cShipFee === 0 ? '무료 배송' : won(cShipFee),
       tier: c.tier,
+      remark: `추천 ${c.rank}순위 (${c.recommendationScore != null || c.model === 'core-contract-v1' ? `추천점수 ${(c.recommendationScore ?? c.matchScore).toFixed(1)}점` : '추천점수 미확인'})`,
       matchScore: Math.round(c.recommendationScore ?? c.matchScore),
       recommendationScore: c.recommendationScore,
       rarityValue: c.rarityValue,
@@ -449,7 +450,7 @@ export function buildDocumentModel(draft: ApprovalDraft): ApprovalDocumentModel 
   // 지역 의미 문구
   const regionParts = [
     selectedCandidate.region && selectedCandidate.region !== '기타' ? selectedCandidate.region : null,
-    selectedCandidate.story && selectedCandidate.story.trim() && !isEngineJudgmentText(selectedCandidate.story) ? selectedCandidate.story.trim() : null,
+    selectedCandidate.model !== 'core-contract-v1' && selectedCandidate.story && selectedCandidate.story.trim() && !isEngineJudgmentText(selectedCandidate.story) ? selectedCandidate.story.trim() : null,
   ].filter(Boolean);
   const regionMeaningText = regionParts.length > 0
     ? `상품 등록 정보 기준: ${regionParts.join(' ')}`

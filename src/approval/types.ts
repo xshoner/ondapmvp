@@ -86,6 +86,7 @@ export interface CandidateCalculatedRow {
   recommendationScore?: number; // S (추천점수)
   rarityValue?: number; // R (상품 희소값)
   reason: string;
+  remark: string;
   keyFeature: string; // 확인된 상품 자체의 특징 (엔진 판정 설명 배제, 없으면 '확인 필요')
   region: string;
   category: string;

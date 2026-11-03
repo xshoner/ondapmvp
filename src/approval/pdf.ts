@@ -430,15 +430,7 @@ export async function generateApprovalPdf(model: ApprovalDocumentModel): Promise
     ['상품명', (r) => (r.isSelected ? `▶ ${r.candidate.productName}` : r.candidate.productName), true],
     ['단가 / 수량', (r) => `${won(r.unitPrice)} / ${r.quantity.toLocaleString('ko-KR')}개`],
     ['상품 합계', (r) => won(r.itemTotal), true],
-    [
-      '핵심 특징',
-      (r) => {
-        const scoreLabel = r.candidate.model === 'core-contract-v1'
-          ? `추천점수 ${(r.recommendationScore ?? r.matchScore).toFixed(1)}점 · 희소값 ${(r.rarityValue ?? 0).toFixed(1)}점`
-          : `${r.candidate.model === 'v2' ? '상품 희소값' : '격식지수'} ${r.matchScore}점`;
-        return `${r.tier} (${scoreLabel})\n${r.keyFeature ?? r.reason}`;
-      },
-    ],
+    ['비고', (r) => r.remark],
   ];
 
   for (const [label, getter, isItemBold] of compItems) {

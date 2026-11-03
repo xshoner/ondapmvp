@@ -309,7 +309,7 @@ export function ApprovalPreview({ model }: { model: ApprovalDocumentModel }) {
               ))}
             </tr>
             <tr>
-              <th style={{ ...thStyle, textAlign: 'center' }}>핵심 특징</th>
+              <th style={{ ...thStyle, textAlign: 'center' }}>비고</th>
               {candidateRows.map((r) => (
                 <td
                   key={r.candidate.productNo}
@@ -319,12 +319,7 @@ export function ApprovalPreview({ model }: { model: ApprovalDocumentModel }) {
                     lineHeight: '1.45',
                   }}
                 >
-                  <b>{r.tier}</b> (
-                    {r.candidate.model === 'core-contract-v1'
-                      ? `추천점수 ${(r.recommendationScore ?? r.matchScore).toFixed(1)}점 · 희소값 ${(r.rarityValue ?? 0).toFixed(1)}점`
-                      : `${r.candidate.model === 'v2' ? '상품 희소값' : '격식지수'} ${r.matchScore}점`}
-                  )<br />
-                  {r.keyFeature ?? r.reason}
+                  {r.remark}
                 </td>
               ))}
             </tr>

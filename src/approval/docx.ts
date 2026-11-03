@@ -554,7 +554,7 @@ export async function generateApprovalDocx(model: ApprovalDocumentModel): Promis
           width: { size: 18, type: WidthType.PERCENTAGE },
           shading: { fill: BG_LIGHT, type: ShadingType.CLEAR },
           borders: cellBorder,
-          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '핵심 특징', bold: true, size: 24 })] })],
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '비고', bold: true, size: 24 })] })],
         }),
         ...candidateRows.map(
           (r) =>
@@ -565,16 +565,11 @@ export async function generateApprovalDocx(model: ApprovalDocumentModel): Promis
                 new Paragraph({
                   children: [
                     new TextRun({
-                      text: r.candidate.model === 'core-contract-v1'
-                        ? `${r.tier} (추천점수 ${(r.recommendationScore ?? r.matchScore).toFixed(1)}점 · 희소값 ${(r.rarityValue ?? 0).toFixed(1)}점)`
-                        : `${r.tier} (${r.candidate.model === 'v2' ? '상품 희소값' : '격식지수'} ${r.matchScore}점)`,
+                      text: r.remark,
                       bold: true,
                       size: 22,
                     }),
                   ],
-                }),
-                new Paragraph({
-                  children: [new TextRun({ text: r.keyFeature ?? r.reason, size: 22 })],
                 }),
               ],
             }),

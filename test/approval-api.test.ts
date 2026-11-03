@@ -1,6 +1,7 @@
 import './fixtures/approval-data.ts';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { unzipSync, strFromU8 } from 'fflate';
 import { POST as createDraftRoute } from '../src/app/api/approval/route.ts';
 import {
   GET as getDraftRoute,
@@ -118,6 +119,8 @@ test('POST /api/approval: 정상 초안 생성, 새 추천 결과 및 사본 고
   assert.equal(typeof cand0.rarityValue, 'number');
   assert.equal(cand0.model, 'core-contract-v1');
   assert.ok(json.model.selectedReason.includes(cand0.recommendationScore.toFixed(1)));
+  assert.equal(json.model.candidateRows[0].remark, `추천 1순위 (추천점수 ${cand0.recommendationScore.toFixed(1)}점)`);
+  assert.equal(cand0.story, undefined);
 
   createdId = json.id;
   createdToken = json.token;
@@ -263,6 +266,10 @@ test('GET /api/approval/[id]/docx & pdf & hwpx: 실제 파일 다운로드', asy
   const hwpxRes = await getHwpxRoute(hwpxReq, { params: Promise.resolve({ id: createdId }) });
   assert.equal(hwpxRes.status, 200);
   assert.equal(hwpxRes.headers.get('Content-Type'), 'application/hwp+zip');
+  const hwpxXml = strFromU8(unzipSync(new Uint8Array(await hwpxRes.arrayBuffer()))['Contents/section0.xml']);
+  assert.match(hwpxXml, /비고/);
+  assert.match(hwpxXml, /추천 1순위 \(추천점수/);
+  assert.doesNotMatch(hwpxXml, /핵심 특징/);
   assert.match(decodeURIComponent(hwpxRes.headers.get('Content-Disposition') || ''), /답례품_선정검토서.*\.hwpx/);
 
   // DOCX
@@ -272,6 +279,10 @@ test('GET /api/approval/[id]/docx & pdf & hwpx: 실제 파일 다운로드', asy
   const docxRes = await getDocxRoute(docxReq, { params: Promise.resolve({ id: createdId }) });
   assert.equal(docxRes.status, 200);
   assert.equal(docxRes.headers.get('Content-Type'), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  const docxXml = strFromU8(unzipSync(new Uint8Array(await docxRes.arrayBuffer()))['word/document.xml']);
+  assert.match(docxXml, /비고/);
+  assert.match(docxXml, /추천 1순위 \(추천점수/);
+  assert.doesNotMatch(docxXml, /핵심 특징/);
   assert.match(decodeURIComponent(docxRes.headers.get('Content-Disposition') || ''), /답례품_선정검토서/);
 
   // PDF

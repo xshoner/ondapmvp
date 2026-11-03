@@ -538,20 +538,13 @@ export async function generateApprovalHwpx(model: ApprovalDocumentModel): Promis
   ];
 
   const compFeaturesRow: TableCellSpec[] = [
-    { text: '핵심 특징', isHeader: true, align: 'CENTER' },
-    ...candidateRows.map((r) => {
-      const scoreLabel = r.candidate.model === 'core-contract-v1'
-        ? `추천점수 ${(r.recommendationScore ?? r.matchScore).toFixed(1)}점 · 희소값 ${(r.rarityValue ?? 0).toFixed(1)}점`
-        : `${r.candidate.model === 'v2' ? '상품 희소값' : '격식지수'} ${r.matchScore}점`;
-      return {
-        paragraphs: [
-          { text: `${r.tier} (${scoreLabel})`, charPrId: reg.roles.VALUE_BOLD.charPrId, align: 'LEFT' as const },
-          { text: r.keyFeature ?? r.reason, charPrId: reg.roles.VALUE.charPrId, align: 'LEFT' as const },
-        ],
-        borderFillId: reg.borders.CELL,
-        align: 'LEFT' as const,
-      };
-    }),
+    { text: '비고', isHeader: true, align: 'CENTER' },
+    ...candidateRows.map((r) => ({
+      text: r.remark,
+      charPrId: reg.roles.VALUE_BOLD.charPrId,
+      borderFillId: reg.borders.CELL,
+      align: 'LEFT' as const,
+    })),
   ];
 
   const compareRows = [compHeaderRow, compPhotoRow, compNameRow, compPriceRow, compTotalRow, compFeaturesRow];

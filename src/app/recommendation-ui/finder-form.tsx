@@ -87,7 +87,7 @@ export function CoreFinderForm({ initialRequest, onSubmit, loading = false }: Fi
           <span style={{ color: 'var(--pine, #2D5A43)', marginRight: 6 }}>1</span>어떤 자리인가요?
         </h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 6 }}>
-          {(Object.entries(EVENT_NAMES) as [EventId, string][]).map(([id, name]) => {
+          {(Object.entries(EVENT_NAMES) as [EventId, string][]).sort(([a], [b]) => Number(a === 'funeral') - Number(b === 'funeral')).map(([id, name]) => {
             const active = event === id;
             return (
               <button
