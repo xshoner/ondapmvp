@@ -129,6 +129,7 @@ export function PreviewPane(props: Props) {
     }
   }, [canvasReady, viewMode, withSticker]);
 
+  const selectedText = layers.find((layer): layer is TextLayer => layer.id === selectedId && layer.type === 'text');
   const cut = (bleedUnits(sizeCm) / CANVAS_UNITS) * 100;
   const cutClip = shape === 'circle' ? `circle(${50 - cut}% at 50% 50%)` : `inset(${cut}%)`;
 
@@ -285,6 +286,19 @@ export function PreviewPane(props: Props) {
               warnBoxes={warnBoxes}
               onReady={() => setCanvasReady(true)}
             />
+          )}
+
+          {viewMode === 'canvas' && selectedText && (
+            <label style={{ display: 'block', width: '100%', marginTop: 8, fontSize: 14 }}>
+              선택한 문구 편집
+              <textarea
+                aria-label="선택한 문구 편집"
+                value={selectedText.text}
+                maxLength={120}
+                onChange={(event) => onUpdateLayer(selectedText.id, { text: event.target.value })}
+                style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 64, fontSize: 16 }}
+              />
+            </label>
           )}
 
           {viewMode === 'canvas' && (

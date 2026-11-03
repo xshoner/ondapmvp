@@ -228,36 +228,7 @@ export function Step2Message(props: Props) {
                 )}
               </div>
             </div>
-            <button
-              type="button"
-              className="link-btn small"
-              onClick={() => setShowEventPicker((v) => !v)}
-            >
-              {showEventPicker ? '닫기' : '행사 변경'}
-            </button>
           </div>
-
-          {showEventPicker && (
-            <div className="pkg-event-selector card">
-              <span className="small muted" style={{ fontWeight: 600 }}>다른 행사 기준 문구·이미지 보기</span>
-              <div className="chips event-chips" style={{ marginTop: 8 }}>
-                {events.map((e) => (
-                  <button
-                    key={e.id}
-                    type="button"
-                    className="chip"
-                    aria-pressed={event === e.id}
-                    onClick={() => {
-                      setEvent(e.id);
-                      setShowEventPicker(false);
-                    }}
-                  >
-                    {e.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* 1. 문구 꾸미기 ((c) 추천 문구 적용·삭제 + (d) 직접 편집 + 폰트·크기·색·외곽선·그림자 기본 제공) */}
           <div className="pkg-basic-edit-card card">
@@ -466,116 +437,6 @@ export function Step2Message(props: Props) {
               </div>
             </div>
 
-            {/* 보내는 사람 & 받는 분 & 날짜 (선택 입력) */}
-            <div className="pkg-input-group" style={{ marginTop: 12 }}>
-              <label className="pkg-label">
-                보내는 사람
-                <span className="small muted" style={{ fontWeight: 400 }}> (성함 또는 호칭)</span>
-              </label>
-              <input
-                type="text"
-                className="num-input pkg-text-input"
-                value={fields.sender}
-                maxLength={30}
-                placeholder="예: 홍길동 (또는 홍길동 올림)"
-                onChange={(e) => onFieldsChange({ ...fields, sender: e.target.value })}
-              />
-              <div className="small muted" style={{ fontSize: 12, marginTop: -2 }}>
-                스티커에 인쇄될 보내시는 분 성함이나 문구를 그대로 적어주세요.
-              </div>
-            </div>
-
-            {/* 선택적 추가 항목 (받는 분, 날짜) */}
-            <div className="pkg-optional-fields-wrap">
-              <div className="pkg-optional-toggles">
-                {!showRecipient && (
-                  <button
-                    type="button"
-                    className="link-btn small"
-                    onClick={() => setShowRecipient(true)}
-                  >
-                    + 받는 분 추가
-                  </button>
-                )}
-                {!showDate && (
-                  <button
-                    type="button"
-                    className="link-btn small"
-                    onClick={() => setShowDate(true)}
-                  >
-                    + 날짜 추가
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="link-btn small"
-                  onClick={onAddText}
-                >
-                  + 별도 문구 추가
-                </button>
-              </div>
-
-              {showRecipient && (
-                <div className="pkg-input-group" style={{ marginTop: 10 }}>
-                  <div className="spread">
-                    <label className="pkg-label">받는 분</label>
-                    <button
-                      type="button"
-                      className="link-btn small muted"
-                      onClick={() => {
-                        setShowRecipient(false);
-                        onFieldsChange({ ...fields, recipient: '' });
-                      }}
-                    >
-                      숨기기
-                    </button>
-                  </div>
-                  <input
-                    type="text"
-                    className="num-input pkg-text-input"
-                    value={fields.recipient}
-                    maxLength={30}
-                    placeholder="받는 분 성함 (예: 김선생님께)"
-                    onChange={(e) => onFieldsChange({ ...fields, recipient: e.target.value })}
-                  />
-                </div>
-              )}
-
-              {showDate && (
-                <div className="pkg-input-group" style={{ marginTop: 10 }}>
-                  <div className="spread">
-                    <label className="pkg-label">날짜</label>
-                    <button
-                      type="button"
-                      className="link-btn small muted"
-                      onClick={() => {
-                        setShowDate(false);
-                        onFieldsChange({ ...fields, date: '' });
-                      }}
-                    >
-                      숨기기
-                    </button>
-                  </div>
-                  <div className="date-row">
-                    <input
-                      type="text"
-                      className="num-input pkg-text-input"
-                      value={fields.date}
-                      maxLength={30}
-                      placeholder="예: 2026년 11월 1일"
-                      onChange={(e) => onFieldsChange({ ...fields, date: e.target.value })}
-                    />
-                    <button
-                      type="button"
-                      className="btn ghost small"
-                      onClick={() => onFieldsChange({ ...fields, date: todayLabel() })}
-                    >
-                      오늘
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
 
           {/* 2. 이미지 꾸미기 ((b) 추천 이미지 적용·삭제 + (e) 이미지 직접 등록) */}
@@ -779,22 +640,7 @@ export function Step2Message(props: Props) {
               </div>
             </div>
 
-            <div style={{ marginTop: 14 }}>
-              <label className="pkg-label">바탕색</label>
-              <div className="pkg-swatch-list" style={{ marginTop: 6 }}>
-                {BACKGROUNDS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    className={`swatch ${background === c ? 'selected' : ''}`}
-                    style={{ background: c }}
-                    aria-pressed={background === c}
-                    aria-label={`바탕색 ${c}`}
-                    onClick={() => setBackground(c)}
-                  />
-                ))}
-              </div>
-            </div>
+
           </div>
 
           {/* 실시간 유효성 경고 피드백 */}

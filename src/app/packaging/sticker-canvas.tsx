@@ -39,7 +39,7 @@ function fontSpec(l: TextLayer, families: Record<FontId, string>): string {
 }
 
 function useHtmlImage(src: string): HTMLImageElement | null {
-  const [img, setImg] = useState<HTMLImageElement | null>(null);
+  const [loaded, setLoaded] = useState<{ src: string; img: HTMLImageElement } | null>(null);
   useEffect(() => {
     let active = true;
     const el = new window.Image();
@@ -48,7 +48,7 @@ function useHtmlImage(src: string): HTMLImageElement | null {
       el.crossOrigin = 'anonymous';
     }
     el.onload = () => {
-      if (active) setImg(el);
+      if (active) setLoaded({ src, img: el });
     };
     el.onerror = () => {
       if (!active) return;
@@ -58,15 +58,15 @@ function useHtmlImage(src: string): HTMLImageElement | null {
         const retryEl = new window.Image();
         retryEl.crossOrigin = 'anonymous';
         retryEl.onload = () => {
-          if (active) setImg(retryEl);
+          if (active) setLoaded({ src, img: retryEl });
         };
         retryEl.onerror = () => {
-          if (active) setImg(null);
+          if (active) setLoaded(null);
         };
         const sep = src.includes('?') ? '&' : '?';
         retryEl.src = `${src}${sep}retry_cors=1`;
       } else {
-        setImg(null);
+        setLoaded(null);
       }
     };
     el.src = src;
@@ -76,7 +76,7 @@ function useHtmlImage(src: string): HTMLImageElement | null {
       el.onerror = null;
     };
   }, [src]);
-  return img;
+  return loaded?.src === src ? loaded.img : null;
 }
 
 function ImageNode({ layer, onSelect, onChange, drag }: { layer: EditorImageLayer; onSelect(): void; onChange(p: Partial<EditorLayer>): void; drag: DragProps }) {
