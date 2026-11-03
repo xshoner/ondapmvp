@@ -709,6 +709,12 @@ table.data.designs-table tr.late.cursor td:first-child { box-shadow: inset 3px 0
 }
 
 @media (max-width: 768px) {
+  .step-nav-bar {
+    padding: 8px 10px;
+  }
+  .step-nav-list {
+    gap: 4px;
+  }
   .step-desc-desktop {
     display: none;
   }
@@ -718,7 +724,32 @@ table.data.designs-table tr.late.cursor td:first-child { box-shadow: inset 3px 0
     justify-content: center;
   }
   .step-name {
-    font-size: 12.5px;
+    font-size: 12px;
+  }
+  .step-nav-item:not(:last-child)::after {
+    display: none; /* 모바일에서 화살표/구분선으로 인한 가로 스크롤 넘침 원천 차단 */
+  }
+}
+
+@media (max-width: 360px) {
+  .step-nav-bar {
+    padding: 6px 6px;
+  }
+  .step-nav-list {
+    gap: 2px;
+  }
+  .step-nav-btn {
+    padding: 4px 2px;
+    gap: 3px;
+  }
+  .step-badge {
+    width: 20px;
+    height: 20px;
+    font-size: 11px;
+  }
+  .step-name {
+    font-size: 10.5px;
+    letter-spacing: -0.5px;
   }
 }
 
@@ -730,12 +761,46 @@ table.data.designs-table tr.late.cursor td:first-child { box-shadow: inset 3px 0
   gap: 14px;
 }
 
+@media (max-width: 768px) {
+  .pkg-product-header {
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    gap: 10px;
+  }
+}
+
+@media (max-width: 360px) {
+  .pkg-product-header {
+    padding: 10px 8px;
+    gap: 8px;
+  }
+}
+
 .pkg-header-top-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .pkg-header-top-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .pkg-tag-badges {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+}
+
+@media (max-width: 360px) {
+  .pkg-tag-badges .pill {
+    font-size: 11px;
+    padding: 1px 7px;
+  }
 }
 
 .pkg-back-link {
@@ -760,6 +825,41 @@ table.data.designs-table tr.late.cursor td:first-child { box-shadow: inset 3px 0
   display: flex;
   gap: 16px;
   align-items: center;
+}
+
+@media (max-width: 640px) {
+  .pkg-product-content {
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .pkg-product-thumb {
+    width: 56px;
+    height: 56px;
+  }
+  .pkg-product-thumb img {
+    width: 56px !important;
+    height: 56px !important;
+  }
+  .pkg-product-title {
+    font-size: 14.5px;
+  }
+  .pkg-product-meta-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .pkg-qty-box {
+    flex-wrap: wrap;
+    padding: 3px 6px;
+    font-size: 12px;
+    max-width: 100%;
+  }
+  .pkg-total-preview {
+    font-size: 11.5px;
+    margin-left: 0;
+    display: block;
+    width: 100%;
+  }
 }
 
 .pkg-product-thumb {
@@ -1059,25 +1159,91 @@ table.data.designs-table tr.late.cursor td:first-child { box-shadow: inset 3px 0
 
 /* ---------- STEP 2: 메시지 꾸미기 ---------- */
 .pkg-sticker-toggle {
-  padding: 14px 18px;
+  padding: 16px 18px;
 }
 
 .pkg-toggle-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .pkg-toggle-title {
-  font-size: 14.5px;
+  font-size: 15px;
   font-weight: 700;
+  color: var(--ink);
 }
 
-.chip.large {
-  padding: 9px 16px;
-  font-size: 14px;
+.pkg-print-choice-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .pkg-print-choice-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+
+.pkg-choice-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+  min-height: 52px;
+}
+
+.pkg-choice-card:hover {
+  border-color: var(--line-strong);
+  background: var(--paper);
+}
+
+.pkg-choice-card.active {
+  border-color: var(--pine);
+  background: var(--pine-weak);
+  box-shadow: 0 0 0 1px var(--pine);
+}
+
+.pkg-choice-icon {
+  font-size: 24px;
+  flex: none;
+}
+
+.pkg-choice-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.pkg-choice-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.pkg-choice-badge {
+  font-size: 12px;
   font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: var(--paper-deep);
+  color: var(--muted);
+  flex: none;
+}
+
+.pkg-choice-card.active .pkg-choice-badge {
+  background: var(--pine);
+  color: #fff;
 }
 
 .pkg-no-sticker-banner {
@@ -1210,6 +1376,275 @@ table.data.designs-table tr.late.cursor td:first-child { box-shadow: inset 3px 0
   gap: 14px;
 }
 
+.pkg-sub-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+
+.pkg-recommended-phrases {
+  padding: 12px 14px;
+  background: var(--paper);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+}
+
+.pkg-phrase-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pkg-phrase-btn {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: #fff;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+}
+
+.pkg-phrase-btn:hover {
+  border-color: var(--pine);
+  background: var(--pine-weak);
+  color: var(--pine);
+}
+
+/* 폰트 및 서식 조작부 */
+.pkg-typography-box {
+  padding: 14px 16px;
+  background: var(--paper);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+}
+
+.pkg-style-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pkg-style-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  min-width: 68px;
+  flex: none;
+}
+
+.pkg-size-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 180px;
+}
+
+.pkg-step-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 0.15s;
+  flex: none;
+}
+
+.pkg-step-btn:hover {
+  background: var(--paper-deep);
+}
+
+.pkg-size-slider {
+  flex: 1;
+  min-width: 70px;
+  accent-color: var(--pine);
+  height: 6px;
+}
+
+.pkg-size-badge {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--pine);
+  min-width: 44px;
+  text-align: right;
+  flex: none;
+}
+
+.pkg-swatch-list {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  flex: none;
+}
+
+.swatch:hover {
+  transform: scale(1.1);
+}
+
+.swatch.selected, .swatch[aria-pressed='true'] {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--pine);
+  transform: scale(1.08);
+}
+
+.swatch.small {
+  width: 24px;
+  height: 24px;
+}
+
+.pkg-effects-row {
+  padding-top: 4px;
+  border-top: 1px dashed var(--line);
+}
+
+/* 이미지 꾸미기 카드 */
+.pkg-image-card {
+  padding: 18px 20px;
+  display: grid;
+  gap: 14px;
+}
+
+.pkg-current-image-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--pine-weak);
+  border: 1px solid var(--pine);
+  border-radius: var(--radius-sm);
+}
+
+.pkg-applied-image-preview {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  flex: none;
+  background: #fff;
+}
+
+.pkg-applied-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.pkg-applied-image-info {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.pkg-applied-image-empty {
+  padding: 12px;
+  text-align: center;
+  background: var(--paper);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.pkg-image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  gap: 10px;
+}
+
+.pkg-img-thumb {
+  border: 2px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+  text-align: center;
+}
+
+.pkg-img-thumb:hover {
+  border-color: var(--line-strong);
+  transform: translateY(-2px);
+}
+
+.pkg-img-thumb.selected, .pkg-img-thumb[aria-pressed='true'] {
+  border-color: var(--pine);
+  background: var(--pine-weak);
+  box-shadow: 0 0 0 1px var(--pine);
+}
+
+.pkg-img-thumb img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  display: block;
+}
+
+.pkg-img-thumb span {
+  font-size: 11.5px;
+  color: var(--ink);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.pkg-img-check {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  background: var(--pine);
+  color: #fff;
+  border-radius: 50%;
+  font-size: 11px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+}
+
+/* 스티커 규격 카드 */
+.pkg-specs-card {
+  padding: 18px 20px;
+  display: grid;
+  gap: 12px;
+}
+
 .pkg-input-group {
   display: grid;
   gap: 6px;
@@ -1292,63 +1727,6 @@ table.data.designs-table tr.late.cursor td:first-child { box-shadow: inset 3px 0
 .pkg-alert-icon {
   font-size: 16px;
   flex: none;
-}
-
-/* 더 자세히 꾸미기 (아코디언) */
-.pkg-advanced-accordion {
-  padding: 0;
-  overflow: hidden;
-}
-
-.pkg-accordion-header {
-  width: 100%;
-  border: 0;
-  background: var(--surface);
-  padding: 14px 18px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  text-align: left;
-}
-
-.pkg-accordion-header:hover {
-  background: var(--paper);
-}
-
-.pkg-accordion-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--ink);
-  display: block;
-}
-
-.pkg-accordion-arrow {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--pine);
-}
-
-.pkg-accordion-body {
-  padding: 0 18px 18px;
-  border-top: 1px solid var(--line);
-}
-
-.pkg-upload-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.pkg-font-editor {
-  display: grid;
-  gap: 10px;
-}
-
-.pkg-layer-control-box {
-  padding: 12px;
-  background: var(--paper);
-  border-radius: var(--radius-sm);
 }
 
 /* ---------- STEP 3: 최종 확인 ---------- */

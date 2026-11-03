@@ -153,23 +153,26 @@ export function syncMainTextToLayers(
 
 /**
  * 이미지 선택 시 레이어 상태 변환을 처리합니다.
- * 첫 이미지 선택이고 메인 문구가 수정되지 않은 경우에만 기본 메인 문구(role-main)를 제거합니다.
- * 고객이 입력한 이름(role-sender), 받는 분(role-recipient), 날짜(role-date), 추가 텍스트 레이어는 온전히 보존합니다.
+ * 요구사항: 이미지를 선택하거나 제거해도 문구가 사라지지 않고, 문구를 삭제하거나 수정해도 이미지가 사라지지 않아야 합니다.
+ * 따라서 메인 문구(role-main)를 포함한 모든 텍스트 레이어는 이미지 선택 시 온전히 보존됩니다.
  */
 export function applyImageSelectionToLayers(
   layers: EditorLayer[],
   newImageLayer: EditorLayer,
-  options: { hasChosenImage: boolean; autoTextEdited: boolean },
+  _options?: { hasChosenImage?: boolean; autoTextEdited?: boolean },
 ): { nextLayers: EditorLayer[]; shouldClearMainText: boolean } {
-  const shouldClearMainText = !options.hasChosenImage && !options.autoTextEdited;
-  let filtered = layers.filter((l) => l.type !== 'image');
-  if (shouldClearMainText) {
-    filtered = filtered.filter((l) => l.id !== 'role-main');
-  }
+  const filtered = layers.filter((l) => l.type !== 'image');
   return {
     nextLayers: [newImageLayer, ...filtered],
-    shouldClearMainText,
+    shouldClearMainText: false,
   };
+}
+
+/**
+ * 레이어에서 이미지만 안전하게 제거합니다. 모든 텍스트 레이어는 보존됩니다.
+ */
+export function removeImageFromLayers(layers: EditorLayer[]): EditorLayer[] {
+  return layers.filter((l) => l.type !== 'image');
 }
 
 export type DraftFormatType = 'v2' | 'legacy_confirmed' | 'ambiguous';

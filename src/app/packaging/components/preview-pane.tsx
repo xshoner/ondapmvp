@@ -57,6 +57,7 @@ export function PreviewPane(props: Props) {
   const [mockupPng, setMockupPng] = useState<string | null>(null);
   const [isRenderingMockup, setIsRenderingMockup] = useState(false);
   const [mockupError, setMockupError] = useState<string | null>(null);
+  const [canvasReady, setCanvasReady] = useState(false);
   const mockupSeq = useRef(0);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [displaySize, setDisplaySize] = useState(380);
@@ -68,12 +69,12 @@ export function PreviewPane(props: Props) {
     else if (currentStep === 3) setViewMode('mockup');
   }, [currentStep]);
 
-  // 캔버스 디스플레이 크기 측정
+  // 캔버스 디스플레이 크기 측정 (모바일에서도 최소 200px 이상 유지하여 0 크기 방지)
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
     const fit = (w: number) => {
-      if (w > 0) setDisplaySize(Math.floor(Math.min(w, 420)));
+      if (w > 0) setDisplaySize(Math.max(200, Math.floor(Math.min(w, 420))));
     };
     fit(el.clientWidth);
     const ro = new ResizeObserver(([entry]) => fit(entry.contentRect.width));
@@ -83,7 +84,8 @@ export function PreviewPane(props: Props) {
 
   // 목업용 스티커 이미지 갱신
   const refreshMockup = async () => {
-    if (!withSticker || !apiRef.current) return;
+    if (!withSticker) return;
+    if (!apiRef.current) return;
     const seq = ++mockupSeq.current;
     setIsRenderingMockup(true);
     setMockupError(null);
@@ -119,6 +121,13 @@ export function PreviewPane(props: Props) {
       return () => clearTimeout(timer);
     }
   }, [viewMode, withSticker, background, layers, shape, sizeCm, currentStep]);
+
+  // 캔버스 모듈 로드 완료 시 즉시 목업 갱신
+  useEffect(() => {
+    if (canvasReady && viewMode === 'mockup' && withSticker) {
+      void refreshMockup();
+    }
+  }, [canvasReady, viewMode, withSticker]);
 
   const cut = (bleedUnits(sizeCm) / CANVAS_UNITS) * 100;
   const cutClip = shape === 'circle' ? `circle(${50 - cut}% at 50% 50%)` : `inset(${cut}%)`;
@@ -274,6 +283,7 @@ export function PreviewPane(props: Props) {
               apiRef={apiRef}
               onTextRects={onTextRects}
               warnBoxes={warnBoxes}
+              onReady={() => setCanvasReady(true)}
             />
           )}
 

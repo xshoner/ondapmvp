@@ -100,9 +100,22 @@ const newId = () => 'l' + Math.random().toString(36).slice(2, 9);
 function loadNatural(src: string): Promise<{ w: number; h: number }> {
   return new Promise((resolve, reject) => {
     const img = new window.Image();
-    if (/^https?:/.test(src)) img.crossOrigin = 'anonymous';
+    const isRemote = /^https?:/.test(src);
+    if (isRemote) img.crossOrigin = 'anonymous';
     img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
-    img.onerror = () => reject(new Error('이미지를 읽을 수 없습니다.'));
+    img.onerror = () => {
+      // 원격 이미지 CORS 캐시 충돌 우려 시 캐시 우회 1회 재시도
+      if (isRemote && !src.includes('retry_cors=1')) {
+        const retryImg = new window.Image();
+        retryImg.crossOrigin = 'anonymous';
+        retryImg.onload = () => resolve({ w: retryImg.naturalWidth, h: retryImg.naturalHeight });
+        retryImg.onerror = () => reject(new Error('이미지를 읽을 수 없습니다.'));
+        const sep = src.includes('?') ? '&' : '?';
+        retryImg.src = `${src}${sep}retry_cors=1`;
+      } else {
+        reject(new Error('이미지를 읽을 수 없습니다.'));
+      }
+    };
     img.src = src;
   });
 }
@@ -742,18 +755,8 @@ export function PackagingEditor(props: Props) {
       void putPhoto(photoId, file);
       const newLayer = coverLayer(url, w, h, { uploaded: true, naturalWidth: w, photoId });
 
-      // 첫 이미지 선택이고 고객이 메인 문구를 수정하지 않았다면 기본 메인 문구(role-main)만 제거
-      // 고객이 입력한 이름(role-sender), 받는 분(role-recipient), 날짜(role-date), 추가 문구는 반드시 유지
-      setLayers((ls) => {
-        const { nextLayers, shouldClearMainText } = applyImageSelectionToLayers(ls, newLayer, {
-          hasChosenImage: hasChosenImage.current,
-          autoTextEdited: autoTextEdited.current,
-        });
-        if (shouldClearMainText) {
-          setMainText('');
-        }
-        return nextLayers;
-      });
+      // 이미지를 추가/교체해도 문구(메인 문구, 이름 등)는 절대로 삭제되지 않고 유지
+      setLayers((ls) => applyImageSelectionToLayers(ls, newLayer).nextLayers);
       hasChosenImage.current = true;
       setSelectedId(null);
     } catch {
@@ -770,22 +773,21 @@ export function PackagingEditor(props: Props) {
       if (seq !== pickSeq.current) return;
       const layer = coverLayer(img.imageUrl, w, h);
 
-      // 첫 이미지 선택이고 고객이 메인 문구를 수정하지 않았다면 기본 메인 문구(role-main)만 제거
-      // 고객이 입력한 이름(role-sender), 받는 분(role-recipient), 날짜(role-date), 추가 문구는 반드시 유지
-      setLayers((ls) => {
-        const { nextLayers, shouldClearMainText } = applyImageSelectionToLayers(ls, layer, {
-          hasChosenImage: hasChosenImage.current,
-          autoTextEdited: autoTextEdited.current,
-        });
-        if (shouldClearMainText) {
-          setMainText('');
-        }
-        return nextLayers;
-      });
+      // 이미지를 추가/교체해도 문구(메인 문구, 이름 등)는 절대로 삭제되지 않고 유지
+      setLayers((ls) => applyImageSelectionToLayers(ls, layer).nextLayers);
       hasChosenImage.current = true;
       setSelectedId(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  // 이미지 삭제 (문구는 완전히 보존)
+  const handleRemoveImage = () => {
+    setLayers((ls) => ls.filter((l) => l.type !== 'image'));
+    hasChosenImage.current = false;
+    if (selectedId && layers.find((l) => l.id === selectedId)?.type === 'image') {
+      setSelectedId(null);
     }
   };
 
@@ -1020,6 +1022,7 @@ export function PackagingEditor(props: Props) {
               otherImages={otherImages}
               categoryNames={categoryNames}
               onPickImage={handlePickImage}
+              onRemoveImage={handleRemoveImage}
               nearTexts={texts}
               otherTexts={otherTexts}
               onPickText={handlePickText}

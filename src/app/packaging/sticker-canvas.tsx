@@ -24,6 +24,7 @@ type Props = {
   // 문구 상자를 잴 때마다 알려 준다 (잘림 경고·긴 이름 자동 맞춤에 쓴다)
   onTextRects(rects: Record<string, TextRect>): void;
   warnBoxes: Box[]; // 안전선을 넘은 문구: 빨간 상자로 표시
+  onReady?: () => void;
 };
 
 type DragProps = { onDragMove(e: Konva.KonvaEventObject<DragEvent>): void; onDragEnd(): void };
@@ -40,13 +41,40 @@ function fontSpec(l: TextLayer, families: Record<FontId, string>): string {
 function useHtmlImage(src: string): HTMLImageElement | null {
   const [img, setImg] = useState<HTMLImageElement | null>(null);
   useEffect(() => {
+    let active = true;
     const el = new window.Image();
-    // 다른 도메인(Supabase 저장소) 이미지가 캔버스를 오염시켜 내보내기가 막히지 않도록
-    if (/^https?:/.test(src)) el.crossOrigin = 'anonymous';
-    el.onload = () => setImg(el);
-    el.onerror = () => console.warn('[포장 디자인] 이미지를 불러오지 못함:', src);
+    const isRemote = /^https?:/.test(src);
+    if (isRemote) {
+      el.crossOrigin = 'anonymous';
+    }
+    el.onload = () => {
+      if (active) setImg(el);
+    };
+    el.onerror = () => {
+      if (!active) return;
+      console.warn('[포장 디자인] 이미지를 불러오지 못함:', src);
+      // 원격 이미지 CORS 캐시 충돌 우려 시 캐시 우회 1회 재시도
+      if (isRemote && !src.includes('retry_cors=1')) {
+        const retryEl = new window.Image();
+        retryEl.crossOrigin = 'anonymous';
+        retryEl.onload = () => {
+          if (active) setImg(retryEl);
+        };
+        retryEl.onerror = () => {
+          if (active) setImg(null);
+        };
+        const sep = src.includes('?') ? '&' : '?';
+        retryEl.src = `${src}${sep}retry_cors=1`;
+      } else {
+        setImg(null);
+      }
+    };
     el.src = src;
-    return () => { el.onload = null; el.onerror = null; };
+    return () => {
+      active = false;
+      el.onload = null;
+      el.onerror = null;
+    };
   }, [src]);
   return img;
 }
@@ -121,7 +149,7 @@ function TextNode({ layer, family, onSelect, onChange, drag }: { layer: TextLaye
 }
 
 export default function StickerCanvas(props: Props) {
-  const { displaySize, shape, sizeCm, background, layers, fontFamilies, selectedId, onSelect, onChange, apiRef, onTextRects, warnBoxes } = props;
+  const { displaySize, shape, sizeCm, background, layers, fontFamilies, selectedId, onSelect, onChange, apiRef, onTextRects, warnBoxes, onReady } = props;
   const stageRef = useRef<Konva.Stage>(null);
   const trRef = useRef<Konva.Transformer>(null);
   const guidesRef = useRef<Konva.Layer>(null);
@@ -157,14 +185,24 @@ export default function StickerCanvas(props: Props) {
         await new Promise((r) => setTimeout(r, 60)); // 글꼴 도착 후 문구 노드가 다시 그려질 시간
         const stage = stageRef.current;
         if (!stage) throw new Error('편집기가 아직 준비되지 않았습니다.');
-        // 이미지가 아직 안 그려졌으면(느린 망) 최대 8초 기다린다. 끝내 못 그리면 빈 스티커로 접수되지 않게 막는다
+        // 이미지가 아직 안 그려졌으면(느린 망) 최대 4초 기다린다. 끝내 못 그리면 빈 스티커로 접수되지 않게 막는다
         const want = layers.filter((l) => l.type === 'image').length;
-        for (let i = 0; i < 40 && stage.find('Image').length < want; i++) await new Promise((r) => setTimeout(r, 200));
+        for (let i = 0; i < 20 && stage.find('Image').length < want; i++) await new Promise((r) => setTimeout(r, 200));
         if (stage.find('Image').length < want) throw new Error('이미지를 아직 불러오지 못했어요. 잠시 후 다시 저장해 주세요.');
         trRef.current?.visible(false);
         guidesRef.current?.visible(false);
         try {
-          return (await stage.toBlob({ pixelRatio: pixels / displaySize, mimeType: 'image/png' })) as Blob;
+          // 중요: x, y, width, height를 명시하여 Konva의 getClientRect 자동 크롭을 방지하고
+          // 안전한 pixelRatio(약간의 올림 오차 보정)를 통해 정확한 출력 픽셀 규격을 보장한다.
+          const safeRatio = (pixels + 0.001) / displaySize;
+          return (await stage.toBlob({
+            x: 0,
+            y: 0,
+            width: displaySize,
+            height: displaySize,
+            pixelRatio: safeRatio,
+            mimeType: 'image/png',
+          })) as Blob;
         } finally {
           trRef.current?.visible(true);
           guidesRef.current?.visible(true);
@@ -172,7 +210,8 @@ export default function StickerCanvas(props: Props) {
         }
       },
     };
-  }, [apiRef, layers, fontFamilies, displaySize]);
+    onReady?.();
+  }, [apiRef, layers, fontFamilies, displaySize, onReady]);
 
   // 문구 상자 재기: 렌더가 끝날 때마다 (글꼴이 다 오기 전 폭은 틀리므로 기다린다). 바뀌었을 때만 알린다
   const lastRects = useRef('');
@@ -249,7 +288,8 @@ export default function StickerCanvas(props: Props) {
           rotateEnabled
           keepRatio
           enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']}
-          anchorSize={14}
+          anchorSize={20}
+          anchorCornerRadius={4}
           borderStroke="#2f5a4b"
           anchorStroke="#2f5a4b"
           rotationSnaps={[0, 90, 180, 270]}

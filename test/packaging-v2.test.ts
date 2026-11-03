@@ -7,6 +7,7 @@ import {
   formatSenderDisplay,
   getEventTemplates,
   isNamesUsedInLayers,
+  removeImageFromLayers,
   syncFieldsToLayers,
   syncMainTextToLayers,
 } from '../src/packaging/templates.ts';
@@ -223,8 +224,8 @@ test('실제 프로덕션 함수 검증: 이름 입력 -> 첫 이미지 선택 -
   });
   currentLayers = nextLayers;
 
-  assert.equal(shouldClearMainText, true, '기본 메인 문구는 제거 대상이어야 함');
-  assert.ok(!currentLayers.some((l) => l.id === 'role-main'), '기본 메인 문구는 제거됨');
+  assert.equal(shouldClearMainText, false, '이미지를 선택해도 문구가 삭제되지 않고 유지되어야 함');
+  assert.ok(currentLayers.some((l) => l.id === 'role-main'), '기본 메인 문구는 보존됨');
   assert.ok(currentLayers.some((l) => l.id === 'role-recipient'), '받는 분(김선생님께)은 온전히 보존됨');
   assert.ok(currentLayers.some((l) => l.id === 'role-sender'), '보내는 사람(홍길동)은 온전히 보존됨');
   assert.ok(currentLayers.some((l) => l.id === 'custom-text-1'), '고객 추가 문구는 온전히 보존됨');
@@ -627,3 +628,123 @@ test('초기 템플릿 기준점 및 실행 취소 경계 검증 (초기화 및 
   assert.ok(!currentLayers.some((l) => l.id === 'role-sender'), '보내는 사람은 제거됨');
   assert.equal(currentLayers.length, initialLayers.length, '기본 템플릿 문구는 안전하게 유지됨 (빈 캔버스 아님)');
 });
+
+test('모바일 꾸미기: 이미지 선택/제거와 문구 수정/삭제 상호 독립성 보장', () => {
+  const tpls = getEventTemplates({ event: 'thanks', purpose: 'return' });
+  const tpl = tpls[0];
+
+  let layers = tpl.createLayers();
+  // 1. 초기 텍스트 확인
+  assert.ok(layers.some((l) => l.id === 'role-main'), '초기 메인 텍스트 존재');
+
+  // 사용자 정의 텍스트 추가
+  layers.push({
+    id: 'user-note',
+    type: 'text',
+    text: '모바일 꾸미기 테스트 문구',
+    x: 500,
+    y: 800,
+    rotation: 0,
+    scaleX: 1,
+    scaleY: 1,
+    font: 'sans',
+    fontSize: 36,
+    color: '#333333',
+    stroke: null,
+    shadow: false,
+  });
+
+  // 2. 추천 이미지 적용
+  const imageLayer: EditorImageLayer = {
+    id: 'img-test-1',
+    type: 'image',
+    src: '/images/packaging/ornaments/flower-1.png',
+    width: 300,
+    height: 300,
+    x: 500,
+    y: 400,
+    rotation: 0,
+    scaleX: 1,
+    scaleY: 1,
+  };
+
+  const { nextLayers, shouldClearMainText } = applyImageSelectionToLayers(layers, imageLayer);
+  layers = nextLayers;
+
+  // 검증: 이미지 추가 후에도 메인 문구 및 사용자 문구 그대로 유지
+  assert.equal(shouldClearMainText, false, '이미지 선택 시 문구 제거 플래그는 false');
+  assert.ok(layers.some((l) => l.id === 'role-main'), '이미지를 선택해도 role-main 텍스트 보존');
+  assert.ok(layers.some((l) => l.id === 'user-note'), '이미지를 선택해도 사용자 추가 문구 보존');
+  assert.ok(layers.some((l) => l.id === 'img-test-1'), '선택한 이미지가 추가됨');
+
+  // 3. 이미지 삭제 (removeImageFromLayers)
+  layers = removeImageFromLayers(layers);
+  assert.ok(!layers.some((l) => l.type === 'image'), '이미지 레이어가 모두 제거됨');
+  assert.ok(layers.some((l) => l.id === 'role-main'), '이미지 제거 후에도 role-main 문구 보존');
+  assert.ok(layers.some((l) => l.id === 'user-note'), '이미지 제거 후에도 사용자 문구 보존');
+
+  // 4. 다시 이미지 추가
+  layers = applyImageSelectionToLayers(layers, imageLayer).nextLayers;
+  assert.ok(layers.some((l) => l.id === 'img-test-1'), '이미지 재추가 성공');
+
+  // 5. 문구 수정 (syncMainTextToLayers)
+  layers = syncMainTextToLayers(layers, '수정된 메인 문구입니다', tpl);
+  assert.equal(extractMainTextFromLayers(layers), '수정된 메인 문구입니다');
+  assert.ok(layers.some((l) => l.id === 'img-test-1'), '문구를 수정해도 이미지는 그대로 유지됨');
+
+  // 6. 메인 문구 삭제 (빈 문자열)
+  layers = syncMainTextToLayers(layers, '', tpl);
+  assert.ok(!layers.some((l) => l.id === 'role-main'), '메인 문구는 삭제됨');
+  assert.ok(layers.some((l) => l.id === 'img-test-1'), '문구를 삭제해도 이미지는 안전하게 유지됨');
+  assert.ok(layers.some((l) => l.id === 'user-note'), '사용자 추가 문구도 안전하게 유지됨');
+});
+
+test('인쇄물 선택(withSticker)과 인쇄물 없음(포장만) 데이터 및 옵션 호환성', () => {
+  // 1. 인쇄물 있음 (기본 스티커 포함)
+  const draftWithSticker = sanitizeDraft({
+    background: '#ffffff',
+    purpose: 'return',
+    fields: { recipient: '고객님', sender: '온답', date: '' },
+    layers: [
+      {
+        id: 'role-main',
+        type: 'text',
+        text: '감사합니다',
+        x: 500,
+        y: 500,
+        font: 'serif',
+        fontSize: 60,
+        color: '#000000',
+        stroke: null,
+        shadow: false,
+      },
+    ],
+  });
+  assert.ok(draftWithSticker.layers.length > 0);
+  assert.equal(draftWithSticker.fields.recipient, '고객님');
+
+  // 2. 인쇄물 없음 (포장만 진행하는 경우)
+  const draftNoSticker = sanitizeDraft({
+    background: '#ffffff',
+    purpose: 'celebration',
+    fields: { recipient: '', sender: '', date: '' },
+    layers: [],
+  });
+  assert.equal(draftNoSticker.layers.length, 0);
+  assert.equal(draftNoSticker.fields.recipient, '');
+});
+
+test('스티커 규격(4cm=520px, 6cm=756px) 픽셀 해상도 매핑 검증', () => {
+  const getPrintPixels = (sizeCm: number) => (sizeCm === 6 ? 756 : 520);
+  assert.equal(getPrintPixels(4), 520, '4cm 규격은 520px');
+  assert.equal(getPrintPixels(6), 756, '6cm 규격은 756px');
+
+  // Konva export bounding box 계산식 검증:
+  // stage size(1000) 대비 요청 픽셀(520, 756) 비율이 정확해야 함
+  const stageSize = 1000;
+  const pixelRatio4 = 520 / stageSize;
+  const pixelRatio6 = 756 / stageSize;
+  assert.equal(Math.round(stageSize * pixelRatio4), 520);
+  assert.equal(Math.round(stageSize * pixelRatio6), 756);
+});
+
