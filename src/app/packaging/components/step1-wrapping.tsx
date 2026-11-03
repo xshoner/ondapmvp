@@ -141,7 +141,7 @@ export function Step1Wrapping({
           disabled={!styleId || filteredStyles.length === 0}
           onClick={onNext}
         >
-          다음: 메시지 꾸미기 ›
+          다음: 인쇄물 꾸미기 ›
         </button>
       </div>
     </div>

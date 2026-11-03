@@ -147,7 +147,7 @@ export function Step2Message(props: Props) {
       <div className="pkg-step-intro">
         <h2 className="pkg-step-heading">
           <span className="pkg-step-num">STEP 2</span>
-          메시지 꾸미기
+          인쇄물 꾸미기
         </h2>
         <p className="pkg-step-desc">
           원하시는 문구와 이미지를 간편하게 적용해 나만의 포장 스티커를 완성해 보세요.
@@ -230,11 +230,59 @@ export function Step2Message(props: Props) {
             </div>
           </div>
 
+          {/* 1. 스티커 규격 */}
+          <div className="pkg-specs-card card">
+            <span className="pkg-section-title">1. 스티커 규격 및 배경</span>
+
+            <div className="pkg-shape-size-row" style={{ marginTop: 12, borderTop: 'none', paddingTop: 0 }}>
+              <div>
+                <label className="pkg-label">스티커 형태</label>
+                <div className="chips">
+                  <button
+                    type="button"
+                    className="chip"
+                    aria-pressed={shape === 'circle'}
+                    onClick={() => setShape('circle')}
+                  >
+                    ● 원형
+                  </button>
+                  <button
+                    type="button"
+                    className="chip"
+                    aria-pressed={shape === 'square'}
+                    onClick={() => setShape('square')}
+                  >
+                    ■ 사각
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="pkg-label">인쇄 규격</label>
+                <div className="chips">
+                  {STICKER_SIZES.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      className="chip"
+                      aria-pressed={sizeCm === s}
+                      onClick={() => setSizeCm(s)}
+                    >
+                      {s}×{s}cm
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+
+          </div>
+
           {/* 1. 문구 꾸미기 ((c) 추천 문구 적용·삭제 + (d) 직접 편집 + 폰트·크기·색·외곽선·그림자 기본 제공) */}
           <div className="pkg-basic-edit-card card">
             <div className="pkg-section-header spread" style={{ alignItems: 'center' }}>
               <div>
-                <span className="pkg-section-title">1. 문구 작성 및 서식 꾸미기</span>
+                <span className="pkg-section-title">2. 문구 작성 및 서식 꾸미기</span>
                 <span className="small muted" style={{ display: 'block', marginTop: 2 }}>
                   문구를 입력하거나 추천 문구를 누르면 즉시 스티커에 반영됩니다
                 </span>
@@ -391,6 +439,23 @@ export function Step2Message(props: Props) {
                 </div>
               </div>
 
+              <div className="pkg-style-row">
+                <span className="pkg-style-label">배경색</span>
+                <div className="pkg-swatch-list">
+                  {BACKGROUNDS.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      className={`swatch ${background === color ? 'selected' : ''}`}
+                      style={{ background: color }}
+                      aria-pressed={background === color}
+                      aria-label={`배경색 ${color}`}
+                      onClick={() => setBackground(color)}
+                    />
+                  ))}
+                </div>
+              </div>
+
               {/* 외곽선 및 그림자 효과 */}
               <div className="pkg-style-row pkg-effects-row">
                 <label className="pkg-check-label" style={{ minHeight: 36 }}>
@@ -443,7 +508,7 @@ export function Step2Message(props: Props) {
           <div className="pkg-image-card card">
             <div className="pkg-section-header spread" style={{ alignItems: 'center' }}>
               <div>
-                <span className="pkg-section-title">2. 이미지 꾸미기</span>
+                <span className="pkg-section-title">3. 이미지 꾸미기</span>
                 <span className="small muted" style={{ display: 'block', marginTop: 2 }}>
                   사진을 올리거나 추천 이미지를 선택할 수 있습니다 (문구는 그대로 유지됩니다)
                 </span>
@@ -593,54 +658,6 @@ export function Step2Message(props: Props) {
                 </div>
               )}
             </div>
-          </div>
-
-          {/* 3. 스티커 규격 및 바탕색 */}
-          <div className="pkg-specs-card card">
-            <span className="pkg-section-title">3. 스티커 규격 및 배경</span>
-
-            <div className="pkg-shape-size-row" style={{ marginTop: 12, borderTop: 'none', paddingTop: 0 }}>
-              <div>
-                <label className="pkg-label">스티커 형태</label>
-                <div className="chips">
-                  <button
-                    type="button"
-                    className="chip"
-                    aria-pressed={shape === 'circle'}
-                    onClick={() => setShape('circle')}
-                  >
-                    ● 원형
-                  </button>
-                  <button
-                    type="button"
-                    className="chip"
-                    aria-pressed={shape === 'square'}
-                    onClick={() => setShape('square')}
-                  >
-                    ■ 사각
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="pkg-label">인쇄 규격</label>
-                <div className="chips">
-                  {STICKER_SIZES.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      className="chip"
-                      aria-pressed={sizeCm === s}
-                      onClick={() => setSizeCm(s)}
-                    >
-                      {s}×{s}cm
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-
           </div>
 
           {/* 실시간 유효성 경고 피드백 */}

@@ -7,7 +7,7 @@ interface Props {
 
 const STEPS = [
   { no: 1 as const, name: '포장지 선택', desc: '어울리는 포장 디자인' },
-  { no: 2 as const, name: '메시지 꾸미기', desc: '추천 템플릿과 문구' },
+  { no: 2 as const, name: '인쇄물 꾸미기', desc: '추천 템플릿과 문구' },
   { no: 3 as const, name: '최종 확인', desc: '포장 모습과 주문 접수' },
 ];
 

@@ -246,7 +246,7 @@ export function Step3Review(props: Props) {
       {/* 하단 완료 액션 */}
       <div className="pkg-step-actions spread">
         <button type="button" className="btn ghost large" onClick={() => onGoStep(2)}>
-          ‹ 이전: 메시지 수정
+          ‹ 이전: 인쇄물 수정
         </button>
         <button
           type="button"
