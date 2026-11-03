@@ -1,6 +1,6 @@
 # 온답 추천 엔진 MVP
 
-> **작업 시작 전 필독:** [인계 기록 START-HERE.md](START-HERE.md) — 운영 배포(https://ondapmvp.vercel.app , commit `5a24fa7`) 완료 및 결재 활성화(`ENABLE_APPROVAL_DOCS=true`). 현재 통합·검증 브랜치: `codex/core-ui-validation`.
+> **작업 시작 전 필독:** [인계 기록 START-HERE.md](START-HERE.md) — 운영 배포(https://ondapmvp.vercel.app , 기준 커밋 `2800cab`) 완료 및 결재 활성화(`ENABLE_APPROVAL_DOCS=true`). 현재 통합·검증 브랜치: `codex/core-ui-validation`.
 
 행사 정보(행사 유형·관계·예산)를 넣으면 격식지수로 답례품 3개를 추천하는 엔진입니다. 상품은 카페24 쇼핑몰에서 가져옵니다.
 
@@ -56,9 +56,9 @@ Node 24 이상이 필요합니다(TypeScript를 그대로 실행).
 
 고객이 입력한 행사·관계·예산·수량 조건을 바탕으로 `evaluateRecommendation`(`src/recommendation/evaluate.ts`)을 통해 적합 상품을 평가하고 종합점수 순위로 추천 3개를 선정합니다.
 
-1. **사전 필터링 (거르기)**: 미진열·품절 상품, 필수 지표 미입력 상품, 해당 행사 제외 상품, 1인당 예산 초과 상품 제외
-2. **행사 적합도 점수 ($E$, Event Fit Score, 0~100점)**: 행사 가중치와 관계 적합도, 상품 지표 가중합 및 선물의 의미 보너스 반영
-3. **가격 대비 가치 점수 ($V$, Price Value Score, 0~100점)**: 1인당 예산 대비 상품 단가의 적정성 및 가격 만족도 평가
+1. **사전 필터링 (거르기)**: 미진열·품절, 미검수·근거 부족, 행사별 희소값 허용 범위 이탈, 고객·행사 제외, 상품비 예산 초과 등의 상품 제외
+2. **행사 적합도 점수 ($E$, Event Fit Score, 0~100점)**: 행사 격식 수준 F와 상품 희소값 R의 차이를 이용하여 `E = 100 − |R − F|`로 계산
+3. **가격 대비 가치 점수 ($V$, Price Value Score, 0~100점)**: 예산 대비 상품비 비율을 이용하여 `V = 100 × (1 − 상품비 ÷ 예산)`으로 계산
 4. **종합 추천 점수 ($S$, Recommendation Score, 0~100점)**:
    - 예산 설정 시: $S = \frac{E \times w_E + V \times w_V}{w_E + w_V}$ (기본 가중치 비율 70:30)
    - 예산 미설정 시: $S = E$
@@ -66,7 +66,7 @@ Node 24 이상이 필요합니다(TypeScript를 그대로 실행).
    - 정렬 순서: 종합점수($S$) 내림차순 → 행사적합도($E$) 내림차순 → 단가 오름차순 → 상품번호 오름차순
    - 종합점수 1위가 **ONDAP'S PICK**으로 선정되며, 2위와 3위가 순차적으로 추천 후보로 제공됩니다.
    - (참고: 과거 v0.1 가안의 카테고리 강제 분산이나 예산 1.3배 자동 완화 규칙은 폐기되었습니다.)
-   - 상세 산식 및 계산 규칙은 [docs/추천-산식-정리.md](docs/추천-산식-정리.md)를 참조합니다.
+   - 상세 산식 및 계산 규칙은 [추천 계산 코드](src/recommendation/evaluate.ts)를 참조합니다.
 
 ## 카페24 연결
 
@@ -95,7 +95,7 @@ Node 24 이상이 필요합니다(TypeScript를 그대로 실행).
 
 ## 배포 (5단계)
 
-- 운영 주소: https://ondapmvp.vercel.app (main 브랜치 커밋 `5a24fa7` 배포 완료, 서울 리전 icn1)
+- 운영 주소: https://ondapmvp.vercel.app (main 브랜치 기준 커밋 `2800cab` 배포 완료, 서울 리전 icn1)
 - 결재 문서 활성화: `ENABLE_APPROVAL_DOCS=true`로 운영 활성화 완료
 - `main` 브랜치에 푸시하면 자동 배포된다.
 - `*-xshoner-3375s-projects.vercel.app` 주소는 Vercel 로그인 보호가 걸려 있어 일반 방문자는 열 수 없다. 외부에 공유할 때는 운영 주소를 쓴다.
