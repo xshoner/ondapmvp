@@ -44,8 +44,9 @@
   function clear() { try { localStorage.removeItem(KEY); } catch (e) { /* 무시 */ } }
 
   function fire(el) {
-    if (window.jQuery) window.jQuery(el).trigger('input').trigger('change');
-    else {
+    if (window.jQuery) {
+      window.jQuery(el).trigger('keyup').trigger('input').trigger('change').trigger('blur');
+    } else {
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
     }
@@ -112,38 +113,131 @@
     return '<b style="font-family:Consolas,monospace;letter-spacing:.04em;background:rgba(255,255,255,.18);padding:1px 6px;border-radius:6px">' + code + '</b>';
   };
 
+  var PACKAGING_OPT_REGEX = /포장\s*디자인|포장디자인|포장\s*신청|포장\s*서비스|선물\s*포장|스티커\s*제작/i;
+  var NEGATIVE_OPT_REGEX = /신청\s*안함|미신청|포장\s*없음|선택\s*안함|기본\s*포장\s*없음/i;
+
+  function findAndSelectPackagingOption() {
+    var selects = document.querySelectorAll('select');
+    for (var i = 0; i < selects.length; i++) {
+      var sel = selects[i];
+      if (sel.disabled) continue;
+      for (var j = 0; j < sel.options.length; j++) {
+        var opt = sel.options[j];
+        if (opt.value && opt.value !== '*' && opt.value !== '**' && PACKAGING_OPT_REGEX.test(opt.text) && !NEGATIVE_OPT_REGEX.test(opt.text)) {
+          if (sel.value !== opt.value) {
+            sel.value = opt.value;
+            fire(sel);
+          }
+          return opt.text.trim();
+        }
+      }
+    }
+    var radios = document.querySelectorAll('input[type="radio"]');
+    for (var r = 0; r < radios.length; r++) {
+      var radio = radios[r];
+      var label = radio.closest('label') || document.querySelector('label[for="' + radio.id + '"]');
+      var text = (label ? label.textContent : '') + ' ' + (radio.value || '');
+      if (PACKAGING_OPT_REGEX.test(text) && !NEGATIVE_OPT_REGEX.test(text)) {
+        if (!radio.checked) {
+          radio.checked = true;
+          fire(radio);
+        }
+        return text.trim();
+      }
+    }
+    return null;
+  }
+
   // 카페24 상품 스크립트가 페이지 로딩 뒤 수량을 1로 다시 맞추므로, 로딩이 끝날 때까지 몇 번 더 맞춘다.
-  // 고객이 수량을 직접 건드리면 그때부터는 손대지 않는다.
-  function keepQuantity(input, n) {
+  // 옵션 품목 수량(.quantity_opt) 또는 기본 수량(#quantity)을 모두 지원하며, 고객이 수량을 직접 건드리면 그때부터는 손대지 않는다.
+  function keepQuantity(n) {
     var touched = false;
     var stop = function () { touched = true; };
-    var box = input.closest('.quantity, td, li') || input.parentElement;
-    box.addEventListener('click', stop, true);
-    input.addEventListener('keydown', stop);
+    document.addEventListener('click', function (e) {
+      if (e.target && (e.target.matches('.up, .down, [class*="QuantityUp"], [class*="QuantityDown"], [class*="quantity_opt_up"]') || e.target.closest('.up, .down, [class*="QuantityUp"], [class*="QuantityDown"]'))) {
+        touched = true;
+      }
+    }, true);
+    document.addEventListener('keydown', function (e) {
+      if (e.target && (e.target.matches('input.quantity_opt, #quantity, input[name="quantity_opt[]"]'))) {
+        touched = true;
+      }
+    }, true);
+
     var apply = function () {
-      if (touched || input.value === String(n)) return;
-      input.value = String(n);
-      fire(input);
+      if (touched) return;
+      var optInputs = document.querySelectorAll('input.quantity_opt, input[name="quantity_opt[]"], input[id*="quantity_opt"]');
+      if (optInputs.length > 0) {
+        for (var i = 0; i < optInputs.length; i++) {
+          var inp = optInputs[i];
+          if (inp.value !== String(n)) {
+            inp.value = String(n);
+            fire(inp);
+          }
+        }
+      } else {
+        var baseQty = document.querySelector('#quantity');
+        if (baseQty && baseQty.offsetParent !== null && baseQty.value !== String(n)) {
+          baseQty.value = String(n);
+          fire(baseQty);
+        }
+      }
     };
     apply();
     window.addEventListener('load', apply);
-    [300, 800, 1500, 2500, 4000].forEach(function (ms) { setTimeout(apply, ms); });
+    [200, 500, 1000, 1800, 3000].forEach(function (ms) { setTimeout(apply, ms); });
   }
 
   function onProductPage(state, fromLink) {
     var no = productNoHere(); // 짧은 상품 주소(/product/이름/11/)에서도 번호를 찾는다
     if (state.productNo && no && state.productNo !== no) return; // 다른 상품
-    var qtyText = '';
-    if (fromLink) {
-      var qty = document.querySelector('#quantity');
-      if (qty && qty.offsetParent !== null) {
-        keepQuantity(qty, state.qty);
-        qtyText = ' 수량은 <b>' + state.qty + '개</b>로 맞춰 두었어요.';
-      } else {
-        qtyText = ' 옵션을 고르고 수량 <b>' + state.qty + '개</b>를 선택해 주세요.';
-      }
+    var qty = state.qty;
+    var autoOptSelected = false;
+
+    if (state.code) {
+      var trySelect = function () {
+        var optText = findAndSelectPackagingOption();
+        if (optText) autoOptSelected = true;
+        keepQuantity(qty);
+        return optText;
+      };
+      trySelect();
+      [200, 500, 1000, 1800].forEach(function (ms) { setTimeout(trySelect, ms); });
+      // 다른 필수 옵션(맛/사이즈 등)을 먼저 골라야 포장 옵션이 활성화되는 복합 옵션 스킨 대응
+      document.addEventListener('change', function (e) {
+        if (e.target && e.target.matches('select, input[type="radio"]')) {
+          setTimeout(trySelect, 80);
+        }
+      });
+    } else if (fromLink) {
+      keepQuantity(qty);
     }
-    banner(state.code ? '포장 디자인 ' + badge(state.code) + ' 저장 완료.' + qtyText + '<br>포장 디자인 서비스 옵션과 추가 요금을 선택·확인해 주세요. 주문서에서 상품·수량·코드를 다시 확인해요.' : '온답에서 고른 상품이에요.' + qtyText + '<br>필요한 옵션을 고르고 주문 수량을 확인해 주세요.');
+
+    if (state.code) {
+      setTimeout(function () {
+        var hasOptRow = document.querySelectorAll('input.quantity_opt, input[name="quantity_opt[]"]').length > 0;
+        if (autoOptSelected || hasOptRow) {
+          banner(
+            '포장 디자인 ' + badge(state.code) + ' 저장 완료.<br>' +
+            '<b>포장 디자인 옵션과 수량(' + qty + '개)을 자동으로 선택</b>하고 총 결제 금액을 맞췄어요.<br>' +
+            '주문서에서 상품·수량·코드를 다시 확인해요.',
+            [copyButton(state.code)]
+          );
+        } else {
+          var baseQtyEl = document.querySelector('#quantity');
+          var qtyInfo = baseQtyEl && baseQtyEl.offsetParent !== null ? ' 수량은 <b>' + qty + '개</b>로 맞춰 두었어요.' : ' 옵션을 고르고 수량 <b>' + qty + '개</b>를 선택해 주세요.';
+          banner(
+            '포장 디자인 ' + badge(state.code) + ' 저장 완료.' + qtyInfo + '<br>' +
+            '포장 디자인 서비스 옵션과 추가 요금을 선택·확인해 주세요. 주문서에서 상품·수량·코드를 다시 확인해요.',
+            [copyButton(state.code)]
+          );
+        }
+      }, 400);
+    } else {
+      var baseQty = document.querySelector('#quantity');
+      var baseQtyText = baseQty && baseQty.offsetParent !== null ? ' 수량은 <b>' + qty + '개</b>로 맞춰 두었어요.' : ' 필요한 옵션을 고르고 수량 <b>' + qty + '개</b>를 선택해 주세요.';
+      banner('온답에서 고른 상품이에요.' + baseQtyText);
+    }
   }
 
   function productNoHere() {
