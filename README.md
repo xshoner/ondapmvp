@@ -1,6 +1,6 @@
 # 온답 추천 엔진 MVP
 
-> **다음 작업 시작 전 필독:** [인계 기록 START-HERE.md](START-HERE.md). 이 브랜치는 추천 재설계 작업 중이며 운영 배포본이 아닙니다.
+> **작업 시작 전 필독:** [인계 기록 START-HERE.md](START-HERE.md) — 운영 배포(https://ondapmvp.vercel.app , commit `5a24fa7`) 완료 및 결재 활성화(`ENABLE_APPROVAL_DOCS=true`). 현재 통합·검증 브랜치: `codex/core-ui-validation`.
 
 행사 정보(행사 유형·관계·예산)를 넣으면 격식지수로 답례품 3개를 추천하는 엔진입니다. 상품은 카페24 쇼핑몰에서 가져옵니다.
 
@@ -35,8 +35,9 @@
 | `npm run sync` | 카페24 상품을 `data/cafe24-products.json`으로 가져오기 |
 | `npm run recommend -- 장례 상급자/어르신 50000` | 추천 1건과 점수 내역 보기 |
 | `npm run report -- 60000` | 32개 시나리오(행사 8 × 관계 4) 결과표 → `reports/scenario-report.md` |
-| `npm test` | 엔진 단위 테스트 + 시나리오 불변 조건 검사 |
-| `npm run typecheck` | 타입 검사 |
+| `npm test` | 엔진 단위/통합 테스트 + 시나리오 불변 조건 검사 (276개 전체 통과) |
+| `npm run typecheck` | TypeScript 타입 검사 (`tsc --noEmit`) |
+| `node node_modules/next/dist/bin/next build --webpack` | 프로덕션 Next.js Webpack 빌드 검증 |
 | `npm run doctor [-- https://주소]` | 설정·DB·카페24·배포 점검 |
 | `npm run db:setup-sql` | 마이그레이션 + seed → `supabase/setup.sql` |
 | `npm run cafe24:snippets -- https://주소` | 카페24에 붙일 코드 생성 |
@@ -51,19 +52,21 @@ Node 24 이상이 필요합니다(TypeScript를 그대로 실행).
 | `data/product-attributes.json` | 상품별 지표 점수, 적합 행사·관계, 제외 행사 | 온답 관리자 (현재는 개발 측 가안, `reviewed: false`) |
 | `data/config/engine.json` | 지표 정의, 행사·관계별 가중치, 격식 목표, 보너스 | 온답 (특허 자료가 오면 교체) |
 
-## 점수 계산 (온답 격식지수 가안 v0.1, 개발 측 자체 모델)
+## 점수 계산 (추천 엔진 평가 모델)
 
-지표 6개: 희소성, 장인·전통성, 지역 가치, 신뢰·안전, 실용성, 격식 적합도. 앞의 4개는 심이사 관리자 시안, 신뢰·안전(위생)과 실용성은 회의 내용에서 가져왔다.
+고객이 입력한 행사·관계·예산·수량 조건을 바탕으로 `evaluateRecommendation`(`src/recommendation/evaluate.ts`)을 통해 적합 상품을 평가하고 종합점수 순위로 추천 3개를 선정합니다.
 
-1. 거르기: 미진열·품절, 지표 미입력, 해당 행사 제외 상품, 예산 초과
-2. 지표 점수: 행사 가중치 × 관계 보정. 격식 적합도는 상황별 목표 수준에 가까울수록 높음
-3. 보너스: 행사 적합 +6, 행사 미지정 −12, 관계 적합 +4, 선물의 의미 일치 +6, 소멸위기지역 상품 +3 → 격식지수(0~100)
-4. 순위대로 3개를 고르되 카테고리가 겹치지 않게. 부족하면 예산을 1.3배까지 넓힘
-5. 격식 단계(격을 갖춘 선택 / 실속 있는 정성 / 가벼운 안부의 예의)와 추천 문구를 점수 내역으로 만든다
-
-상품별 초기값은 `node scripts/seed-attributes.mjs --force`로 다시 만들 수 있다(관리자 화면 수정분을 덮어씀).
-
-계산식은 `src/engine/formality.ts`, 선택 규칙은 `src/engine/recommend.ts`에 있습니다.
+1. **사전 필터링 (거르기)**: 미진열·품절 상품, 필수 지표 미입력 상품, 해당 행사 제외 상품, 1인당 예산 초과 상품 제외
+2. **행사 적합도 점수 ($E$, Event Fit Score, 0~100점)**: 행사 가중치와 관계 적합도, 상품 지표 가중합 및 선물의 의미 보너스 반영
+3. **가격 대비 가치 점수 ($V$, Price Value Score, 0~100점)**: 1인당 예산 대비 상품 단가의 적정성 및 가격 만족도 평가
+4. **종합 추천 점수 ($S$, Recommendation Score, 0~100점)**:
+   - 예산 설정 시: $S = \frac{E \times w_E + V \times w_V}{w_E + w_V}$ (기본 가중치 비율 70:30)
+   - 예산 미설정 시: $S = E$
+5. **추천 1~3위 선정 (종합점수 순위)**:
+   - 정렬 순서: 종합점수($S$) 내림차순 → 행사적합도($E$) 내림차순 → 단가 오름차순 → 상품번호 오름차순
+   - 종합점수 1위가 **ONDAP'S PICK**으로 선정되며, 2위와 3위가 순차적으로 추천 후보로 제공됩니다.
+   - (참고: 과거 v0.1 가안의 카테고리 강제 분산이나 예산 1.3배 자동 완화 규칙은 폐기되었습니다.)
+   - 상세 산식 및 계산 규칙은 [docs/추천-산식-정리.md](docs/추천-산식-정리.md)를 참조합니다.
 
 ## 카페24 연결
 
@@ -92,8 +95,10 @@ Node 24 이상이 필요합니다(TypeScript를 그대로 실행).
 
 ## 배포 (5단계)
 
-- 운영 주소: https://ondapmvp.vercel.app (Vercel 프로젝트 `ondapmvp`, 서울 리전 icn1)
+- 운영 주소: https://ondapmvp.vercel.app (main 브랜치 커밋 `5a24fa7` 배포 완료, 서울 리전 icn1)
+- 결재 문서 활성화: `ENABLE_APPROVAL_DOCS=true`로 운영 활성화 완료
 - `main` 브랜치에 푸시하면 자동 배포된다.
 - `*-xshoner-3375s-projects.vercel.app` 주소는 Vercel 로그인 보호가 걸려 있어 일반 방문자는 열 수 없다. 외부에 공유할 때는 운영 주소를 쓴다.
-- Vercel 환경변수: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `ONDAP_DATA_SOURCE=supabase`, `CAFE24_MALL_ID`, `CAFE24_CLIENT_ID`, (선택) `CAFE24_FRONT_API_KEY`를 Sensitive로 등록
+- Vercel 환경변수: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `ONDAP_DATA_SOURCE=supabase`, `ENABLE_APPROVAL_DOCS=true`, `CAFE24_MALL_ID`, `CAFE24_CLIENT_ID`, (선택) `CAFE24_FRONT_API_KEY`를 Sensitive로 등록
+- 실환경 미확인 상태: 실제 물리 모바일 단말기 렌더링, 한컴오피스 데스크톱 실프로그램 레이아웃, 운영 관리자 AI 실환경 API 호출 검증은 미실시 상태임 (상세 내용은 [START-HERE.md](START-HERE.md) 참조)
 - 현재 Vercel Hobby 플랜이라 비상업 시연용이다. 실제 운영은 Pro 플랜이나 고객 명의 계정으로 옮긴다.

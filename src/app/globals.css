@@ -1280,95 +1280,6 @@ table.data.designs-table tr.late.cursor td:first-child { box-shadow: inset 3px 0
   font-size: 18px;
 }
 
-.pkg-event-selector {
-  padding: 12px 14px;
-}
-
-/* 템플릿 카드 목록 */
-.pkg-template-list {
-  display: grid;
-  gap: 10px;
-}
-
-.pkg-template-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 12px 14px;
-  background: var(--surface);
-  border: 1.5px solid var(--line);
-  border-radius: var(--radius);
-  cursor: pointer;
-  text-align: left;
-  transition: all 0.15s ease;
-}
-
-.pkg-template-card:hover {
-  border-color: var(--line-strong);
-  background: var(--paper);
-}
-
-.pkg-template-card.selected {
-  border-color: var(--pine);
-  background: var(--pine-weak);
-  box-shadow: 0 0 0 1px var(--pine);
-}
-
-.pkg-template-preview-badge {
-  flex: none;
-  padding-top: 2px;
-}
-
-.pkg-template-shape-preview {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border: 1px solid var(--line-strong);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
-}
-
-.pkg-template-shape-preview.circle {
-  border-radius: 50%;
-}
-
-.pkg-template-shape-preview.square {
-  border-radius: 6px;
-}
-
-.pkg-preview-mini-font {
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.pkg-template-details {
-  flex: 1;
-  min-width: 0;
-}
-
-.pkg-template-title-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.pkg-template-name {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--ink);
-}
-
-.pkg-template-text-sample {
-  margin: 4px 0 2px;
-  font-size: 13.5px;
-  color: var(--ink-soft);
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 /* 기본 문구 편집 카드 */
 .pkg-basic-edit-card {
   padding: 18px 20px;
@@ -1667,30 +1578,14 @@ table.data.designs-table tr.late.cursor td:first-child { box-shadow: inset 3px 0
   resize: vertical;
 }
 
-.pkg-textarea:focus, .pkg-text-input:focus {
+.pkg-textarea:focus {
   outline: 2px solid var(--pine);
   border-color: var(--pine);
-}
-
-.pkg-text-input {
-  width: 100%;
-  font-size: 14.5px;
-  padding: 9px 12px;
 }
 
 .pkg-input-hint {
   text-align: right;
   font-size: 11.5px;
-}
-
-.pkg-optional-fields-wrap {
-  padding-top: 8px;
-  border-top: 1px dashed var(--line);
-}
-
-.pkg-optional-toggles {
-  display: flex;
-  gap: 14px;
 }
 
 .pkg-shape-size-row {

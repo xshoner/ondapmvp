@@ -1,8 +1,7 @@
 'use client';
 
-import Image from 'next/image';
 import { won } from '@/lib/result-query.ts';
-import type { DesignDraft, PackagingStyle, StickerShape, StickerSizeCm, TextLayer } from '@/packaging/types.ts';
+import type { PackagingStyle, StickerShape, StickerSizeCm, TextLayer } from '@/packaging/types.ts';
 import type { EditorLayer } from '../editor-types.ts';
 
 interface Props {

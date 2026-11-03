@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import Image from 'next/image';
 import dynamic from 'next/dynamic';
-import { CANVAS_UNITS, bleedUnits, printPixels, STICKER_SIZES } from '@/packaging/rules.ts';
-import type { PackagingStyle, StickerShape, StickerSizeCm, TextLayer } from '@/packaging/types.ts';
+import { CANVAS_UNITS, bleedUnits, type Box } from '@/packaging/rules.ts';
+import type { PackagingStyle, StickerShape, StickerSizeCm } from '@/packaging/types.ts';
 import type { CanvasApi, EditorLayer, TextRect } from '../editor-types.ts';
 
 const StickerCanvas = dynamic(() => import('../sticker-canvas.tsx'), {
@@ -26,7 +25,7 @@ interface Props {
   onUpdateLayer: (id: string, patch: Partial<EditorLayer>) => void;
   apiRef: RefObject<CanvasApi | null>;
   onTextRects: (rects: Record<string, TextRect>) => void;
-  warnBoxes: any[];
+  warnBoxes: Box[];
   onOpenRealSize: () => void;
 }
 

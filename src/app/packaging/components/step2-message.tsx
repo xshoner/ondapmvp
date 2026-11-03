@@ -1,19 +1,16 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import Image from 'next/image';
 import {
   FONTS,
-  MAX_LAYERS,
   STICKER_SIZES,
   fillPlaceholders,
   printPixels,
   type FontId,
 } from '@/packaging/rules.ts';
-import type { DesignCategory, DesignDraft, DesignImage, DesignText, StickerShape, StickerSizeCm, TextLayer } from '@/packaging/types.ts';
+import type { DesignDraft, DesignImage, DesignText, StickerShape, StickerSizeCm, TextLayer } from '@/packaging/types.ts';
 import type { EditorImageLayer, EditorLayer } from '../editor-types.ts';
-import type { StickerTemplate } from '@/packaging/templates.ts';
-import { todayLabel } from '../editor-store.ts';
 
 const COLORS = ['#1f2a26', '#ffffff', '#2f5a4b', '#b8903a', '#b5523b', '#1d3557', '#7a2e3a', '#e8a0b4'];
 const BACKGROUNDS = ['#ffffff', '#f6edd8', '#e3ede7', '#f7e6e1', '#1f3f34'];
@@ -21,18 +18,11 @@ const BACKGROUNDS = ['#ffffff', '#f6edd8', '#e3ede7', '#f7e6e1', '#1f3f34'];
 interface Props {
   withSticker: boolean;
   setWithSticker: (v: boolean) => void;
-  event: DesignCategory | null;
-  setEvent: (e: DesignCategory) => void;
-  events: { id: DesignCategory; name: string }[];
   eventName?: string | null;
   relationName?: string | null;
-  templates: StickerTemplate[];
-  selectedTemplateId: string | null;
-  onSelectTemplate: (t: StickerTemplate) => void;
   mainText: string;
   onMainTextChange: (t: string) => void;
   fields: DesignDraft['fields'];
-  onFieldsChange: (f: DesignDraft['fields']) => void;
   shape: StickerShape;
   setShape: (s: StickerShape) => void;
   sizeCm: StickerSizeCm;
@@ -41,24 +31,18 @@ interface Props {
   setBackground: (b: string) => void;
   layers: EditorLayer[];
   selectedId: string | null;
-  onSelectLayer: (id: string | null) => void;
   onUpdateLayer: (id: string, patch: Partial<EditorLayer>) => void;
-  onAddText: () => void;
-  onRemoveSelected: () => void;
-  onMoveSelected: (dir: 1 | -1) => void;
   onUpload: (file: File | undefined) => void;
   consent: boolean;
   setConsent: (c: boolean) => void;
   canUndo: boolean;
   onUndo: () => void;
-  onClearAll: () => void;
   images: DesignImage[];
   otherImages: DesignImage[];
   categoryNames: Record<string, string>;
   onPickImage: (img: DesignImage) => void;
   onRemoveImage: () => void;
   nearTexts: DesignText[];
-  otherTexts: DesignText[];
   onPickText: (t: DesignText) => void;
   overflowBoxes: unknown[];
   overlapBoxes: unknown[];
@@ -72,18 +56,11 @@ export function Step2Message(props: Props) {
   const {
     withSticker,
     setWithSticker,
-    event,
-    setEvent,
-    events,
     eventName,
     relationName,
-    templates,
-    selectedTemplateId,
-    onSelectTemplate,
     mainText,
     onMainTextChange,
     fields,
-    onFieldsChange,
     shape,
     setShape,
     sizeCm,
@@ -92,24 +69,18 @@ export function Step2Message(props: Props) {
     setBackground,
     layers,
     selectedId,
-    onSelectLayer,
     onUpdateLayer,
-    onAddText,
-    onRemoveSelected,
-    onMoveSelected,
     onUpload,
     consent,
     setConsent,
     canUndo,
     onUndo,
-    onClearAll,
     images,
     otherImages,
     categoryNames,
     onPickImage,
     onRemoveImage,
     nearTexts,
-    otherTexts,
     onPickText,
     overflowBoxes,
     overlapBoxes,
@@ -120,9 +91,6 @@ export function Step2Message(props: Props) {
   } = props;
 
   const fileRef = useRef<HTMLInputElement>(null);
-  const [showEventPicker, setShowEventPicker] = useState(false);
-  const [showRecipient, setShowRecipient] = useState(Boolean(fields.recipient));
-  const [showDate, setShowDate] = useState(Boolean(fields.date));
   const [showMoreTexts, setShowMoreTexts] = useState(false);
   const [showMoreImages, setShowMoreImages] = useState(false);
 

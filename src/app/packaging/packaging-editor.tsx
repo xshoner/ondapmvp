@@ -9,7 +9,6 @@ import type { EventType } from '@/engine/types.ts';
 import {
   CANVAS_UNITS,
   MIN_PRINT_DPI,
-  STICKER_SIZES,
   bleedUnits,
   cautionWords,
   effectiveDpi,
@@ -17,7 +16,6 @@ import {
   fitScale,
   overlaps,
   printPixels,
-  totalCm,
   type FontId,
 } from '@/packaging/rules.ts';
 import type {
@@ -29,29 +27,23 @@ import type {
   PackagingStyle,
   StickerShape,
   StickerSizeCm,
-  TextLayer,
 } from '@/packaging/types.ts';
 import { loadSavedDesigns, makeThumb, rememberDesign } from '@/packaging/client.ts';
-import { matchesTarget, presetText } from '@/packaging/presets.ts';
+import { matchesTarget } from '@/packaging/presets.ts';
 import {
   applyImageSelectionToLayers,
   classifyDraftFormat,
   extractMainTextFromLayers,
-  formatSenderDisplay,
   getEventTemplates,
   isNamesUsedInLayers,
   syncFieldsToLayers,
   syncMainTextToLayers,
-  type DraftFormatType,
   type StickerTemplate,
 } from '@/packaging/templates.ts';
 import { saveDesignAction } from './actions.ts';
 import {
-  CARD_SHORT_MM,
-  PREVIEW_PX,
   autosave,
   clearAutosave,
-  forgetFields,
   fromStored,
   loadAutosave,
   loadFields,
@@ -60,7 +52,6 @@ import {
   rememberFields,
   savePreview,
   toStored,
-  todayLabel,
 } from './editor-store.ts';
 import type { CanvasApi, EditorHistoryEntry, EditorImageLayer, EditorLayer, EditorSnapshot, TextRect } from './editor-types.ts';
 
@@ -261,9 +252,6 @@ export function PackagingEditor(props: Props) {
   const texts = useMemo(() => {
     return props.texts.filter((t) => t.category === event || t.category === 'common');
   }, [props.texts, event]);
-  const otherTexts = useMemo(() => {
-    return props.texts.filter((t) => !texts.includes(t));
-  }, [props.texts, texts]);
 
   // 템플릿 적용 함수 (고객 수정 문구, 추가 문구 및 사진 보존)
   const applyTemplate = (tpl: StickerTemplate, checkConfirm = false) => {
@@ -413,20 +401,6 @@ export function PackagingEditor(props: Props) {
     lastPush.current = 0;
   };
 
-  const clearAll = () => {
-    if (prevSnap.current) {
-      history.current.push(prevSnap.current);
-      if (history.current.length > 50) history.current.shift();
-      setCanUndo(true);
-    }
-    setLayers([]);
-    setBackground('#ffffff');
-    setSelectedId(null);
-    setMainText('');
-    setFields({ recipient: '', sender: '', date: '' });
-    setNamesChecked(false);
-  };
-
   // 초기 시작 시: 기본 템플릿 세팅 및 자동보관/다시꾸미기 검사
   useEffect(() => {
     if (started.current) return;
@@ -555,13 +529,6 @@ export function PackagingEditor(props: Props) {
     setLayers((ls) => syncMainTextToLayers(ls, text, currentTemplate));
   };
 
-  // 받는 분, 보내는 사람, 날짜 입력 변경 시: 해당 레이어 실시간 동기화
-  const handleFieldsChange = (newFields: DesignDraft['fields']) => {
-    setFields(newFields);
-    setNamesChecked(false); // 이름 또는 날짜가 변경되면 철자 재확인 필요
-    setLayers((ls) => syncFieldsToLayers(ls, newFields, currentTemplate));
-  };
-
   // 선물 목적(답례 vs 축하) 변경
   const handlePurposeChange = (nextPurpose: GiftPurpose) => {
     if (nextPurpose === purpose) return;
@@ -585,37 +552,6 @@ export function PackagingEditor(props: Props) {
     const nextTemplates = getEventTemplates({
       event,
       purpose: nextPurpose,
-      relation: props.relation,
-      images: props.images,
-    });
-    if (nextTemplates.length > 0) {
-      applyTemplate(nextTemplates[0], false);
-    }
-  };
-
-  // 행사 변경
-  const handleEventChange = (nextEvent: DesignCategory) => {
-    if (nextEvent === event) return;
-    const customUploads = layers.filter((l): l is EditorImageLayer => l.type === 'image' && Boolean(l.uploaded));
-    const hasCustomEdits = autoTextEdited.current || customUploads.length > 0 || hasChosenImage.current;
-
-    if (hasCustomEdits) {
-      if (
-        !window.confirm(
-          '행사를 변경하면 해당 행사에 어울리는 추천 템플릿과 기본 문구로 교체됩니다. 직접 입력하신 이름과 사진은 유지됩니다. 계속하시겠습니까?'
-        )
-      ) {
-        return;
-      }
-    }
-
-    setEvent(nextEvent);
-    const matchingStyle = availableStyles.find((s) => matchesTarget(s, nextEvent, purpose, product.productNo));
-    if (matchingStyle) setStyleId(matchingStyle.id);
-
-    const nextTemplates = getEventTemplates({
-      event: nextEvent,
-      purpose,
       relation: props.relation,
       images: props.images,
     });
@@ -711,35 +647,6 @@ export function PackagingEditor(props: Props) {
     setLayers((ls) => ls.map((l) => (l.id === id ? ({ ...l, ...patch } as EditorLayer) : l)));
   };
 
-  const removeSelected = () => {
-    if (!selectedId) return;
-    if (selectedId === 'role-main') {
-      setMainText('');
-    } else if (selectedId === 'role-recipient') {
-      setFields((f) => ({ ...f, recipient: '' }));
-      setNamesChecked(false);
-    } else if (selectedId === 'role-sender') {
-      setFields((f) => ({ ...f, sender: '' }));
-      setNamesChecked(false);
-    } else if (selectedId === 'role-date') {
-      setFields((f) => ({ ...f, date: '' }));
-      setNamesChecked(false);
-    }
-    setLayers((ls) => ls.filter((l) => l.id !== selectedId));
-    setSelectedId(null);
-  };
-
-  const moveSelected = (dir: 1 | -1) => {
-    setLayers((ls) => {
-      const i = ls.findIndex((l) => l.id === selectedId);
-      const j = i + dir;
-      if (i < 0 || j < 0 || j >= ls.length) return ls;
-      const next = [...ls];
-      [next[i], next[j]] = [next[j], next[i]];
-      return next;
-    });
-  };
-
   // 사진 업로드 핸들러
   const handleUpload = async (file: File | undefined) => {
     setError(null);
@@ -789,31 +696,6 @@ export function PackagingEditor(props: Props) {
     if (selectedId && layers.find((l) => l.id === selectedId)?.type === 'image') {
       setSelectedId(null);
     }
-  };
-
-  // 텍스트 추가
-  const handleAddText = (initialText = '감사합니다') => {
-    if (layers.length >= 12) return setError('스티커에는 최대 12개까지 요소를 넣을 수 있습니다.');
-    autoTextEdited.current = true;
-    const font = currentTemplate?.font ?? 'serif';
-    const color = currentTemplate?.textColor ?? '#1f2a26';
-    const newL: TextLayer = {
-      id: newId(),
-      type: 'text',
-      text: initialText,
-      x: 500,
-      y: 500,
-      rotation: 0,
-      scaleX: 1,
-      scaleY: 1,
-      font,
-      fontSize: 66,
-      color,
-      stroke: null,
-      shadow: false,
-    };
-    setLayers((ls) => [...ls, newL]);
-    setSelectedId(newL.id);
   };
 
   // 추천 문구 선택
@@ -987,18 +869,11 @@ export function PackagingEditor(props: Props) {
             <Step2Message
               withSticker={withSticker}
               setWithSticker={setWithSticker}
-              event={event}
-              setEvent={handleEventChange}
-              events={events}
               eventName={eventName}
               relationName={props.relationName}
-              templates={templates}
-              selectedTemplateId={selectedTemplateId}
-              onSelectTemplate={(tpl) => applyTemplate(tpl, true)}
               mainText={mainText}
               onMainTextChange={handleMainTextChange}
               fields={fields}
-              onFieldsChange={handleFieldsChange}
               shape={shape}
               setShape={setShape}
               sizeCm={sizeCm}
@@ -1007,24 +882,18 @@ export function PackagingEditor(props: Props) {
               setBackground={setBackground}
               layers={rendered}
               selectedId={selectedId}
-              onSelectLayer={setSelectedId}
               onUpdateLayer={updateLayer}
-              onAddText={handleAddText}
-              onRemoveSelected={removeSelected}
-              onMoveSelected={moveSelected}
               onUpload={handleUpload}
               consent={consent}
               setConsent={setConsent}
               canUndo={canUndo}
               onUndo={undo}
-              onClearAll={clearAll}
               images={images}
               otherImages={otherImages}
               categoryNames={categoryNames}
               onPickImage={handlePickImage}
               onRemoveImage={handleRemoveImage}
               nearTexts={texts}
-              otherTexts={otherTexts}
               onPickText={handlePickText}
               overflowBoxes={overflowBoxes}
               overlapBoxes={overlapBoxes}
