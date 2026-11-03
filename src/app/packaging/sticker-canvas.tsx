@@ -258,7 +258,7 @@ function InlineTextEditor({
   const cardLeft = Math.max(8, Math.min(centerX - cardWidth / 2, displaySize - cardWidth - 8));
   const cardTop = Math.max(8, Math.min(centerY - 50, displaySize - 135));
 
-  const fontSizePx = Math.max(14, Math.min(22, Math.round(layer.fontSize * scale)));
+  const fontSizePx = Math.max(16, Math.min(22, Math.round(layer.fontSize * scale)));
 
   // 자동 포커스 및 모바일 가상 키보드 가림 방지
   useEffect(() => {
@@ -417,8 +417,7 @@ function InlineTextEditor({
           <button
             type="button"
             className="pkg-inline-cancel-btn"
-            onMouseDown={(e) => e.preventDefault()}
-            onTouchStart={(e) => e.preventDefault()}
+            onPointerDown={(e) => e.preventDefault()}
             onClick={handleCancel}
             aria-label="문구 편집 취소"
             style={{
@@ -438,8 +437,7 @@ function InlineTextEditor({
           <button
             type="button"
             className="pkg-inline-done-btn"
-            onMouseDown={(e) => e.preventDefault()}
-            onTouchStart={(e) => e.preventDefault()}
+            onPointerDown={(e) => e.preventDefault()}
             onClick={handleCommit}
             aria-label="문구 편집 완료"
             style={{
@@ -585,7 +583,10 @@ export default function StickerCanvas(props: Props) {
 
   const deselectIfEmpty = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
     if (e.target === e.target.getStage() || e.target.name() === 'bg') {
-      if (editingId !== null) setEditingId(null);
+      if (editingId !== null) {
+        commitActiveEditRef.current?.();
+        setEditingId(null);
+      }
       onSelect(null);
     }
   };
@@ -616,7 +617,7 @@ export default function StickerCanvas(props: Props) {
             <Rect name="bg" x={0} y={0} width={U} height={U} fill={background} />
             {layers.map((l) =>
               l.type === 'image' ? (
-                <ImageNode key={l.id} layer={l} onSelect={() => onSelect(l.id)} onChange={(p) => onChange(l.id, p)} drag={drag} />
+                <ImageNode key={l.id} layer={l} onSelect={() => { commitActiveEditRef.current?.(); onSelect(l.id); }} onChange={(p) => onChange(l.id, p)} drag={drag} />
               ) : (
                 <TextNode
                   key={`${l.id}-${fontVersion}`}
@@ -624,7 +625,7 @@ export default function StickerCanvas(props: Props) {
                   family={fontFamilies[l.font as FontId] ?? fontFamilies.sans}
                   isEditing={editingId === l.id}
                   isExporting={isExporting}
-                  onSelect={() => onSelect(l.id)}
+                  onSelect={() => { if (editingId !== l.id) commitActiveEditRef.current?.(); onSelect(l.id); }}
                   onStartEdit={() => setEditingId(l.id)}
                   onChange={(p) => onChange(l.id, p)}
                   drag={drag}

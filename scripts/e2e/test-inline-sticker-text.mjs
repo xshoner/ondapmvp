@@ -50,7 +50,7 @@ async function run() {
     check('기존 하단 "선택한 문구 편집" textarea 완전 삭제 확인', !oldTextareaExists);
 
     // 4. Step 2 (메시지 꾸미기)로 이동
-    await b.click('button', '다음: 메시지 꾸미기');
+    await b.click('button', '다음: 인쇄물 꾸미기');
     await b.sleep(400);
 
     // 5. 캔버스에서 메인 문구 클릭 시뮬레이션
@@ -212,6 +212,39 @@ async function run() {
     await b.click('.pkg-inline-cancel-btn');
     await b.sleep(300);
 
+    // 편집 중 배경을 터치하면 작성 내용을 잃지 않고 확정한다.
+    await b.evaluate(`
+      const stage = ${konva};
+      const textNode = stage.find('Text')[0];
+      textNode.fire('mousedown', { evt: { clientX: 180, clientY: 200 } });
+      textNode.fire('click', { evt: { clientX: 180, clientY: 200 } });
+    `);
+    await b.waitFor(`document.querySelector('.pkg-inline-editor-textarea')`);
+    await b.evaluate(`
+      const ta = document.querySelector('.pkg-inline-editor-textarea');
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
+      setter.call(ta, '배경 선택 후 보존');
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+    `);
+    await b.sleep(200);
+    await b.evaluate(`const stage = ${konva}; stage.findOne('.bg').fire('touchstart', { evt: { touches: [] } }, true);`);
+    await b.sleep(300);
+    const afterOutsideTap = await b.evaluate(`return ${konva}.find('Text')[0]?.text()`);
+    check('편집 중 배경 터치 시 입력 보존', afterOutsideTap === '배경 선택 후 보존', afterOutsideTap);
+    await b.evaluate(`
+      const stage = ${konva}; const node = stage.find('Text')[0];
+      node.fire('mousedown', { evt: { clientX: 180, clientY: 200 } });
+      node.fire('click', { evt: { clientX: 180, clientY: 200 } });
+    `);
+    await b.waitFor(`document.querySelector('.pkg-inline-editor-textarea')`);
+    await b.evaluate(`
+      const ta = document.querySelector('.pkg-inline-editor-textarea');
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(ta, ${JSON.stringify(sampleKoreanMultiline)});
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+    `);
+    await b.click('.pkg-inline-done-btn');
+    await b.sleep(300);
+
     // 12. 최종 저장 및 코드 발급 검증
     await b.click('button', '다음: 최종 확인');
     await b.sleep(500);
@@ -245,7 +278,6 @@ async function run() {
       const t = ${konva}.find('Text')[0];
       return t ? t.text() : null;
     `);
-    check('저장본 재조회 시 직접 편집한 한글·줄바꿈 문구 완전 복원', restoredKonvaText === sampleKoreanMultiline, restoredKonvaText);
     check('저장본 재조회 시 직접 편집한 한글·줄바꿈 문구 완전 복원', restoredKonvaText === sampleKoreanMultiline, restoredKonvaText);
 
   } catch (err) {
