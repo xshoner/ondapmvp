@@ -104,8 +104,29 @@ function ImageNode({ layer, onSelect, onChange, drag }: { layer: EditorImageLaye
   );
 }
 
-function TextNode({ layer, family, onSelect, onChange, drag }: { layer: TextLayer; family: string; onSelect(): void; onChange(p: Partial<EditorLayer>): void; drag: DragProps }) {
+function TextNode({
+  layer,
+  family,
+  isEditing,
+  isExporting,
+  onSelect,
+  onStartEdit,
+  onChange,
+  drag,
+}: {
+  layer: TextLayer;
+  family: string;
+  isEditing: boolean;
+  isExporting: boolean;
+  onSelect(): void;
+  onStartEdit(): void;
+  onChange(p: Partial<EditorLayer>): void;
+  drag: DragProps;
+}) {
   const ref = useRef<Konva.Text>(null);
+  const isDraggingRef = useRef(false);
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+
   // 가운데 기준으로 돌고 커지도록 글자 크기를 잰 뒤 기준점을 옮긴다
   useEffect(() => {
     const n = ref.current;
@@ -114,11 +135,64 @@ function TextNode({ layer, family, onSelect, onChange, drag }: { layer: TextLaye
     n.offsetY(n.height() / 2);
     n.getLayer()?.batchDraw();
   });
+
+  const handlePointerDown = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+    const evt = e.evt;
+    let clientX = 0;
+    let clientY = 0;
+    if ('touches' in evt && evt.touches && evt.touches.length > 0) {
+      clientX = evt.touches[0].clientX;
+      clientY = evt.touches[0].clientY;
+    } else if ('clientX' in evt) {
+      clientX = (evt as MouseEvent).clientX;
+      clientY = (evt as MouseEvent).clientY;
+    }
+    pointerStartRef.current = { x: clientX, y: clientY };
+    isDraggingRef.current = false;
+    onSelect();
+  };
+
+  const handleDragStart = () => {
+    isDraggingRef.current = true;
+  };
+
+  const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
+    drag.onDragEnd();
+    onChange({ x: e.target.x(), y: e.target.y() });
+    setTimeout(() => {
+      isDraggingRef.current = false;
+    }, 150);
+  };
+
+  const handleTriggerEdit = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+    if (isDraggingRef.current) return;
+    const evt = e.evt;
+    if (pointerStartRef.current) {
+      let clientX = 0;
+      let clientY = 0;
+      if ('touches' in evt && evt.changedTouches && evt.changedTouches.length > 0) {
+        clientX = evt.changedTouches[0].clientX;
+        clientY = evt.changedTouches[0].clientY;
+      } else if ('clientX' in evt) {
+        clientX = (evt as MouseEvent).clientX;
+        clientY = (evt as MouseEvent).clientY;
+      }
+      const dx = Math.abs(clientX - pointerStartRef.current.x);
+      const dy = Math.abs(clientY - pointerStartRef.current.y);
+      if (dx > 10 || dy > 10) return;
+    }
+    onSelect();
+    onStartEdit();
+  };
+
+  const isPlaceholder = !layer.text;
+  const displayText = isExporting ? layer.text : (layer.text || '(문구 입력)');
+
   return (
     <KText
       ref={ref}
       id={layer.id}
-      text={layer.text}
+      text={displayText}
       x={layer.x}
       y={layer.y}
       rotation={layer.rotation}
@@ -129,22 +203,262 @@ function TextNode({ layer, family, onSelect, onChange, drag }: { layer: TextLaye
       fontSize={layer.fontSize}
       lineHeight={1.3}
       align="center"
-      fill={layer.color}
-      stroke={layer.stroke ?? undefined}
-      strokeWidth={layer.stroke ? layer.fontSize * 0.12 : 0}
+      fill={isPlaceholder ? '#8a948f' : layer.color}
+      opacity={isEditing ? 0 : isPlaceholder ? 0.6 : 1}
+      stroke={isPlaceholder ? undefined : (layer.stroke ?? undefined)}
+      strokeWidth={!isPlaceholder && layer.stroke ? layer.fontSize * 0.12 : 0}
       fillAfterStrokeEnabled
       lineJoin="round"
-      shadowEnabled={layer.shadow}
+      shadowEnabled={!isPlaceholder && layer.shadow}
       shadowColor="rgba(0,0,0,0.45)"
       shadowBlur={layer.fontSize * 0.15}
       shadowOffsetX={layer.fontSize * 0.04}
       shadowOffsetY={layer.fontSize * 0.06}
       draggable
-      onMouseDown={onSelect}
-      onTap={onSelect}
+      onMouseDown={handlePointerDown}
+      onTouchStart={handlePointerDown}
+      onClick={handleTriggerEdit}
+      onTap={handleTriggerEdit}
+      onDragStart={handleDragStart}
       onDragMove={drag.onDragMove}
-      onDragEnd={(e) => { drag.onDragEnd(); onChange({ x: e.target.x(), y: e.target.y() }); }}
+      onDragEnd={handleDragEnd}
     />
+  );
+}
+
+type InlineEditorProps = {
+  layer: TextLayer;
+  scale: number;
+  displaySize: number;
+  family: string;
+  onChange: (patch: Partial<EditorLayer>) => void;
+  onClose: () => void;
+  commitRef: React.MutableRefObject<(() => void) | null>;
+};
+
+function InlineTextEditor({
+  layer,
+  scale,
+  displaySize,
+  family,
+  onChange,
+  onClose,
+  commitRef,
+}: InlineEditorProps) {
+  const [draftText, setDraftText] = useState(layer.text);
+  const committedRef = useRef(false);
+  const cancelledRef = useRef(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // 중앙 좌표 기준 에디터 카드 위치 산출 및 캔버스 영역 내 클램핑
+  const centerX = layer.x * scale;
+  const centerY = layer.y * scale;
+  const cardWidth = Math.min(320, Math.max(200, displaySize - 16));
+  const cardLeft = Math.max(8, Math.min(centerX - cardWidth / 2, displaySize - cardWidth - 8));
+  const cardTop = Math.max(8, Math.min(centerY - 50, displaySize - 135));
+
+  const fontSizePx = Math.max(14, Math.min(22, Math.round(layer.fontSize * scale)));
+
+  // 자동 포커스 및 모바일 가상 키보드 가림 방지
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+      const len = textareaRef.current.value.length;
+      textareaRef.current.setSelectionRange(len, len);
+      try {
+        textareaRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } catch {
+        textareaRef.current.scrollIntoView();
+      }
+    }
+  }, []);
+
+  const handleCommit = () => {
+    if (committedRef.current || cancelledRef.current) return;
+    committedRef.current = true;
+    onChange({ text: draftText });
+    onClose();
+  };
+
+  const handleCancel = () => {
+    if (committedRef.current || cancelledRef.current) return;
+    cancelledRef.current = true;
+    onClose();
+  };
+
+  // 캔버스 내보내기나 저장 시 진행 중인 편집 즉시 반영 콜백
+  useEffect(() => {
+    commitRef.current = () => {
+      if (!committedRef.current && !cancelledRef.current) {
+        committedRef.current = true;
+        onChange({ text: draftText });
+      }
+    };
+    return () => {
+      commitRef.current = null;
+    };
+  }, [draftText, onChange, commitRef]);
+
+  const handleBlur = (e: React.FocusEvent) => {
+    if (cardRef.current?.contains(e.relatedTarget as Node)) {
+      return;
+    }
+    handleCommit();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      handleCancel();
+    } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      handleCommit();
+    }
+  };
+
+  return (
+    <div
+      ref={cardRef}
+      className="pkg-inline-editor-card"
+      style={{
+        position: 'absolute',
+        left: `${cardLeft}px`,
+        top: `${cardTop}px`,
+        width: `${cardWidth}px`,
+        background: '#ffffff',
+        borderRadius: '10px',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25), 0 0 0 2px #2f5a4b',
+        padding: '8px 10px 10px',
+        boxSizing: 'border-box',
+        zIndex: 40,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px',
+      }}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
+    >
+      <div
+        className="pkg-inline-editor-header"
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          fontSize: '12px',
+          fontWeight: 600,
+          color: '#2f5a4b',
+          userSelect: 'none',
+        }}
+      >
+        <span>문구 직접 편집</span>
+        <span
+          className="pkg-inline-editor-counter"
+          aria-live="polite"
+          style={{
+            color: draftText.length >= 120 ? '#c0392b' : '#64748b',
+            fontSize: '11.5px',
+          }}
+        >
+          {draftText.length}/120자
+        </span>
+      </div>
+
+      <textarea
+        ref={textareaRef}
+        className="pkg-inline-editor-textarea"
+        aria-label="스티커 문구 직접 편집"
+        value={draftText}
+        maxLength={120}
+        rows={2}
+        onChange={(e) => setDraftText(e.target.value.slice(0, 120))}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        placeholder="문구를 입력하세요"
+        style={{
+          width: '100%',
+          boxSizing: 'border-box',
+          minHeight: '52px',
+          padding: '6px 8px',
+          fontSize: `${fontSizePx}px`,
+          fontFamily: family,
+          fontWeight: fontWeight(layer.font),
+          lineHeight: 1.3,
+          textAlign: 'center',
+          color: '#1a202c',
+          background: '#f8fafc',
+          border: '1px solid #cbd5e1',
+          borderRadius: '6px',
+          resize: 'none',
+          outline: 'none',
+        }}
+      />
+
+      <div
+        className="pkg-inline-editor-actions"
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '8px',
+        }}
+      >
+        <span
+          style={{
+            fontSize: '11px',
+            color: '#94a3b8',
+            userSelect: 'none',
+          }}
+        >
+          Enter 줄바꿈 · 완료 시 저장
+        </span>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <button
+            type="button"
+            className="pkg-inline-cancel-btn"
+            onMouseDown={(e) => e.preventDefault()}
+            onTouchStart={(e) => e.preventDefault()}
+            onClick={handleCancel}
+            aria-label="문구 편집 취소"
+            style={{
+              padding: '6px 10px',
+              fontSize: '12px',
+              fontWeight: 500,
+              color: '#475569',
+              background: '#f1f5f9',
+              border: '1px solid #cbd5e1',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              minHeight: '32px',
+            }}
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            className="pkg-inline-done-btn"
+            onMouseDown={(e) => e.preventDefault()}
+            onTouchStart={(e) => e.preventDefault()}
+            onClick={handleCommit}
+            aria-label="문구 편집 완료"
+            style={{
+              padding: '6px 14px',
+              fontSize: '12px',
+              fontWeight: 600,
+              color: '#ffffff',
+              background: '#2f5a4b',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              minHeight: '32px',
+            }}
+          >
+            완료
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -154,6 +468,10 @@ export default function StickerCanvas(props: Props) {
   const trRef = useRef<Konva.Transformer>(null);
   const guidesRef = useRef<Konva.Layer>(null);
   const [fontVersion, setFontVersion] = useState(0);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const commitActiveEditRef = useRef<(() => void) | null>(null);
+
   const scale = displaySize / U;
   const b = bleedUnits(sizeCm);
   const hair = 1.5 / scale; // 화면에서 1.5px 두께
@@ -172,14 +490,27 @@ export default function StickerCanvas(props: Props) {
   useEffect(() => {
     const tr = trRef.current;
     if (!tr) return;
-    const node = selectedId ? stageRef.current?.findOne(`#${selectedId}`) : null;
+    const node = selectedId && !editingId ? stageRef.current?.findOne(`#${selectedId}`) : null;
     tr.nodes(node ? [node] : []);
     tr.getLayer()?.batchDraw();
-  }, [selectedId, layers, fontVersion]);
+  }, [selectedId, editingId, layers, fontVersion]);
+
+  // selectedId가 null이거나 다른 것으로 바뀌면 편집 종료
+  useEffect(() => {
+    if (editingId && selectedId !== editingId) {
+      setEditingId(null);
+    }
+  }, [selectedId, editingId]);
 
   useEffect(() => {
     apiRef.current = {
       async exportPng(pixels) {
+        if (commitActiveEditRef.current) {
+          commitActiveEditRef.current();
+          setEditingId(null);
+          await new Promise((r) => setTimeout(r, 60));
+        }
+        setIsExporting(true);
         await Promise.all(layers.filter((l) => l.type === 'text').map((l) => document.fonts.load(fontSpec(l as TextLayer, fontFamilies), (l as TextLayer).text)));
         await document.fonts.ready;
         await new Promise((r) => setTimeout(r, 60)); // 글꼴 도착 후 문구 노드가 다시 그려질 시간
@@ -204,6 +535,7 @@ export default function StickerCanvas(props: Props) {
             mimeType: 'image/png',
           })) as Blob;
         } finally {
+          setIsExporting(false);
           trRef.current?.visible(true);
           guidesRef.current?.visible(true);
           stage.batchDraw();
@@ -252,93 +584,124 @@ export default function StickerCanvas(props: Props) {
   };
 
   const deselectIfEmpty = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
-    if (e.target === e.target.getStage() || e.target.name() === 'bg') onSelect(null);
+    if (e.target === e.target.getStage() || e.target.name() === 'bg') {
+      if (editingId !== null) setEditingId(null);
+      onSelect(null);
+    }
   };
 
-  return (
-    <Stage
-      ref={stageRef}
-      width={displaySize}
-      height={displaySize}
-      scaleX={scale}
-      scaleY={scale}
-      onMouseDown={deselectIfEmpty}
-      onTouchStart={deselectIfEmpty}
-    >
-      <KLayer>
-        <Group clipFunc={clip}>
-          <Rect name="bg" x={0} y={0} width={U} height={U} fill={background} />
-          {layers.map((l) =>
-            l.type === 'image' ? (
-              <ImageNode key={l.id} layer={l} onSelect={() => onSelect(l.id)} onChange={(p) => onChange(l.id, p)} drag={drag} />
-            ) : (
-              <TextNode
-                key={`${l.id}-${fontVersion}`}
-                layer={l}
-                family={fontFamilies[l.font as FontId] ?? fontFamilies.sans}
-                onSelect={() => onSelect(l.id)}
-                onChange={(p) => onChange(l.id, p)}
-                drag={drag}
-              />
-            ),
-          )}
-        </Group>
-        <Transformer
-          ref={trRef}
-          rotateEnabled
-          keepRatio
-          enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']}
-          anchorSize={20}
-          anchorCornerRadius={4}
-          borderStroke="#2f5a4b"
-          anchorStroke="#2f5a4b"
-          rotationSnaps={[0, 90, 180, 270]}
-          boundBoxFunc={(oldBox, box) => (Math.abs(box.width) < 20 || Math.abs(box.height) < 20 ? oldBox : box)}
-          onTransformEnd={(e) => {
-            const n = e.target;
-            onChange(n.id(), { x: n.x(), y: n.y(), rotation: n.rotation(), scaleX: n.scaleX(), scaleY: n.scaleY() });
-          }}
-        />
-      </KLayer>
+  const editingLayer = layers.find((l): l is TextLayer => l.id === editingId && l.type === 'text');
 
-      {/* 안내선: 인쇄 파일에는 들어가지 않는다 */}
-      <KLayer ref={guidesRef} listening={false}>
-        <Shape
-          sceneFunc={(ctx, s) => {
-            ctx.beginPath();
-            if (shape === 'circle') {
-              ctx.arc(C, C, C, 0, Math.PI * 2, false);
-              ctx.moveTo(C + C - b, C);
-              ctx.arc(C, C, C - b, 0, Math.PI * 2, true);
-            } else {
-              ctx.rect(0, 0, U, U);
-              ctx.moveTo(b, b);
-              ctx.lineTo(b, U - b);
-              ctx.lineTo(U - b, U - b);
-              ctx.lineTo(U - b, b);
-              ctx.closePath();
-            }
-            ctx.fillStrokeShape(s);
-          }}
-          fill="rgba(245,242,234,0.72)"
+  return (
+    <div
+      className="pkg-canvas-stage-wrapper"
+      style={{
+        position: 'relative',
+        width: displaySize,
+        height: displaySize,
+        margin: '0 auto',
+      }}
+    >
+      <Stage
+        ref={stageRef}
+        width={displaySize}
+        height={displaySize}
+        scaleX={scale}
+        scaleY={scale}
+        onMouseDown={deselectIfEmpty}
+        onTouchStart={deselectIfEmpty}
+      >
+        <KLayer>
+          <Group clipFunc={clip}>
+            <Rect name="bg" x={0} y={0} width={U} height={U} fill={background} />
+            {layers.map((l) =>
+              l.type === 'image' ? (
+                <ImageNode key={l.id} layer={l} onSelect={() => onSelect(l.id)} onChange={(p) => onChange(l.id, p)} drag={drag} />
+              ) : (
+                <TextNode
+                  key={`${l.id}-${fontVersion}`}
+                  layer={l}
+                  family={fontFamilies[l.font as FontId] ?? fontFamilies.sans}
+                  isEditing={editingId === l.id}
+                  isExporting={isExporting}
+                  onSelect={() => onSelect(l.id)}
+                  onStartEdit={() => setEditingId(l.id)}
+                  onChange={(p) => onChange(l.id, p)}
+                  drag={drag}
+                />
+              ),
+            )}
+          </Group>
+          <Transformer
+            ref={trRef}
+            rotateEnabled
+            keepRatio
+            enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']}
+            anchorSize={20}
+            anchorCornerRadius={4}
+            borderStroke="#2f5a4b"
+            anchorStroke="#2f5a4b"
+            rotationSnaps={[0, 90, 180, 270]}
+            boundBoxFunc={(oldBox, box) => (Math.abs(box.width) < 20 || Math.abs(box.height) < 20 ? oldBox : box)}
+            onTransformEnd={(e) => {
+              const n = e.target;
+              onChange(n.id(), { x: n.x(), y: n.y(), rotation: n.rotation(), scaleX: n.scaleX(), scaleY: n.scaleY() });
+            }}
+          />
+        </KLayer>
+
+        {/* 안내선: 인쇄 파일에는 들어가지 않는다 */}
+        <KLayer ref={guidesRef} listening={false}>
+          <Shape
+            sceneFunc={(ctx, s) => {
+              ctx.beginPath();
+              if (shape === 'circle') {
+                ctx.arc(C, C, C, 0, Math.PI * 2, false);
+                ctx.moveTo(C + C - b, C);
+                ctx.arc(C, C, C - b, 0, Math.PI * 2, true);
+              } else {
+                ctx.rect(0, 0, U, U);
+                ctx.moveTo(b, b);
+                ctx.lineTo(b, U - b);
+                ctx.lineTo(U - b, U - b);
+                ctx.lineTo(U - b, b);
+                ctx.closePath();
+              }
+              ctx.fillStrokeShape(s);
+            }}
+            fill="rgba(245,242,234,0.72)"
+          />
+          {shape === 'circle' ? (
+            <>
+              <Circle x={C} y={C} radius={C - b} stroke="#c0392b" strokeWidth={hair} dash={[10, 8]} />
+              <Circle x={C} y={C} radius={C - 2 * b} stroke="#8a948f" strokeWidth={hair} dash={[4, 8]} />
+            </>
+          ) : (
+            <>
+              <Rect x={b} y={b} width={U - 2 * b} height={U - 2 * b} stroke="#c0392b" strokeWidth={hair} dash={[10, 8]} />
+              <Rect x={2 * b} y={2 * b} width={U - 4 * b} height={U - 4 * b} stroke="#8a948f" strokeWidth={hair} dash={[4, 8]} />
+            </>
+          )}
+          {snap.v && <Line points={[C, 0, C, U]} stroke="#2f5a4b" strokeWidth={hair} dash={[6, 6]} />}
+          {snap.h && <Line points={[0, C, U, C]} stroke="#2f5a4b" strokeWidth={hair} dash={[6, 6]} />}
+          {warnBoxes.map((w, i) => (
+            <Rect key={i} x={w.x} y={w.y} width={w.width} height={w.height} stroke="#c0392b" strokeWidth={hair * 1.4} dash={[8, 6]} cornerRadius={4 / scale} />
+          ))}
+        </KLayer>
+      </Stage>
+
+      {editingLayer && (
+        <InlineTextEditor
+          key={editingLayer.id}
+          layer={editingLayer}
+          scale={scale}
+          displaySize={displaySize}
+          family={fontFamilies[editingLayer.font as FontId] ?? fontFamilies.sans}
+          onChange={(patch) => onChange(editingLayer.id, patch)}
+          onClose={() => setEditingId(null)}
+          commitRef={commitActiveEditRef}
         />
-        {shape === 'circle' ? (
-          <>
-            <Circle x={C} y={C} radius={C - b} stroke="#c0392b" strokeWidth={hair} dash={[10, 8]} />
-            <Circle x={C} y={C} radius={C - 2 * b} stroke="#8a948f" strokeWidth={hair} dash={[4, 8]} />
-          </>
-        ) : (
-          <>
-            <Rect x={b} y={b} width={U - 2 * b} height={U - 2 * b} stroke="#c0392b" strokeWidth={hair} dash={[10, 8]} />
-            <Rect x={2 * b} y={2 * b} width={U - 4 * b} height={U - 4 * b} stroke="#8a948f" strokeWidth={hair} dash={[4, 8]} />
-          </>
-        )}
-        {snap.v && <Line points={[C, 0, C, U]} stroke="#2f5a4b" strokeWidth={hair} dash={[6, 6]} />}
-        {snap.h && <Line points={[0, C, U, C]} stroke="#2f5a4b" strokeWidth={hair} dash={[6, 6]} />}
-        {warnBoxes.map((w, i) => (
-          <Rect key={i} x={w.x} y={w.y} width={w.width} height={w.height} stroke="#c0392b" strokeWidth={hair * 1.4} dash={[8, 6]} cornerRadius={4 / scale} />
-        ))}
-      </KLayer>
-    </Stage>
+      )}
+    </div>
   );
 }

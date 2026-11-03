@@ -129,7 +129,6 @@ export function PreviewPane(props: Props) {
     }
   }, [canvasReady, viewMode, withSticker]);
 
-  const selectedText = layers.find((layer): layer is TextLayer => layer.id === selectedId && layer.type === 'text');
   const cut = (bleedUnits(sizeCm) / CANVAS_UNITS) * 100;
   const cutClip = shape === 'circle' ? `circle(${50 - cut}% at 50% 50%)` : `inset(${cut}%)`;
 
@@ -194,7 +193,14 @@ export function PreviewPane(props: Props) {
                 style={{
                   width: `${sizeCm === 6 ? 36 : 26}%`,
                   aspectRatio: '1',
+                  cursor: 'pointer',
                 }}
+                onClick={() => {
+                  setViewMode('canvas');
+                  const mainLayer = layers.find((l) => l.id === 'role-main') ?? layers.find((l) => l.type === 'text');
+                  if (mainLayer) onSelectId(mainLayer.id);
+                }}
+                title="클릭하여 스티커 문구 직접 편집하기"
               >
                 {mockupError ? (
                   <div
@@ -286,19 +292,6 @@ export function PreviewPane(props: Props) {
               warnBoxes={warnBoxes}
               onReady={() => setCanvasReady(true)}
             />
-          )}
-
-          {viewMode === 'canvas' && selectedText && (
-            <label style={{ display: 'block', width: '100%', marginTop: 8, fontSize: 14 }}>
-              선택한 문구 편집
-              <textarea
-                aria-label="선택한 문구 편집"
-                value={selectedText.text}
-                maxLength={120}
-                onChange={(event) => onUpdateLayer(selectedText.id, { text: event.target.value })}
-                style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 64, fontSize: 16 }}
-              />
-            </label>
           )}
 
           {viewMode === 'canvas' && (

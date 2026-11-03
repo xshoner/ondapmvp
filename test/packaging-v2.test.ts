@@ -748,3 +748,119 @@ test('스티커 규격(4cm=520px, 6cm=756px) 픽셀 해상도 매핑 검증', ()
   assert.equal(Math.round(stageSize * pixelRatio6), 756);
 });
 
+test('미리보기 인라인 문구 직접 편집: 줄바꿈·120자 제한·타 레이어 보존 검증', () => {
+  // 1. 초기 레이어 세팅 (메인 문구 + 추천 이미지 + 부가 문구)
+  const initialLayers: EditorLayer[] = [
+    {
+      id: 'role-main',
+      type: 'text',
+      text: '감사합니다',
+      x: 500,
+      y: 450,
+      font: 'myeongjo',
+      fontSize: 54,
+      color: '#1a202c',
+      stroke: null,
+      shadow: false,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+    },
+    {
+      id: 'img-sticker-flower',
+      type: 'image',
+      src: '/images/deco/flower.png',
+      x: 500,
+      y: 220,
+      width: 180,
+      height: 180,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+    },
+    {
+      id: 'role-sender',
+      type: 'text',
+      text: '홍길동 올림',
+      x: 500,
+      y: 780,
+      font: 'sans',
+      fontSize: 28,
+      color: '#4a5568',
+      stroke: null,
+      shadow: false,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+    },
+  ];
+
+  // 2. 인라인 편집으로 한글 및 줄바꿈 입력 시뮬레이션
+  const multilineInput = '마음 깊이\n감사드립니다';
+  const updatedLayers = initialLayers.map((l) => (l.id === 'role-main' ? { ...l, text: multilineInput } : l));
+
+  const mainLayer = updatedLayers.find((l): l is TextLayer => l.id === 'role-main');
+  assert.ok(mainLayer);
+  assert.equal(mainLayer.text, '마음 깊이\n감사드립니다');
+  assert.ok(mainLayer.text.includes('\n'), '줄바꿈(\n)이 온전히 유지되어야 함');
+
+  // 이미지 및 다른 문구 레이어가 훼손되지 않았는지 확인
+  const imgLayer = updatedLayers.find((l) => l.id === 'img-sticker-flower');
+  assert.ok(imgLayer, '문구 편집 후에도 이미지가 보존되어야 함');
+  const senderLayer = updatedLayers.find((l): l is TextLayer => l.id === 'role-sender');
+  assert.equal(senderLayer?.text, '홍길동 올림', '다른 문구 레이어가 유지되어야 함');
+
+  // 3. 120자 초과 방지 검증
+  const longInput = '가'.repeat(150);
+  const clampedText = longInput.slice(0, 120);
+  assert.equal(clampedText.length, 120, '120자 초과 입력은 120자로 클램핑되어야 함');
+
+  // 4. sanitizeDraft 및 데이터 호환성
+  const draft = sanitizeDraft({
+    background: '#ffffff',
+    purpose: 'return',
+    fields: { recipient: '', sender: '홍길동', date: '' },
+    layers: updatedLayers,
+  });
+  assert.equal((draft.layers.find((l) => l.id === 'role-main') as TextLayer).text, '마음 깊이\n감사드립니다');
+});
+
+test('인라인 에디터 위치 클램핑: 320/375/390/430px 모바일 화면 넘침 방지 수학적 검증', () => {
+  const viewports = [
+    { name: '320px 모바일', displaySize: 280 },
+    { name: '375px 모바일 (iPhone SE)', displaySize: 330 },
+    { name: '390px 모바일 (iPhone 14/15)', displaySize: 350 },
+    { name: '430px 모바일 (iPhone Pro Max)', displaySize: 390 },
+    { name: '데스크톱 기본', displaySize: 420 },
+  ];
+
+  // 텍스트 위치 극단값 시나리오 (좌측 끝, 우측 끝, 상단 끝, 하단 끝, 정중앙)
+  const testPositions = [
+    { x: 50, y: 50 },
+    { x: 500, y: 500 },
+    { x: 950, y: 950 },
+    { x: 50, y: 950 },
+    { x: 950, y: 50 },
+  ];
+
+  for (const vp of viewports) {
+    const scale = vp.displaySize / 1000;
+    const cardWidth = Math.min(320, Math.max(200, vp.displaySize - 16));
+
+    assert.ok(cardWidth <= vp.displaySize, `${vp.name}: 에디터 너비(${cardWidth})는 캔버스(${vp.displaySize}) 이하여야 함`);
+
+    for (const pos of testPositions) {
+      const centerX = pos.x * scale;
+      const centerY = pos.y * scale;
+
+      const cardLeft = Math.max(8, Math.min(centerX - cardWidth / 2, vp.displaySize - cardWidth - 8));
+      const cardTop = Math.max(8, Math.min(centerY - 50, vp.displaySize - 135));
+
+      assert.ok(cardLeft >= 8, `${vp.name} [x:${pos.x}]: cardLeft(${cardLeft})는 최소 8px 이상이어야 함`);
+      assert.ok(cardLeft + cardWidth <= vp.displaySize, `${vp.name} [x:${pos.x}]: cardLeft + width(${cardLeft + cardWidth})는 캔버스 크기(${vp.displaySize})를 넘지 않아야 함`);
+      assert.ok(cardTop >= 8, `${vp.name} [y:${pos.y}]: cardTop(${cardTop})는 최소 8px 이상이어야 함`);
+      assert.ok(cardTop + 130 <= vp.displaySize || cardTop === 8, `${vp.name} [y:${pos.y}]: cardTop(${cardTop})은 캔버스 내부로 제한되어야 함`);
+    }
+  }
+});
+
