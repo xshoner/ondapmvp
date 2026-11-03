@@ -126,7 +126,7 @@ export function Step2Message(props: Props) {
       <div className="pkg-sticker-toggle card">
         <div className="pkg-toggle-header">
           <span className="pkg-toggle-title">함께 넣을 인쇄물 선택</span>
-          <span className="pill green">무료 서비스</span>
+          <span className="pill green">포장·스티커 유료</span>
         </div>
         <div className="pkg-print-choice-grid" role="group" aria-label="인쇄물 선택">
           <button

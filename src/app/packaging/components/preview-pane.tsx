@@ -305,7 +305,7 @@ export function PreviewPane(props: Props) {
       {/* 미리보기 하단 상태 피드백 */}
       <div className="pkg-preview-footer">
         <div className="spread small muted">
-          <span>포장·스티커 <b>무료 혜택</b> 적용</span>
+          <span>포장·스티커 유료 서비스</span>
           <span>{withSticker ? `규격: ${sizeCm}×${sizeCm}cm ${shape === 'circle' ? '원형' : '사각'}` : '포장지만 적용'}</span>
         </div>
         <p className="pkg-preview-disclaimer small muted" style={{ margin: '6px 0 0', fontSize: 11.5, lineHeight: 1.4 }}>

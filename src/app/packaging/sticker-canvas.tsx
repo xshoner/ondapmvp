@@ -259,7 +259,7 @@ function InlineTextEditor({
 
   // 실제 렌더링 폰트 크기 계산 (화면 스케일 및 scaleY 반영)
   const renderedFontSize = Math.max(
-    14,
+    16,
     Math.min(24, Math.round(layer.fontSize * scale * Math.abs(layer.scaleY || 1)))
   );
   const lineHeightPx = Math.round(renderedFontSize * 1.35);
