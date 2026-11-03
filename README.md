@@ -1,6 +1,6 @@
 # 온답 추천 엔진 MVP
 
-> **작업 시작 전 필독:** [인계 기록 START-HERE.md](START-HERE.md) — 운영 배포(https://ondapmvp.vercel.app , 기준 커밋 `2800cab`) 완료 및 결재 활성화(`ENABLE_APPROVAL_DOCS=true`). 현재 통합·검증 브랜치: `codex/core-ui-validation`.
+> **작업 시작 전 필독:** [인계 기록 START-HERE.md](START-HERE.md) — 운영 배포(https://ondapmvp.vercel.app , 기준 커밋 `526e0b1`) 완료 및 결재 활성화(`ENABLE_APPROVAL_DOCS=true`). 현재 통합·검증 브랜치: `codex/core-ui-validation`.
 
 행사 정보(행사 유형·관계·예산)를 넣으면 격식지수로 답례품 3개를 추천하는 엔진입니다. 상품은 카페24 쇼핑몰에서 가져옵니다.
 
@@ -95,7 +95,7 @@ Node 24 이상이 필요합니다(TypeScript를 그대로 실행).
 
 ## 배포 (5단계)
 
-- 운영 주소: https://ondapmvp.vercel.app (main 브랜치 기준 커밋 `2800cab` 배포 완료, 서울 리전 icn1)
+- 운영 주소: https://ondapmvp.vercel.app (main 브랜치 기준 커밋 `526e0b1` 배포 완료, 서울 리전 icn1)
 - 결재 문서 활성화: `ENABLE_APPROVAL_DOCS=true`로 운영 활성화 완료
 - `main` 브랜치에 푸시하면 자동 배포된다.
 - `*-xshoner-3375s-projects.vercel.app` 주소는 Vercel 로그인 보호가 걸려 있어 일반 방문자는 열 수 없다. 외부에 공유할 때는 운영 주소를 쓴다.
