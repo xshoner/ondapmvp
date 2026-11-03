@@ -3,7 +3,7 @@
 // 스티커 편집 캔버스 (Konva). 브라우저 전용이라 packaging-editor.tsx에서 ssr:false로 불러온다.
 // 좌표계: 재단 여백 포함 전체를 1000으로 보고, 화면 크기에 맞춰 Stage를 축소해 보여 준다.
 
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { Circle, Group, Image as KImage, Layer as KLayer, Line, Rect, Shape, Stage, Text as KText, Transformer } from 'react-konva';
 import type Konva from 'konva';
 import { CANVAS_UNITS, bleedUnits, type Box, type FontId } from '@/packaging/rules.ts';
@@ -250,15 +250,41 @@ function InlineTextEditor({
   const cancelledRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const [hasOverflowX, setHasOverflowX] = useState(false);
+
+  // 명시적 줄바꿈('\n') 개수 및 최대 줄 길이 측정 (자동 줄바꿈 없이 1:1 보존)
+  const lines = draftText.split('\n');
+  const lineCount = Math.max(1, lines.length);
+  const maxLineLength = Math.max(...lines.map((l) => l.length), 0);
+
+  // 실제 렌더링 폰트 크기 계산 (화면 스케일 및 scaleY 반영)
+  const renderedFontSize = Math.max(
+    14,
+    Math.min(24, Math.round(layer.fontSize * scale * Math.abs(layer.scaleY || 1)))
+  );
+  const lineHeightPx = Math.round(renderedFontSize * 1.35);
+  // 명시적 줄바꿈 줄 수에 따라 텍스트영역 높이를 자연스럽게 동적 산출 (1줄: 44px ~ 4줄: 130px)
+  const textareaHeightPx = Math.max(44, Math.min(130, lineCount * lineHeightPx + 16));
 
   // 중앙 좌표 기준 에디터 카드 위치 산출 및 캔버스 영역 내 클램핑
   const centerX = layer.x * scale;
   const centerY = layer.y * scale;
-  const cardWidth = Math.min(320, Math.max(200, displaySize - 16));
+  const estimatedCardHeight = 28 + textareaHeightPx + 40 + 26;
+  const cardWidth = Math.min(360, Math.max(240, displaySize - 16));
   const cardLeft = Math.max(8, Math.min(centerX - cardWidth / 2, displaySize - cardWidth - 8));
-  const cardTop = Math.max(8, Math.min(centerY - 50, displaySize - 135));
+  const cardTop = Math.max(8, Math.min(centerY - estimatedCardHeight / 2, displaySize - estimatedCardHeight - 8));
 
-  const fontSizePx = Math.max(16, Math.min(22, Math.round(layer.fontSize * scale)));
+  // 가로 스크롤 오버플로 감지 (장문 시 좌우 이동 지원)
+  const checkOverflowX = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const overflow = el.scrollWidth > el.clientWidth + 2;
+    setHasOverflowX(overflow);
+  }, []);
+
+  useEffect(() => {
+    checkOverflowX();
+  }, [draftText, cardWidth, checkOverflowX]);
 
   // 자동 포커스 및 모바일 가상 키보드 가림 방지
   useEffect(() => {
@@ -317,6 +343,24 @@ function InlineTextEditor({
     }
   };
 
+  const scrollToEdge = (edge: 'start' | 'end') => {
+    if (textareaRef.current) {
+      const el = textareaRef.current;
+      if (edge === 'start') {
+        el.scrollLeft = 0;
+        el.setSelectionRange(0, 0);
+      } else {
+        el.scrollLeft = el.scrollWidth;
+        const len = el.value.length;
+        el.setSelectionRange(len, len);
+      }
+      el.focus();
+      setTimeout(checkOverflowX, 80);
+    }
+  };
+
+  const isLong = hasOverflowX || maxLineLength > 16;
+
   return (
     <div
       ref={cardRef}
@@ -352,7 +396,37 @@ function InlineTextEditor({
           userSelect: 'none',
         }}
       >
-        <span>문구 직접 편집</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span>문구 직접 편집</span>
+          {lineCount > 1 && (
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 600,
+                color: '#1e293b',
+                background: '#e2e8f0',
+                padding: '1px 5px',
+                borderRadius: '4px',
+              }}
+            >
+              {lineCount}줄
+            </span>
+          )}
+          {isLong && (
+            <span
+              style={{
+                fontSize: '10.5px',
+                fontWeight: 500,
+                color: '#0369a1',
+                background: '#e0f2fe',
+                padding: '1px 5px',
+                borderRadius: '4px',
+              }}
+            >
+              ↔ 긴 문구
+            </span>
+          )}
+        </div>
         <span
           className="pkg-inline-editor-counter"
           aria-live="polite"
@@ -371,21 +445,33 @@ function InlineTextEditor({
         aria-label="스티커 문구 직접 편집"
         value={draftText}
         maxLength={120}
-        rows={2}
-        onChange={(e) => setDraftText(e.target.value.slice(0, 120))}
+        rows={Math.min(4, lineCount)}
+        wrap="off"
+        spellCheck={false}
+        onChange={(e) => {
+          const next = e.target.value.replace(/\r\n/g, '\n').slice(0, 120);
+          setDraftText(next);
+        }}
+        onScroll={checkOverflowX}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         placeholder="문구를 입력하세요"
         style={{
           width: '100%',
           boxSizing: 'border-box',
-          minHeight: '52px',
+          height: `${textareaHeightPx}px`,
+          minHeight: '42px',
           padding: '6px 8px',
-          fontSize: `${fontSizePx}px`,
+          fontSize: `${renderedFontSize}px`,
           fontFamily: family,
           fontWeight: fontWeight(layer.font),
-          lineHeight: 1.3,
-          textAlign: 'center',
+          lineHeight: 1.35,
+          textAlign: isLong ? 'left' : 'center',
+          whiteSpace: 'pre',
+          overflowX: 'auto',
+          overflowY: lineCount > 4 ? 'auto' : 'hidden',
+          wordWrap: 'normal',
+          overflowWrap: 'normal',
           color: '#1a202c',
           background: '#f8fafc',
           border: '1px solid #cbd5e1',
@@ -402,17 +488,66 @@ function InlineTextEditor({
           justifyContent: 'space-between',
           alignItems: 'center',
           gap: '8px',
+          flexWrap: 'wrap',
         }}
       >
-        <span
-          style={{
-            fontSize: '11px',
-            color: '#94a3b8',
-            userSelect: 'none',
-          }}
-        >
-          Enter 줄바꿈 · 완료 시 저장
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span
+            style={{
+              fontSize: '11px',
+              color: '#64748b',
+              userSelect: 'none',
+            }}
+          >
+            Enter 줄바꿈 (자동 줄바꿈 없음)
+          </span>
+          {isLong && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+              <button
+                type="button"
+                className="pkg-inline-scroll-btn pkg-inline-scroll-left"
+                aria-label="문구 맨 앞으로 이동"
+                title="문구 맨 앞으로 이동"
+                onPointerDown={(e) => e.preventDefault()}
+                onClick={() => scrollToEdge('start')}
+                style={{
+                  padding: '2px 6px',
+                  fontSize: '10.5px',
+                  fontWeight: 500,
+                  color: '#475569',
+                  background: '#f1f5f9',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  minHeight: '24px',
+                }}
+              >
+                ◀ 앞
+              </button>
+              <button
+                type="button"
+                className="pkg-inline-scroll-btn pkg-inline-scroll-right"
+                aria-label="문구 맨 뒤로 이동"
+                title="문구 맨 뒤로 이동"
+                onPointerDown={(e) => e.preventDefault()}
+                onClick={() => scrollToEdge('end')}
+                style={{
+                  padding: '2px 6px',
+                  fontSize: '10.5px',
+                  fontWeight: 500,
+                  color: '#475569',
+                  background: '#f1f5f9',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  minHeight: '24px',
+                }}
+              >
+                뒤 ▶
+              </button>
+            </div>
+          )}
+        </div>
         <div style={{ display: 'flex', gap: '6px' }}>
           <button
             type="button"

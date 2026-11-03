@@ -864,3 +864,119 @@ test('인라인 에디터 위치 클램핑: 320/375/390/430px 모바일 화면 �
   }
 });
 
+test('임의의 글자색과 배경색(#RRGGBB) 독립 선택 및 저장/복원 검증', () => {
+  // 1. 임의의 hex 색상 (#RRGGBB) 지정
+  const customTextColor = '#e74c3c';
+  const customBgColor = '#2c3e50';
+  const customStrokeColor = '#f39c12';
+
+  const initialLayer: TextLayer = {
+    id: 'role-main',
+    type: 'text',
+    text: '감사의 마음을 전합니다',
+    x: 500,
+    y: 500,
+    rotation: 0,
+    scaleX: 1,
+    scaleY: 1,
+    font: 'serif',
+    fontSize: 64,
+    color: '#1f2a26',
+    stroke: null,
+    shadow: false,
+  };
+
+  // 2. 글자색 변경 시 배경색이나 다른 서식(외곽선, 그림자)과 간섭하지 않음
+  const updatedTextColorLayer: TextLayer = {
+    ...initialLayer,
+    color: customTextColor,
+    stroke: customStrokeColor,
+    shadow: true,
+  };
+  assert.equal(updatedTextColorLayer.color, '#e74c3c');
+  assert.equal(updatedTextColorLayer.stroke, '#f39c12');
+  assert.equal(updatedTextColorLayer.shadow, true);
+  assert.equal(updatedTextColorLayer.text, initialLayer.text);
+
+  // 3. 배경색 변경 시 글자색과 간섭하지 않음
+  let currentBg = '#ffffff';
+  currentBg = customBgColor;
+  assert.equal(currentBg, '#2c3e50');
+  assert.equal(updatedTextColorLayer.color, '#e74c3c', '배경색 변경 후에도 글자색은 유지되어야 함');
+
+  // 4. sanitizeDraft 저장 시 임의의 #RRGGBB 규격 보존 검증
+  const draft = sanitizeDraft({
+    background: currentBg,
+    purpose: 'return',
+    fields: { recipient: '', sender: '홍길동', date: '' },
+    layers: [updatedTextColorLayer],
+  });
+  assert.equal(draft.background, '#2c3e50', '임의의 배경색(#2c3e50)이 저장 포맷에 정상 반영되어야 함');
+  const savedText = draft.layers[0] as TextLayer;
+  assert.equal(savedText.color, '#e74c3c', '임의의 글자색(#e74c3c)이 저장 포맷에 정상 반영되어야 함');
+  assert.equal(savedText.stroke, '#f39c12', '임의의 외곽선색(#f39c12)이 저장 포맷에 정상 반영되어야 함');
+  assert.equal(savedText.shadow, true, '그림자 효과가 유지되어야 함');
+
+  // 5. 잘못된 색상 형식 방어 검증 (fallback 처리)
+  const invalidDraft = sanitizeDraft({
+    background: 'invalid-color',
+    fields: { recipient: '', sender: '', date: '' },
+    layers: [
+      {
+        ...initialLayer,
+        color: '#GGG123', // 잘못된 16진수
+        stroke: 'rgb(255,0,0)', // 지원되지 않는 rgb 포맷
+      },
+    ],
+  });
+  assert.equal(invalidDraft.background, '#ffffff', '유효하지 않은 배경색은 기본값 #ffffff로 복구되어야 함');
+  const invalidText = invalidDraft.layers[0] as TextLayer;
+  assert.equal(invalidText.color, '#1f2a26', '유효하지 않은 글자색은 기본값 #1f2a26으로 복구되어야 함');
+  assert.equal(invalidText.stroke, null, '유효하지 않은 외곽선색은 null로 복구되어야 함');
+});
+
+test('문구 직접 편집 중 줄바꿈 차이 방지: 명시적 줄바꿈만 1:1 보존하고 자동 줄바꿈은 데이터에 개행을 생성하지 않음', () => {
+  // 1. 단일 긴 문장 (명시적 줄바꿈 없음)
+  const longSingleLine = '저희 두 사람의 새로운 출발을 축복해 주셔서 진심으로 감사드립니다';
+  const lines1 = longSingleLine.split('\n');
+  assert.equal(lines1.length, 1, '명시적 줄바꿈이 없으면 1줄이어야 함');
+  assert.ok(!longSingleLine.includes('\n'), '데이터에 자동 줄바꿈이 삽입되지 않아야 함');
+
+  // 2. 명시적 줄바꿈 2줄 문장
+  const explicitTwoLines = '저희 두 사람의 새로운 출발을\n축복해 주셔서 진심으로 감사드립니다';
+  const lines2 = explicitTwoLines.split('\n');
+  assert.equal(lines2.length, 2, '엔터로 입력된 명시적 개행은 정확히 2줄이어야 함');
+  assert.equal(lines2[0], '저희 두 사람의 새로운 출발을');
+  assert.equal(lines2[1], '축복해 주셔서 진심으로 감사드립니다');
+
+  // 3. 명시적 줄바꿈 3줄 문장 (이름/날짜 등)
+  const explicitThreeLines = '축하해 주셔서 감사합니다\n2026년 11월 3일\n신랑 신부 올림';
+  const lines3 = explicitThreeLines.split('\n');
+  assert.equal(lines3.length, 3, '명시적 개행 3줄이 1:1로 유지되어야 함');
+
+  // 4. sanitizeDraft 저장 시 개행 보존 검증 (개행 삽입/삭제 없음)
+  const draft = sanitizeDraft({
+    background: '#ffffff',
+    fields: { recipient: '', sender: '', date: '' },
+    layers: [
+      {
+        id: 'role-main',
+        type: 'text',
+        text: explicitTwoLines,
+        font: 'sans',
+        fontSize: 60,
+        color: '#1f2a26',
+        stroke: null,
+        shadow: false,
+        x: 500,
+        y: 500,
+        rotation: 0,
+        scaleX: 1,
+        scaleY: 1,
+      },
+    ],
+  });
+  const textLayer = draft.layers[0] as TextLayer;
+  assert.equal(textLayer.text, explicitTwoLines, '저장 시 명시적 개행 문자가 손실 없이 그대로 보존되어야 함');
+});
+

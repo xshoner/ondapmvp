@@ -404,6 +404,79 @@ export function Step2Message(props: Props) {
                       onClick={() => updateActiveText({ color: c })}
                     />
                   ))}
+                  <label
+                    className={`swatch pkg-custom-color-swatch ${activeText?.color && !COLORS.includes(activeText.color) ? 'selected' : ''}`}
+                    title="글자색 직접 선택 (컬러 선택기)"
+                    aria-label="글자색 직접 선택"
+                    style={{
+                      position: 'relative',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background:
+                        activeText?.color && !COLORS.includes(activeText.color)
+                          ? activeText.color
+                          : 'conic-gradient(from 180deg at 50% 50%, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)',
+                      cursor: 'pointer',
+                      border: '1.5px solid var(--line-strong, #cbd5e1)',
+                    }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        fontSize: '13px',
+                        lineHeight: 1,
+                        filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.6))',
+                        color: '#ffffff',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      🎨
+                    </span>
+                    <input
+                      type="color"
+                      aria-label="글자색 직접 선택"
+                      value={activeText?.color && /^#[0-9a-f]{6}$/i.test(activeText.color) ? activeText.color : '#1f2a26'}
+                      onChange={(e) => {
+                        const val = e.target.value.toLowerCase();
+                        if (/^#[0-9a-f]{6}$/.test(val)) {
+                          updateActiveText({ color: val });
+                        }
+                      }}
+                      onInput={(e) => {
+                        const val = (e.target as HTMLInputElement).value.toLowerCase();
+                        if (/^#[0-9a-f]{6}$/.test(val)) {
+                          updateActiveText({ color: val });
+                        }
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        opacity: 0,
+                        cursor: 'pointer',
+                        margin: 0,
+                        padding: 0,
+                        border: 'none',
+                      }}
+                    />
+                  </label>
+                  {activeText?.color && (
+                    <span
+                      className="pkg-color-code num"
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: 'var(--ink-soft, #64748b)',
+                        marginLeft: 4,
+                        letterSpacing: '0.5px',
+                      }}
+                    >
+                      {activeText.color.toUpperCase()}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -421,6 +494,79 @@ export function Step2Message(props: Props) {
                       onClick={() => setBackground(color)}
                     />
                   ))}
+                  <label
+                    className={`swatch pkg-custom-color-swatch ${!BACKGROUNDS.includes(background) ? 'selected' : ''}`}
+                    title="배경색 직접 선택 (컬러 선택기)"
+                    aria-label="배경색 직접 선택"
+                    style={{
+                      position: 'relative',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background:
+                        !BACKGROUNDS.includes(background)
+                          ? background
+                          : 'conic-gradient(from 180deg at 50% 50%, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)',
+                      cursor: 'pointer',
+                      border: '1.5px solid var(--line-strong, #cbd5e1)',
+                    }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        fontSize: '13px',
+                        lineHeight: 1,
+                        filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.6))',
+                        color: '#ffffff',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      🎨
+                    </span>
+                    <input
+                      type="color"
+                      aria-label="배경색 직접 선택"
+                      value={background && /^#[0-9a-f]{6}$/i.test(background) ? background : '#ffffff'}
+                      onChange={(e) => {
+                        const val = e.target.value.toLowerCase();
+                        if (/^#[0-9a-f]{6}$/.test(val)) {
+                          setBackground(val);
+                        }
+                      }}
+                      onInput={(e) => {
+                        const val = (e.target as HTMLInputElement).value.toLowerCase();
+                        if (/^#[0-9a-f]{6}$/.test(val)) {
+                          setBackground(val);
+                        }
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        opacity: 0,
+                        cursor: 'pointer',
+                        margin: 0,
+                        padding: 0,
+                        border: 'none',
+                      }}
+                    />
+                  </label>
+                  {background && (
+                    <span
+                      className="pkg-color-code num"
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: 'var(--ink-soft, #64748b)',
+                        marginLeft: 4,
+                        letterSpacing: '0.5px',
+                      }}
+                    >
+                      {background.toUpperCase()}
+                    </span>
+                  )}
                 </div>
               </div>
 
