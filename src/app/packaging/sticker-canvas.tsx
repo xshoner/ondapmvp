@@ -509,34 +509,34 @@ export default function StickerCanvas(props: Props) {
           await new Promise((r) => setTimeout(r, 60));
         }
         setIsExporting(true);
-        await Promise.all(layers.filter((l) => l.type === 'text').map((l) => document.fonts.load(fontSpec(l as TextLayer, fontFamilies), (l as TextLayer).text)));
-        await document.fonts.ready;
-        await new Promise((r) => setTimeout(r, 60)); // 글꼴 도착 후 문구 노드가 다시 그려질 시간
-        const stage = stageRef.current;
-        if (!stage) throw new Error('편집기가 아직 준비되지 않았습니다.');
-        // 이미지가 아직 안 그려졌으면(느린 망) 최대 4초 기다린다. 끝내 못 그리면 빈 스티커로 접수되지 않게 막는다
-        const want = layers.filter((l) => l.type === 'image').length;
-        for (let i = 0; i < 20 && stage.find('Image').length < want; i++) await new Promise((r) => setTimeout(r, 200));
-        if (stage.find('Image').length < want) throw new Error('이미지를 아직 불러오지 못했어요. 잠시 후 다시 저장해 주세요.');
-        trRef.current?.visible(false);
-        guidesRef.current?.visible(false);
+        let stage: Konva.Stage | null = null;
         try {
-          // 중요: x, y, width, height를 명시하여 Konva의 getClientRect 자동 크롭을 방지하고
-          // 안전한 pixelRatio(약간의 올림 오차 보정)를 통해 정확한 출력 픽셀 규격을 보장한다.
+          await Promise.all(layers.filter((l) => l.type === 'text').map((l) => document.fonts.load(fontSpec(l as TextLayer, fontFamilies), (l as TextLayer).text)));
+          await document.fonts.ready;
+          await new Promise((r) => setTimeout(r, 60));
+          stage = stageRef.current;
+          if (!stage) throw new Error('편집기가 아직 준비되지 않았습니다.');
+          const want = layers.filter((l) => l.type === 'image').length;
+          for (let i = 0; i < 20 && stage.find('Image').length < want; i++) await new Promise((r) => setTimeout(r, 200));
+          if (stage.find('Image').length < want) throw new Error('이미지를 아직 불러오지 못했어요. 잠시 후 다시 저장해 주세요.');
+          trRef.current?.visible(false);
+          guidesRef.current?.visible(false);
           const safeRatio = (pixels + 0.001) / displaySize;
-          return (await stage.toBlob({
+          const blob = await stage.toBlob({
             x: 0,
             y: 0,
             width: displaySize,
             height: displaySize,
             pixelRatio: safeRatio,
             mimeType: 'image/png',
-          })) as Blob;
+          });
+          if (!blob) throw new Error('스티커 이미지를 만들지 못했어요. 다시 시도해 주세요.');
+          return blob;
         } finally {
           setIsExporting(false);
           trRef.current?.visible(true);
           guidesRef.current?.visible(true);
-          stage.batchDraw();
+          stage?.batchDraw();
         }
       },
     };
