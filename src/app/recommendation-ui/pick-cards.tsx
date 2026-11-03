@@ -5,6 +5,7 @@ import { SavePickButton } from '../result/client-bits.tsx';
 import { CoreScoreBreakdown } from './score-breakdown.tsx';
 import { shippingFee } from '../../lib/result-query.ts';
 import { won } from './types.ts';
+import { PACKAGING_PRICE_PER_ITEM } from '../../packaging/pricing.ts';
 
 export interface PickCardProps {
   item: RecommendationItem;
@@ -182,7 +183,7 @@ export function CoreMainPick({
               textDecoration: 'none',
             }}
           >
-            포장·스티커 꾸미기 <span style={{ fontSize: 12, opacity: 0.85, marginLeft: 4 }}>무료</span>
+            포장·스티커 꾸미기 <span style={{ fontSize: 12, opacity: 0.85, marginLeft: 4 }}>{won(PACKAGING_PRICE_PER_ITEM)}/개</span>
           </a>
 
           <a
@@ -395,7 +396,7 @@ export function CoreOtherPick({
               textDecoration: 'none',
             }}
           >
-            포장·스티커 꾸미기 무료
+            포장·스티커 꾸미기 ({won(PACKAGING_PRICE_PER_ITEM)}/개)
           </a>
           <a
             className="btn ghost small"

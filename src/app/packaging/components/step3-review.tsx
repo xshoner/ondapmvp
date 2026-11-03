@@ -1,6 +1,7 @@
 'use client';
 
 import { won } from '@/lib/result-query.ts';
+import { PACKAGING_PRICE_PER_ITEM } from '@/packaging/pricing.ts';
 import type { PackagingStyle, StickerShape, StickerSizeCm, TextLayer } from '@/packaging/types.ts';
 import type { EditorLayer } from '../editor-types.ts';
 
@@ -102,7 +103,7 @@ export function Step3Review(props: Props) {
           <div className="pkg-review-value">
             <div style={{ fontWeight: 600 }}>{style?.name ?? '선택한 포장지'}</div>
             <div className="small muted">
-              {style?.description ? style.description : '온답 맞춤 선물 포장'} (무료 제공)
+              {style?.description ? style.description : '온답 맞춤 선물 포장'}
             </div>
           </div>
           <button
@@ -163,14 +164,14 @@ export function Step3Review(props: Props) {
           </div>
           <div className="spread small" style={{ marginBottom: 6 }}>
             <span>포장 서비스 및 맞춤 스티커</span>
-            <span className="num" style={{ color: 'var(--green)' }}>0원 (기본 제공)</span>
+            <span className="num">{won(PACKAGING_PRICE_PER_ITEM)} × {quantity.toLocaleString('ko-KR')}개 = {won(PACKAGING_PRICE_PER_ITEM * quantity)}</span>
           </div>
           <div className="spread" style={{ fontWeight: 700, fontSize: 17, paddingTop: 10, borderTop: '1px solid var(--line)' }}>
-            <span>주문 상품 합계</span>
-            <span className="num" style={{ color: 'var(--pine)' }}>{won(productTotal)}</span>
+            <span>예상 합계</span>
+            <span className="num" style={{ color: 'var(--pine)' }}>{won(productTotal + PACKAGING_PRICE_PER_ITEM * quantity)}</span>
           </div>
           <p className="small muted" style={{ margin: '8px 0 0', fontSize: 12 }}>
-            ※ 쇼핑몰 최종 결제 시 배송비 및 상품 옵션 추가금 등이 주문서에서 확정됩니다.
+            ※ 쇼핑몰에서 포장 디자인 서비스 옵션을 선택해 주세요. 배송비와 실제 결제 금액은 쇼핑몰에서 확인해 주세요.
           </p>
         </div>
       </div>

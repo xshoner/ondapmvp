@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import { won } from '@/lib/result-query.ts';
+import { PACKAGING_PRICE_PER_ITEM } from '@/packaging/pricing.ts';
 import type { GiftPurpose } from '@/packaging/types.ts';
 import { QtyInput } from '../../components/qty-input.tsx';
 
@@ -45,7 +46,7 @@ export function ProductHeader(props: Props) {
         <div className="pkg-tag-badges">
           {eventName && <span className="pill green">{eventName}</span>}
           {relationName && <span className="pill gray">{relationName}</span>}
-          <span className="pill gold">무료 포장 서비스</span>
+          <span className="pill gold">포장·스티커 {won(PACKAGING_PRICE_PER_ITEM)}/개</span>
         </div>
       </div>
 

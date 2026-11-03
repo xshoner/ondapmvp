@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import { getCatalog } from '@/data/repository.ts';
 import { won } from '@/lib/result-query.ts';
+import { PACKAGING_PRICE_PER_ITEM } from '@/packaging/pricing.ts';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,7 +36,7 @@ export default async function PickProductPage({ searchParams }: { searchParams: 
 
       <section style={{ marginTop: 8 }}>
         <h1 style={{ fontSize: 26 }}>포장할 상품을<br />골라 주세요</h1>
-        <p className="lead">고른 상품을 원하는 포장지와 스티커로 꾸밀 수 있습니다. 포장과 스티커는 무료입니다.</p>
+        <p className="lead">고른 상품을 원하는 포장지와 스티커로 꾸밀 수 있습니다. 포장·스티커 서비스는 1개당 {won(PACKAGING_PRICE_PER_ITEM)}입니다.</p>
       </section>
 
       <form method="get" action="/packaging/pick" className="row" style={{ marginTop: 14, gap: 8, flexWrap: 'nowrap' }}>

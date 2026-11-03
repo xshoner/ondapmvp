@@ -253,7 +253,7 @@ function PastePanel({ designs, onDone }: { designs: Design[]; onDone(): void }) 
     <section className="panel" aria-label="주문 상세 붙여넣기">
       <b className="small">주문 상세 붙여넣기</b>
       <p className="small muted" style={{ margin: '4px 0 8px' }}>
-        카페24 관리자 주문 상세(또는 주문 목록)를 드래그해 복사한 뒤 아래에 붙여넣으세요. 주문번호(20261022-0000123 꼴)와 디자인 코드(OD-…)를 찾아 짝지어 줍니다. ‘접수’ 상태는 ‘주문 확인’으로 올립니다.
+        카페24 관리자 주문 상세(또는 주문 목록)를 드래그해 복사한 뒤 아래에 붙여넣으세요. 주문번호(20261022-0000123 꼴)와 디자인 코드(OD-…)를 찾아 짝지어 줍니다. 연결 전에 카페24에서 포장 디자인 서비스 유료 옵션과 결제 여부를 확인해 주세요. 연결 시 ‘접수’ 상태는 ‘주문 확인’으로 바뀝니다.
       </p>
       <textarea
         value={text} onChange={(e) => { setText(e.target.value); setResult(null); }} rows={5} placeholder="여기에 붙여넣기 (Ctrl+V)"

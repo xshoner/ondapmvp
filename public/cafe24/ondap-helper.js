@@ -143,7 +143,7 @@
         qtyText = ' 옵션을 고르고 수량 <b>' + state.qty + '개</b>를 선택해 주세요.';
       }
     }
-    banner(state.code ? '포장 디자인 ' + badge(state.code) + ' 접수 완료.' + qtyText + '<br>옵션을 확인하고 구매해 주세요. 주문서에서 상품·수량·코드를 다시 확인해요.' : '온답에서 고른 상품이에요.' + qtyText + '<br>필요한 옵션을 고르고 주문 수량을 확인해 주세요.');
+    banner(state.code ? '포장 디자인 ' + badge(state.code) + ' 저장 완료.' + qtyText + '<br>포장 디자인 서비스 옵션과 추가 요금을 선택·확인해 주세요. 주문서에서 상품·수량·코드를 다시 확인해요.' : '온답에서 고른 상품이에요.' + qtyText + '<br>필요한 옵션을 고르고 주문 수량을 확인해 주세요.');
   }
 
   function productNoHere() {
@@ -168,7 +168,7 @@
       'color:#1f4436 !important', 'text-align:center', 'text-decoration:none', 'line-height:1.4',
       "font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif",
     ].join(';');
-    link.innerHTML = '<b style="font-size:15px;color:#1f4436 !important">' + (again ? '포장 다시 꾸미기' : '포장·스티커 꾸미기 (무료)') + '</b>' +
+    link.innerHTML = '<b style="font-size:15px;color:#1f4436 !important">' + (again ? '포장 다시 꾸미기' : '포장·스티커 꾸미기 (100원/개)') + '</b>' +
       '<br><span style="font-size:12px;color:#5e6862 !important">포장지를 고르고 스티커에 문구·사진을 넣을 수 있어요</span>';
     // 누르는 순간의 수량을 함께 넘긴다
     var go = function () {

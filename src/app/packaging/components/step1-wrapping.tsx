@@ -4,6 +4,8 @@ import Image from 'next/image';
 import { useMemo } from 'react';
 import type { DesignCategory, GiftPurpose, PackagingStyle } from '@/packaging/types.ts';
 import { matchesTarget } from '@/packaging/presets.ts';
+import { PACKAGING_PRICE_PER_ITEM } from '@/packaging/pricing.ts';
+import { won } from '@/lib/result-query.ts';
 
 interface Props {
   styles: PackagingStyle[];
@@ -51,7 +53,7 @@ export function Step1Wrapping({
         </h2>
         <p className="pkg-step-desc">
           {eventName ? `${eventName} 행사에 어울리는 포장지를 먼저 추천해 드려요.` : '선물에 맞는 단아한 포장지를 골라보세요.'}
-          {' '}모든 포장지는 온답에서 정성껏 무료로 포장해 드립니다.
+          {' '}포장·스티커 서비스는 1개당 {won(PACKAGING_PRICE_PER_ITEM)}이며, 쇼핑몰에서 옵션을 선택해 주세요.
         </p>
       </div>
 

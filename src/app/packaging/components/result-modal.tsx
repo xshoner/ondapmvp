@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { orderUrl } from '@/packaging/client.ts';
 import { isMobileUA } from '@/lib/device.ts';
+import { PACKAGING_PRICE_PER_ITEM } from '@/packaging/pricing.ts';
+import { won } from '@/lib/result-query.ts';
 
 interface Props {
   code: string;
@@ -61,7 +63,7 @@ export function ResultModal({
       <div className="modal card pkg-result-modal">
         <div className="pkg-result-header">
           <span className="pkg-result-check-icon">✓</span>
-          <h2 style={{ fontSize: 21, margin: '8px 0 0' }}>포장 디자인 접수 완료!</h2>
+          <h2 style={{ fontSize: 21, margin: '8px 0 0' }}>포장 디자인 저장 완료!</h2>
           <p className="small muted" style={{ margin: '4px 0 0' }}>
             디자인이 성공적으로 저장되었습니다. 아래 코드로 쇼핑몰에서 주문을 완료해 주세요.
           </p>
@@ -101,8 +103,9 @@ export function ResultModal({
               <b>‘주문하러 가기’</b>를 누르면 쇼핑몰 상품 페이지로 이동합니다. (수량은 <b>{quantity}개</b>로 자동 연동을 시도하나, 쇼핑몰 화면에서 수량을 다시 한 번 확인해 주세요.)
             </li>
             <li>
-              ‘바로 구매하기’를 누르면 로그인 또는 <b>비회원 구매</b>로 주문서를 작성하실 수 있습니다.
+              상품 페이지에서 <b>포장 디자인 서비스</b> 옵션을 선택하고 추가 요금을 확인해 주세요. 예상 금액은 {won(PACKAGING_PRICE_PER_ITEM)} × {quantity.toLocaleString('ko-KR')}개 = <b>{won(PACKAGING_PRICE_PER_ITEM * quantity)}</b>입니다. 옵션이 보이지 않으면 고객센터에 문의해 주세요.
             </li>
+            <li>‘바로 구매하기’를 누르면 로그인 또는 <b>비회원 구매</b>로 주문할 수 있습니다.</li>
             <li>
               주문서 작성 화면의 <b>‘온답 포장 디자인 코드’</b> 칸에 코드가 자동 입력되었는지 확인해 주세요. 칸이 비어 있거나 비회원 주문 시에는 위 &lsquo;코드 복사하기&rsquo;를 눌러 직접 붙여넣어 주세요.
             </li>
