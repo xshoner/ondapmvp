@@ -9,6 +9,7 @@ import type Konva from 'konva';
 import { CANVAS_UNITS, bleedUnits, type Box, type FontId } from '@/packaging/rules.ts';
 import type { StickerShape, TextLayer } from '@/packaging/types.ts';
 import type { CanvasApi, EditorImageLayer, EditorLayer, TextRect } from './editor-types.ts';
+import { loadCanvasFonts } from '@/packaging/font-loading.ts';
 
 type Props = {
   displaySize: number;
@@ -25,6 +26,7 @@ type Props = {
   onTextRects(rects: Record<string, TextRect>): void;
   warnBoxes: Box[]; // 안전선을 넘은 문구: 빨간 상자로 표시
   onReady?: () => void;
+  onFontFallback?: (fallback: boolean) => void;
 };
 
 type DragProps = { onDragMove(e: Konva.KonvaEventObject<DragEvent>): void; onDragEnd(): void };
@@ -596,7 +598,7 @@ function InlineTextEditor({
 }
 
 export default function StickerCanvas(props: Props) {
-  const { displaySize, shape, sizeCm, background, layers, fontFamilies, selectedId, onSelect, onChange, apiRef, onTextRects, warnBoxes, onReady } = props;
+  const { displaySize, shape, sizeCm, background, layers, fontFamilies, selectedId, onSelect, onChange, apiRef, onTextRects, warnBoxes, onReady, onFontFallback } = props;
   const stageRef = useRef<Konva.Stage>(null);
   const trRef = useRef<Konva.Transformer>(null);
   const guidesRef = useRef<Konva.Layer>(null);
@@ -617,7 +619,7 @@ export default function StickerCanvas(props: Props) {
   }, []);
   const textKey = layers.filter((l) => l.type === 'text').map((l) => fontSpec(l as TextLayer, fontFamilies) + (l as TextLayer).text).join('|');
   useEffect(() => {
-    for (const l of layers) if (l.type === 'text') void document.fonts.load(fontSpec(l, fontFamilies), l.text);
+    void loadCanvasFonts(document.fonts, layers.filter((l) => l.type === 'text').map((l) => ({ font: fontSpec(l as TextLayer, fontFamilies), text: (l as TextLayer).text })));
   }, [textKey]); // 글꼴·문구가 바뀔 때만 (위치 이동에는 다시 부르지 않는다)
 
   useEffect(() => {
@@ -646,8 +648,8 @@ export default function StickerCanvas(props: Props) {
         setIsExporting(true);
         let stage: Konva.Stage | null = null;
         try {
-          await Promise.all(layers.filter((l) => l.type === 'text').map((l) => document.fonts.load(fontSpec(l as TextLayer, fontFamilies), (l as TextLayer).text)));
-          await document.fonts.ready;
+          const fontsLoaded = await loadCanvasFonts(document.fonts, layers.filter((l) => l.type === 'text').map((l) => ({ font: fontSpec(l as TextLayer, fontFamilies), text: (l as TextLayer).text })));
+          onFontFallback?.(!fontsLoaded);
           await new Promise((r) => setTimeout(r, 60));
           stage = stageRef.current;
           if (!stage) throw new Error('편집기가 아직 준비되지 않았습니다.');
@@ -676,7 +678,7 @@ export default function StickerCanvas(props: Props) {
       },
     };
     onReady?.();
-  }, [apiRef, layers, fontFamilies, displaySize, onReady]);
+  }, [apiRef, layers, fontFamilies, displaySize, onReady, onFontFallback]);
 
   // 문구 상자 재기: 렌더가 끝날 때마다 (글꼴이 다 오기 전 폭은 틀리므로 기다린다). 바뀌었을 때만 알린다
   const lastRects = useRef('');

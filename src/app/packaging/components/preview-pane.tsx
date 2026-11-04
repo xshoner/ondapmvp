@@ -56,6 +56,7 @@ export function PreviewPane(props: Props) {
   const [mockupPng, setMockupPng] = useState<string | null>(null);
   const [isRenderingMockup, setIsRenderingMockup] = useState(false);
   const [mockupError, setMockupError] = useState<string | null>(null);
+  const [fontFallback, setFontFallback] = useState(false);
   const [canvasReady, setCanvasReady] = useState(false);
   const mockupSeq = useRef(0);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -269,7 +270,8 @@ export function PreviewPane(props: Props) {
           </div>
         </div>
 
-        {/* 2. 스티커 Konva 캔버스 뷰 (작업선 & 상호작용) */}
+      {fontFallback && <p className="pkg-font-fallback small" role="status">일부 글꼴을 불러오지 못해 대체 글꼴로 만들었어요. 미리보기의 글자 모양과 줄바꿈을 확인해 주세요.</p>}
+      {/* 2. 스티커 Konva 캔버스 뷰 (작업선 & 상호작용) */}
         {/* 항상 마운트 상태를 유지하여 exportPng 및 rect 측정이 동작하도록 함 */}
         <div
           ref={wrapRef}
@@ -290,6 +292,7 @@ export function PreviewPane(props: Props) {
               onTextRects={onTextRects}
               warnBoxes={warnBoxes}
               onReady={() => setCanvasReady(true)}
+              onFontFallback={setFontFallback}
             />
           )}
 

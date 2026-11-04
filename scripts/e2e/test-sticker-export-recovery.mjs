@@ -13,7 +13,8 @@ try {
   await b.waitFor("window.Konva.stages[0].find('Text').some(t => t.text() === '(문구 입력)')");
   await b.evaluate(`window.__originalFontLoad = document.fonts.load.bind(document.fonts); document.fonts.load = () => Promise.reject(new Error('test font failure'));`);
   await b.click('button', '조합 예시');
-  await b.waitFor("document.querySelector('.pkg-mockup-error')", 15000);
+  await b.waitFor("document.querySelector('.pkg-mockup-sticker-img') && document.querySelector('.pkg-font-fallback')", 15000);
+  assert.equal(await b.evaluate("return Boolean(document.querySelector('.pkg-mockup-error'))"), false);
   await b.click('button', '스티커 상세');
   await b.waitFor("window.Konva.stages[0].find('Text').some(t => t.text() === '(문구 입력)')");
   await b.evaluate(`document.fonts.load = window.__originalFontLoad;`);
@@ -31,5 +32,5 @@ try {
   await b.evaluate(`window.Konva.stages[0].find = window.__originalStageFind;`);
   await b.click('button', '조합 예시');
   await b.waitFor("document.querySelector('.pkg-mockup-sticker-img')", 15000);
-  console.log('PASS: font/image export failures restore editing state; retries render preview');
+  console.log('PASS: font fallback renders preview; image failures restore editing state and retries work');
 } finally { await b.close(); }
