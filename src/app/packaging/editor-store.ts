@@ -1,11 +1,11 @@
 // 포장 편집기가 이 기기에만 남기는 값: 꾸미던 디자인 자동 보관, 올린 사진 원본(IndexedDB),
 // 자주 쓰는 이름, 실제 크기 보기 화면 배율. 저장이 막힌 브라우저에서도 편집은 그대로 되도록 실패는 조용히 넘긴다.
 
-import { clampQty } from '@/lib/result-query.ts';
-import { isMobileUA, isObj, readJson, removeKey, writeJson } from '@/lib/device.ts';
-import { loadSavedDesigns } from '@/packaging/client.ts';
-import { sanitizeDraft, sanitizeSticker } from '@/packaging/rules.ts';
-import type { DesignDraft } from '@/packaging/types.ts';
+import { clampQty } from '../../lib/result-query.ts';
+import { isMobileUA, isObj, readJson, removeKey, writeJson } from '../../lib/device.ts';
+import { loadSavedDesigns } from '../../packaging/client.ts';
+import { sanitizeDraft, sanitizeSticker } from '../../packaging/rules.ts';
+import type { DesignDraft } from '../../packaging/types.ts';
 import type { EditorLayer, EditorSnapshot } from './editor-types.ts';
 
 // ---------- 올린 사진 원본 (IndexedDB: localStorage에는 사진이 들어가지 않는다) ----------
@@ -132,6 +132,19 @@ function readAutosave(): { productNo: number; at: number; snap: unknown } | null
 
 export function autosave(productNo: number, snap: EditorSnapshot): void {
   writeJson(AUTOSAVE_KEY, { productNo, at: Date.now(), snap: toStored(snap) });
+}
+
+// 접수 실패 시에는 자동 보관이 실제로 가능한지 확인하고 결과를 화면에 알려 준다.
+export async function saveRecovery(productNo: number, snap: EditorSnapshot): Promise<boolean> {
+  try {
+    for (const layer of snap.layers) {
+      if (layer.type === 'image' && layer.uploaded && (!layer.photoId || !(await getPhoto(layer.photoId)))) return false;
+    }
+    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ productNo, at: Date.now(), snap: toStored(snap) }));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function loadAutosave(productNo: number, now = Date.now()): unknown | null {

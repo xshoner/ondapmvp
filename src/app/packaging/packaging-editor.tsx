@@ -46,6 +46,7 @@ import {
   clearAutosave,
   fromStored,
   loadAutosave,
+  saveRecovery,
   loadFields,
   prunePhotos,
   putPhoto,
@@ -729,6 +730,11 @@ export function PackagingEditor(props: Props) {
 
     setSaving(true);
     setSelectedId(null);
+    const preserveFailedDesign = async () => {
+      clearTimeout(autosaveTimer.current);
+      if (resume !== null) return false;
+      return saveRecovery(product.productNo, snapshot);
+    };
     try {
       const form = new FormData();
       let preview: string | null = null;
@@ -766,7 +772,8 @@ export function PackagingEditor(props: Props) {
       const res = await saveDesignAction(form);
       if (!res.ok) {
         if (preview) URL.revokeObjectURL(preview);
-        return setError(`디자인 저장에 실패했습니다: ${res.message}. 작성하신 문구와 편집 내용은 그대로 유지되어 있으니 다시 시도해 주세요.`);
+        const saved = await preserveFailedDesign();
+        return setError(`디자인이 접수되지 않았습니다: ${res.message} ${saved ? '이 기기에 임시 보관했어요. 같은 기기에서 다시 열고 저장을 재시도해 주세요.' : '이 기기에 임시 보관하지 못했어요. 화면을 닫지 말고 다시 시도해 주세요.'}`);
       }
 
       setResult({ code: res.code, preview });
@@ -789,7 +796,8 @@ export function PackagingEditor(props: Props) {
         snapshot: toStored(snapshot),
       });
     } catch (e) {
-      setError(`디자인 저장에 실패했습니다. (${e instanceof Error ? e.message : String(e)}) 작성하신 문구와 편집 내용은 안전하게 보존되어 있으니 다시 시도해 주세요.`);
+      const saved = await preserveFailedDesign();
+      setError(`디자인 접수를 확인하지 못했습니다. (${e instanceof Error ? e.message : String(e)}) ${saved ? '이 기기에 임시 보관했어요. 재시도 전에 내 디자인에서 이미 접수됐는지 확인해 주세요.' : '이 기기에 임시 보관하지 못했어요. 화면을 닫지 말고 내 디자인을 확인한 뒤 다시 시도해 주세요.'}`);
     } finally {
       setSaving(false);
     }
