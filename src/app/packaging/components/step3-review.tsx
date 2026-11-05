@@ -171,7 +171,7 @@ export function Step3Review(props: Props) {
             <span className="num" style={{ color: 'var(--pine)' }}>{won(productTotal + PACKAGING_PRICE_PER_ITEM * quantity)}</span>
           </div>
           <p className="small muted" style={{ margin: '8px 0 0', fontSize: 12 }}>
-            ※ 쇼핑몰에서 포장 디자인 서비스 옵션을 선택해 주세요. 배송비와 실제 결제 금액은 쇼핑몰에서 확인해 주세요.
+            ※ 쇼핑몰에서 포장 옵션과 수량 자동 선택을 시도합니다. 선택 결과, 배송비와 실제 결제 금액을 확인해 주세요.
           </p>
         </div>
       </div>

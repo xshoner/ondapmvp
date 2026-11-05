@@ -98,6 +98,19 @@ test('금액 계산: 30,000원 × 100개 = 3,000,000원 (전체 예산 3,000,000
   assert.equal(model.candidateRows[2].itemTotal, 3500000);
 });
 
+test('선정안 구분에는 선택 표시를 출력 단계에서 한 번만 붙인다', () => {
+  const draft = createDummyDraft();
+  draft.source.candidates[0].slot = 'standard';
+  draft.source.candidates[1].slot = 'practical';
+  let model = buildDocumentModel(draft);
+  assert.equal(model.candidateRows[0].planLabel, '표준안(추천)');
+  assert.equal(model.candidateRows[0].isSelected, true);
+  draft.editable.selectedProductNo = 102;
+  model = buildDocumentModel(draft);
+  assert.equal(model.candidateRows[1].planLabel, '실속안');
+  assert.equal(model.candidateRows[1].isSelected, true);
+});
+
 test('금액 계산: 120개 변경 시 3,600,000원으로 상품비만 600,000원 초과', () => {
   const draft = createDummyDraft({
     editable: {

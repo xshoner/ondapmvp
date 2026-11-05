@@ -270,6 +270,8 @@ test('GET /api/approval/[id]/docx & pdf & hwpx: 실제 파일 다운로드', asy
   const hwpxXml = strFromU8(unzipSync(new Uint8Array(await hwpxRes.arrayBuffer()))['Contents/section0.xml']);
   assert.match(hwpxXml, /비고/);
   assert.match(hwpxXml, /표준안 \(추천점수/);
+  assert.match(hwpxXml, /표준안\(추천\) \[선택\]/);
+  assert.doesNotMatch(hwpxXml, /표준안\(추천\)\(선택\)/);
   assert.doesNotMatch(hwpxXml, /핵심 특징/);
   assert.match(decodeURIComponent(hwpxRes.headers.get('Content-Disposition') || ''), /답례품_선정검토서.*\.hwpx/);
 
@@ -283,6 +285,8 @@ test('GET /api/approval/[id]/docx & pdf & hwpx: 실제 파일 다운로드', asy
   const docxXml = strFromU8(unzipSync(new Uint8Array(await docxRes.arrayBuffer()))['word/document.xml']);
   assert.match(docxXml, /비고/);
   assert.match(docxXml, /표준안 \(추천점수/);
+  assert.match(docxXml, /표준안\(추천\) \[선택\]/);
+  assert.doesNotMatch(docxXml, /표준안\(추천\)\(선택\)/);
   assert.doesNotMatch(docxXml, /핵심 특징/);
   assert.match(decodeURIComponent(docxRes.headers.get('Content-Disposition') || ''), /답례품_선정검토서/);
 

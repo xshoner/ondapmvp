@@ -103,7 +103,7 @@ export function ResultModal({
               <b>‘주문하러 가기’</b>를 누르면 쇼핑몰 상품 페이지로 이동합니다. (수량은 <b>{quantity}개</b>로 자동 연동을 시도하나, 쇼핑몰 화면에서 수량을 다시 한 번 확인해 주세요.)
             </li>
             <li>
-              상품 페이지에서 <b>포장 디자인 서비스</b> 옵션을 선택하고 추가 요금을 확인해 주세요. 예상 금액은 {won(PACKAGING_PRICE_PER_ITEM)} × {quantity.toLocaleString('ko-KR')}개 = <b>{won(PACKAGING_PRICE_PER_ITEM * quantity)}</b>입니다. 옵션이 보이지 않으면 고객센터에 문의해 주세요.
+              상품 페이지에서 <b>포장 디자인 서비스</b> 옵션과 수량을 자동 선택하도록 시도합니다. 자동 선택되지 않으면 옵션을 직접 선택하고 합계를 확인해 주세요. 예상 포장비는 {won(PACKAGING_PRICE_PER_ITEM)} × {quantity.toLocaleString('ko-KR')}개 = <b>{won(PACKAGING_PRICE_PER_ITEM * quantity)}</b>입니다. 옵션이 보이지 않으면 고객센터에 문의해 주세요.
             </li>
             <li>‘바로 구매하기’를 누르면 로그인 또는 <b>비회원 구매</b>로 주문할 수 있습니다.</li>
             <li>

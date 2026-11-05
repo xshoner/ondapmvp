@@ -135,16 +135,19 @@
   };
 
   var PACKAGING_OPT_REGEX = /포장\s*디자인|포장디자인|포장\s*신청|포장\s*서비스|선물\s*포장|스티커\s*제작/i;
-  var NEGATIVE_OPT_REGEX = /신청\s*안함|미신청|포장\s*없음|선택\s*안함|기본\s*포장\s*없음/i;
+  var NEGATIVE_OPT_REGEX = /신청\s*안\s*함|미\s*신청|포장\s*없음|선택\s*안\s*함|기본\s*포장\s*없음/i;
 
   function findAndSelectPackagingOption() {
     var selects = document.querySelectorAll('select');
     for (var i = 0; i < selects.length; i++) {
       var sel = selects[i];
       if (sel.disabled) continue;
+      var optionName = (sel.getAttribute('option_title') || '') + ' ' + (sel.closest('tr') ? sel.closest('tr').textContent : '');
       for (var j = 0; j < sel.options.length; j++) {
         var opt = sel.options[j];
-        if (opt.value && opt.value !== '*' && opt.value !== '**' && PACKAGING_OPT_REGEX.test(opt.text) && !NEGATIVE_OPT_REGEX.test(opt.text)) {
+        var groupName = opt.parentElement && opt.parentElement.tagName === 'OPTGROUP' ? opt.parentElement.label : '';
+        var isPackaging = PACKAGING_OPT_REGEX.test(opt.text) || (PACKAGING_OPT_REGEX.test(optionName + ' ' + groupName) && /신청|추가/i.test(opt.text));
+        if (opt.value && opt.value !== '*' && opt.value !== '**' && !opt.disabled && isPackaging && !NEGATIVE_OPT_REGEX.test(opt.text)) {
           if (sel.value !== opt.value) {
             sel.value = opt.value;
             fire(sel);
@@ -211,6 +214,7 @@
     apply();
     window.addEventListener('load', apply);
     [100, 300, 600, 1200, 2000, 3200].forEach(function (ms) { setTimeout(apply, ms); });
+    return apply;
   }
 
   function onProductPage(state, fromLink) {
@@ -218,11 +222,12 @@
     if (state.productNo && no && state.productNo !== no) return; // 다른 상품
     var qty = state.qty;
     var autoOptSelected = false;
+    var manualPackagingChoice = false;
 
     var renderBanner = function () {
       var optInputs = document.querySelectorAll('input.quantity_opt, input[name="quantity_opt[]"]');
       var hasOptRow = optInputs.length > 0;
-      if (autoOptSelected || hasOptRow) {
+      if (autoOptSelected && hasOptRow && [].every.call(optInputs, function (input) { return Number(input.value) === qty; })) {
         banner(
           '포장 디자인 ' + badge(state.code) + ' 저장 완료.<br>' +
           '<b>포장 디자인 옵션과 수량(' + qty + '개)을 자동으로 선택</b>하고 총 결제 금액을 맞췄어요.<br>' +
@@ -234,26 +239,37 @@
         var qtyInfo = baseQtyEl && baseQtyEl.offsetParent !== null ? ' 수량은 <b>' + qty + '개</b>로 맞춰 두었어요.' : ' 옵션을 고르고 수량 <b>' + qty + '개</b>를 선택해 주세요.';
         banner(
           '포장 디자인 ' + badge(state.code) + ' 저장 완료.' + qtyInfo + '<br>' +
-          '포장 디자인 서비스 옵션과 추가 요금을 선택·확인해 주세요. 주문서에서 상품·수량·코드를 다시 확인해요.',
+          '포장 디자인 서비스가 자동 적용되지 않았어요. 쇼핑몰의 옵션과 추가 요금을 확인해 주세요.',
           [copyButton(state.code)]
         );
       }
     };
 
     if (state.code) {
+      var applyQuantity = keepQuantity(qty);
       var trySelect = function () {
-        if (!isCafe24Ready(no)) return;
+        if (manualPackagingChoice || !isCafe24Ready(no)) return;
         var optText = findAndSelectPackagingOption();
-        if (optText) autoOptSelected = true;
-        keepQuantity(qty);
+        if (optText) {
+          if (!autoOptSelected) setTimeout(renderBanner, 300);
+          autoOptSelected = true;
+          applyQuantity();
+          setTimeout(applyQuantity, 150);
+        }
       };
       trySelect();
-      [150, 300, 600, 1000, 1800, 2800].forEach(function (ms) { setTimeout(trySelect, ms); });
+      [150, 300, 600, 1000, 1800, 2800, 4500, 6500].forEach(function (ms) { setTimeout(trySelect, ms); });
       window.addEventListener('load', trySelect);
 
       // 다른 필수 옵션(맛/사이즈 등)을 먼저 골라야 포장 옵션이 활성화되는 복합 옵션 스킨 대응
       document.addEventListener('change', function (e) {
         if (e.target && e.target.matches('select, input[type="radio"]')) {
+          var context = (e.target.getAttribute('option_title') || '') + ' ' + (e.target.closest('tr') ? e.target.closest('tr').textContent : '');
+          if (e.isTrusted && PACKAGING_OPT_REGEX.test(context)) {
+            manualPackagingChoice = true;
+            autoOptSelected = false;
+            setTimeout(renderBanner, 100);
+          }
           setTimeout(trySelect, 100);
         }
       });

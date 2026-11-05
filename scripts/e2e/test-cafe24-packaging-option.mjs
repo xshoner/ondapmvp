@@ -84,6 +84,32 @@ async function testCafe24PackagingOption() {
     assert.match(mobileState.total, /221,000원/, '모바일에서도 총액 221,000원이 자동 합산 표기되어야 함');
     console.log('✓ PASS: 모바일 환경 10개 주문 시 포장 옵션 자동 선택 및 총액 221,000원 합산 확인');
 
+    // 옵션 제목은 ‘포장 디자인 서비스’, 선택지는 ‘신청 (+100원)’인 실제 상품.
+    await b.goto('https://axopenlab.cafe24.com/m/product/detail.html?product_no=53&ondap_qty=13&ondap_order=1&ondap_code=OD-A2B3-4C5D');
+    await b.sleep(3000);
+    await b.evaluate(helperCode);
+    await b.sleep(2500);
+    const grouped = await b.evaluate(`
+      const sel = document.querySelector('#product_option_id1');
+      return { value: sel?.value, qty: document.querySelector('input.quantity_opt, input[name="quantity_opt[]"]:not(#quantity)')?.value, total: document.querySelector('#totalPrice')?.innerText };
+    `);
+    assert.equal(grouped.value, 'P00000CB000B');
+    assert.equal(grouped.qty, '13');
+    assert.match(grouped.total, /507,000원/);
+    console.log('✓ PASS: 옵션 그룹의 신청 항목과 13개 총액');
+
+    // 포장 옵션이 없는 상품에서는 수량만 맞추고 포장비 적용을 주장하지 않는다.
+    await b.goto('https://axopenlab.cafe24.com/m/product/detail.html?product_no=48&ondap_qty=13&ondap_order=1&ondap_code=OD-A2B3-4C5D');
+    await b.sleep(3000);
+    await b.evaluate(helperCode);
+    await b.sleep(2500);
+    const unavailable = await b.evaluate(`
+      return { qty: document.querySelector('#quantity')?.value, banner: document.querySelector('#ondap-banner')?.innerText };
+    `);
+    assert.equal(unavailable.qty, '13');
+    assert.match(unavailable.banner, /자동 적용되지 않았어요/);
+    console.log('✓ PASS: 옵션 없는 상품은 미적용 안내');
+
   } finally {
     await b.close();
   }

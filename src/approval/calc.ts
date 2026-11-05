@@ -400,7 +400,7 @@ export function buildDocumentModel(draft: ApprovalDraft): ApprovalDocumentModel 
   // 후보 비교표 행들 생성
   const candidateRows: CandidateCalculatedRow[] = candidates.map((c) => {
     const isSelected = c.productNo === selectedCandidate.productNo;
-    const planLabel = c.slot ? `${c.slot === 'standard' ? '표준안(추천)' : c.slot === 'practical' ? '실속안' : '격식안'}${isSelected ? '(선택)' : ''}` : c.rank === 1 ? (isSelected ? '1안(추천·선택)' : '1안(추천)') : isSelected ? `${c.rank}안(선택)` : `${c.rank}안`;
+    const planLabel = c.slot ? (c.slot === 'standard' ? '표준안(추천)' : c.slot === 'practical' ? '실속안' : '격식안') : c.rank === 1 ? '1안(추천)' : `${c.rank}안`;
     const cItemTotal = c.price * quantity;
     const cShipFee = shippingFee(cItemTotal);
 

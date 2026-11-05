@@ -76,7 +76,7 @@ export interface ApprovalDraft {
 export interface CandidateCalculatedRow {
   candidate: ApprovalCandidate;
   isSelected: boolean;
-  planLabel: string; // "1안(추천·선택)", "1안(추천)", "2안", "3안"
+  planLabel: string; // 선택 표시는 isSelected로 별도 처리
   quantity: number;
   unitPrice: number;
   itemTotal: number;

@@ -15,7 +15,6 @@ import { CoreFinderForm } from './finder-form.tsx';
 import { CoreNoticeBanner } from './notice-banner.tsx';
 import { CoreMainPick, CoreOtherPick } from './pick-cards.tsx';
 import { CoreCompareTable } from './compare-table.tsx';
-import { PrintReview } from './print-review.tsx';
 import { EVENT_NAMES, RELATION_NAMES, won } from './types.ts';
 
 export interface CustomerRecommendationViewProps {
@@ -309,7 +308,7 @@ export function CustomerRecommendationView({
       )}
 
       {/* 알림 및 제외 사유 배너 */}
-      {activeResponse && activeResponse.items.length > 0 && <><CoreNoticeBanner response={activeResponse} /><PrintReview response={activeResponse} /></>}
+      {activeResponse && activeResponse.items.length > 0 && <CoreNoticeBanner response={activeResponse} />}
 
       {/* 추천 상품 결과 영역 (요청 중일 때는 투명도 조절로 이전 결과임을 시각적으로 분리) */}
       <div style={{ opacity: pending ? 0.4 : 1, transition: 'opacity 0.2s ease', pointerEvents: pending ? 'none' : 'auto' }}>
