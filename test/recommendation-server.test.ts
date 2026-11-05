@@ -39,7 +39,7 @@ test('exported server actions: isolated local save/reload/recommend/preview/conf
   }
   const result = await actions.recommendForCustomer(sampleRequest);
   assert.equal(result.ok, true);
-  if (result.ok) assert.deepEqual(result.data.items.map((p) => p.recommendationScore), [86.8, 82.2, 78.5]);
+  if (result.ok) assert.deepEqual(result.data.items.map((p) => p.recommendationScore), [93.5, 82.8, 92.2]);
   const workspace = await actions.loadAdminWorkspace();
   assert.equal(workspace.ok, true);
   if (workspace.ok) {

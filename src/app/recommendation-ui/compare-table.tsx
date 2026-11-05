@@ -11,7 +11,7 @@ export function CoreCompareTable({
   if (items.length === 0) return null;
 
   const rows: [string, (x: RecommendationItem) => React.ReactNode][] = [
-    ['추천 순위', (x) => <b>{x.rank === 1 ? '1위 (대표)' : `${x.rank}위 대안`}</b>],
+    ['추천 유형', (x) => <b>{x.slot === 'standard' ? '표준안' : x.slot === 'practical' ? '실속안' : x.slot === 'formal' ? '격식안' : `${x.rank}위`}</b>],
     ['1개 단가', (x) => won(x.unitPrice)],
     [`${quantity.toLocaleString('ko-KR')}개 합계`, (x) => <b>{won(x.itemSubtotal)}</b>],
     ['추천점수', (x) => <span style={{ color: 'var(--pine, #2D5A43)', fontWeight: 700 }}>{x.recommendationScore.toFixed(1)}점</span>],
@@ -42,7 +42,7 @@ export function CoreCompareTable({
               {items.map((x) => (
                 <th key={x.productNo} scope="col" style={{ padding: '8px 10px', textAlign: 'left' }}>
                   <div style={{ fontSize: 11, color: 'var(--pine, #2D5A43)', fontWeight: 700 }}>
-                    {x.rank === 1 ? '1위 추천' : `${x.rank}위 대안`}
+                    {x.slot === 'standard' ? '표준안' : x.slot === 'practical' ? '실속안' : x.slot === 'formal' ? '격식안' : `${x.rank}위`}
                   </div>
                   <div style={{ fontWeight: 600, marginTop: 2 }}>{x.name}</div>
                 </th>

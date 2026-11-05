@@ -12,7 +12,7 @@ test('new recommendation log preserves ranking, quantity, version and tiny total
   assert.deepEqual(row.result_product_nos, result.items.map((item) => item.productNo));
   assert.equal(row.quantity, 10);
   assert.equal(row.budget_max, 50000);
-  assert.equal(row.model_version, result.contractVersion);
+  assert.equal(row.model_version, result.algorithmVersion);
   assert.equal(recommendationLogRow({ ...result, request: { ...request, budget: { mode: 'total', amount: 1 } } }).budget_max, 0);
   assert.equal(recommendationLogRow({ ...result, request: { ...request, budget: { mode: 'none' } } }).budget_max, null);
 });

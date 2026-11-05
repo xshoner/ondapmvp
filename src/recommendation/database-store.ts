@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { readPages } from '../data/db.ts';
 import type { ProductAssessment, ProductSnapshot } from './contracts.ts';
 import { parseProductAssessment, parseRecommendationPolicy } from './validation.ts';
-import { assertReviewable, checkRevision, nextTimestamp, policyFromConfig, storedFactors, StoreError, type CoreData, type CoreStore } from './store.ts';
+import { assertReviewable, checkRevision, excludedEvents, nextTimestamp, policyFromConfig, storedFactors, StoreError, type CoreData, type CoreStore } from './store.ts';
 
 // 읽기는 서버 클라이언트, 쓰기는 로그인 사용자의 RLS 클라이언트로 분리한다.
 export function createDatabaseCoreStore(reader: SupabaseClient, writer?: SupabaseClient): CoreStore {
@@ -16,13 +16,15 @@ export function createDatabaseCoreStore(reader: SupabaseClient, writer?: Supabas
     return r.data;
   }
   async function load(): Promise<CoreData> {
-    const [p, a, config] = await Promise.all([
+    const [p, a, attributes, config] = await Promise.all([
       readPages((from, to) => reader.from('products').select('product_no,name,price,display,selling,sold_out,image,detail_image,url').order('product_no').range(from, to), 5000, true),
       readPages((from, to) => reader.from('product_evidence').select(columns).order('product_no').range(from, to), 5000, true),
+      readPages((from, to) => reader.from('product_attributes').select('product_no,excluded_events').order('product_no').range(from, to), 5000, true),
       configRow(reader),
     ]);
-    if (p.error || a.error) throw new StoreError('unavailable', '상품 또는 평가 자료를 읽지 못했습니다.');
-    const products: ProductSnapshot[] = p.rows.map((p: any) => ({ productNo: p.product_no, name: p.name, price: typeof p.price === 'number' || (typeof p.price === 'string' && p.price.trim()) ? Number(p.price) : NaN, display: p.display, selling: p.selling, soldOut: p.sold_out, imageUrl: p.detail_image ?? p.image ?? null, productUrl: p.url }));
+    if (p.error || a.error || attributes.error) throw new StoreError('unavailable', '상품 또는 평가 자료를 읽지 못했습니다.');
+    const excludedByProduct = new Map(attributes.rows.map((row: any) => [row.product_no, excludedEvents(row.excluded_events)]));
+    const products: ProductSnapshot[] = p.rows.map((p: any) => ({ productNo: p.product_no, name: p.name, price: typeof p.price === 'number' || (typeof p.price === 'string' && p.price.trim()) ? Number(p.price) : NaN, display: p.display, selling: p.selling, soldOut: p.sold_out, imageUrl: p.detail_image ?? p.image ?? null, productUrl: p.url, excludedEvents: excludedByProduct.get(p.product_no) ?? [] }));
     return { products, assessments: a.rows.map(rowAssessment), policy: { policy: policyFromConfig(config.config), updatedAt: config.updated_at } };
   }
   return {

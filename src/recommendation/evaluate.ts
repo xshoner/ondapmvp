@@ -50,17 +50,24 @@ export function evaluateRecommendation(products: readonly ProductSnapshot[], raw
       budgetRatio = amount / request.budget.amount;
     }
     const E = Math.max(0, 100 - Math.abs(R - F));
-    const V = budgetRatio === null ? null : 100 * (1 - budgetRatio);
+    const V = budgetRatio === null ? null : budgetRatio < 0.7 ? 100 * (0.3 + budgetRatio) : budgetRatio <= 0.95 ? 100 : 100 * (1 - 6 * (budgetRatio - 0.95));
     const S = Math.max(0, Math.min(100, V === null ? E : (E * policy.scoreWeights.eventFit + V * policy.scoreWeights.priceValue) / (policy.scoreWeights.eventFit + policy.scoreWeights.priceValue)));
     const methods = new Set(used.map((f) => f.method));
     const assessmentMethod: AssessmentMethod = methods.size > 1 ? 'mixed' : used[0].method;
     candidates.push({ productNo: product.productNo, name: product.name, unitPrice: product.price, itemSubtotal: subtotal, imageUrl: product.imageUrl, productUrl: product.productUrl, eventFormality: F, rarityValue: R, evidenceCount: used.length, assessmentMethod, assessmentUpdatedAt: assessment.updatedAt, rubricVersions: [...new Set(used.map((f) => f.rubricVersion))].sort(), eventFitScore: E, priceValueScore: V, recommendationScore: S, rank: 0, reasons: ['검수 자료와 행사 희소 기준을 충족합니다.', V === null ? '예산을 입력하지 않아 행사 적합도로 비교했습니다.' : '행사 적합도와 예산 내 가격 실속으로 비교했습니다.'] });
   }
   candidates.sort((a, b) => b.recommendationScore - a.recommendationScore || b.eventFitScore - a.eventFitScore || a.unitPrice - b.unitPrice || a.productNo - b.productNo);
-  const items = candidates.slice(0, 3).map((item, i) => ({ ...item, rank: i + 1 }));
+  const standard = candidates[0];
+  const remaining = candidates.slice(1);
+  const practical = [...remaining].sort((a, b) => a.unitPrice - b.unitPrice || b.eventFitScore - a.eventFitScore || a.productNo - b.productNo)[0];
+  const formal = remaining.filter((x) => x.productNo !== practical?.productNo).sort((a, b) => b.rarityValue - a.rarityValue || b.eventFitScore - a.eventFitScore || a.unitPrice - b.unitPrice || a.productNo - b.productNo)[0];
+  const items: RecommendationItem[] = [];
+  if (standard) items.push({ ...standard, rank: 1, slot: 'standard', reasons: [standard.priceValueScore === null ? '적격 상품 중 행사 적합도가 가장 높습니다.' : '적격 상품 중 행사 적합도와 예산 사용 비율을 종합한 점수가 가장 높습니다.', ...standard.reasons] });
+  if (practical) items.push({ ...practical, rank: 2, slot: 'practical', reasons: ['표준안을 제외한 적격 상품 중 단가가 가장 낮습니다.', ...practical.reasons] });
+  if (formal) items.push({ ...formal, rank: 3, slot: 'formal', reasons: ['다른 선택안을 제외한 적격 상품 중 희소값이 가장 높습니다.', ...formal.reasons] });
   const notices: RecommendationResponse['notices'] = [];
   if (items.length === 0) notices.push({ code: 'no_candidates', message: '조건에 맞는 상품이 없습니다. 조건 또는 제외 사유를 확인해 주세요.' });
   else if (items.length < 3) notices.push({ code: 'few_candidates', message: `조건을 충족한 상품은 ${items.length}개입니다. 기준을 자동 완화하지 않았습니다.` });
   if (items.some((i) => i.assessmentMethod !== 'numeric')) notices.push({ code: 'legacy_assessment', message: '과거 수준형 평가가 포함되어 있습니다. 새 수치형 평가와 구분해 확인해 주세요.' });
-  return { contractVersion: CONTRACT_VERSION, policyVersion: policy.version, request, items, exclusions, notices };
+  return { contractVersion: CONTRACT_VERSION, algorithmVersion: 'three-plans-v1', policyVersion: policy.version, request, items, exclusions, notices };
 }

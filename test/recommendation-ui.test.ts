@@ -57,8 +57,8 @@ test('2. 더 저렴한 상품보다 행사 적합도(E)가 높은 상품이 앞�
   assert.ok(p1.unitPrice > p2.unitPrice, 'p1이 p2보다 비싸야 함');
   assert.ok(p1.eventFitScore > p2.eventFitScore, 'p1의 행사 적합도가 p2보다 높아야 함');
   assert.ok(p1.recommendationScore > p2.recommendationScore, '결과적으로 p1의 종합점수 S가 더 높아야 함');
-  assert.equal(p1.rank, 1);
-  assert.equal(p2.rank, 2);
+  assert.equal(p1.slot, 'formal');
+  assert.equal(p2.slot, 'practical');
 });
 
 test('3. 예산 없음(none): V 미평가(null), S는 반환값 그대로(S = E) 표시 검증', async () => {
@@ -353,7 +353,8 @@ test('11. 고객 화면: 10개 정상 결과 후 100개 요청 실패 시 이전
 
     const firstItem = activeResponse.items[0];
     const itemSubtotal = firstItem.unitPrice * activeResponse.request.quantity;
-    assert.equal(itemSubtotal, 220000, '카드의 상품 합계는 이전 10개 금액인 220,000원이어야 함 (100개 금액 2,200,000원이 아님)');
+    assert.equal(itemSubtotal, firstItem.itemSubtotal, '카드 합계는 이전 요청의 수량과 같아야 합니다');
+    assert.notEqual(itemSubtotal, firstItem.unitPrice * draftRequest.quantity);
   }
 });
 

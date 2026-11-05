@@ -22,6 +22,12 @@ async function fixture(t: TestContext) {
 }
 const fresh = (no = 900001) => ({ ...sampleAssessment(no), updatedAt: null, reviewedAt: null });
 
+test('local core: 저장된 행사 제외 규칙이 추천 입력에 전달된다', async (t) => {
+  const { store, root } = await fixture(t);
+  await writeFile(join(root, 'product-attributes.json'), JSON.stringify({ products: [{ productNo: 900001, excludedEvents: [{ event: 'funeral', reason: '제외' }] }] }));
+  assert.deepEqual((await store.load()).products[0].excludedEvents, ['funeral']);
+});
+
 test('local core: first save preserves catalog shape; numeric assessment roundtrips without client timestamps', async (t) => {
   const { store, root, catalog } = await fixture(t);
   const input = fresh();
@@ -116,7 +122,7 @@ test('core services: public scores match saved policy; preview and AI never pers
   const result = await services.recommend(sampleRequest);
   assert.equal(result.ok, true);
   if (result.ok) {
-    assert.deepEqual(result.data.items.map((i) => i.recommendationScore), [86.8, 82.2, 78.5]);
+    assert.deepEqual(result.data.items.map((i) => i.recommendationScore), [93.5, 82.8, 92.2]);
     assert.equal(JSON.stringify(result.data).includes('[가상] skill 확인 근거'), false);
   }
   const preview = await services.previewRecommendation({ request: sampleRequest, policy: { ...createDraftPolicy(), scoreWeights: { eventFit: 100, priceValue: 0 } } });

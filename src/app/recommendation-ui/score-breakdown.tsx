@@ -66,7 +66,7 @@ export function CoreScoreBreakdown({ item, customer = false }: { item: Recommend
             {item.priceValueScore !== null ? `${item.priceValueScore.toFixed(1)}점` : '미평가(예산 미입력)'}
           </div>
           <div style={{ fontSize: 11, color: 'var(--muted, #888)', marginTop: 2 }}>
-            {item.priceValueScore !== null ? '예산 대비 절감률' : '예산 미지정으로 S=E'}
+            {item.priceValueScore !== null ? '예산 사용 비율에 따른 점수' : '예산 미지정으로 S=E'}
           </div>
         </div>
 

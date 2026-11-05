@@ -10,6 +10,6 @@ export function recommendationLogRow(result: RecommendationResponse) {
     quantity: request.quantity,
     result_product_nos: items.map((item) => item.productNo),
     // shortcut: 기존 기록 열은 20자 한도다. 정책별 과거 결과 복원이 필요하면 별도 사본 저장을 추가한다.
-    model_version: result.contractVersion,
+    model_version: result.algorithmVersion ?? result.contractVersion,
   };
 }

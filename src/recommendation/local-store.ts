@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { PolicyDocument, ProductAssessment, ProductSnapshot, RecommendationPolicy } from './contracts.ts';
 import { parseProductAssessment, parseRecommendationPolicy } from './validation.ts';
-import { assertReviewable, checkRevision, nextTimestamp, policyFromConfig, storedFactors, StoreError, type CoreData, type CoreStore } from './store.ts';
+import { assertReviewable, checkRevision, excludedEvents, nextTimestamp, policyFromConfig, storedFactors, StoreError, type CoreData, type CoreStore } from './store.ts';
 
 const missing = (e: unknown) => (e as { code?: string })?.code === 'ENOENT';
 export function createLocalCoreStore(root: string): CoreStore {
@@ -35,9 +35,11 @@ export function createLocalCoreStore(root: string): CoreStore {
     finally { await unlink(temp).catch((e) => { if (!missing(e)) throw e; }); }
   }
   async function load(): Promise<CoreData> {
-    const [catalog, pilot, config] = await Promise.all([readJson(join(root, 'cafe24-products.json')), readJson(pilotPath, { items: {} }), readJson(configPath)]);
+    const [catalog, pilot, config, attributes] = await Promise.all([readJson(join(root, 'cafe24-products.json')), readJson(pilotPath, { items: {} }), readJson(configPath), readJson(join(root, 'product-attributes.json'), { products: [] })]);
     if (!Array.isArray(catalog.products) || !pilot.items || Array.isArray(pilot.items)) throw new StoreError('unavailable', '로컬 상품·평가 자료 형식을 확인해 주세요.');
-    const products: ProductSnapshot[] = catalog.products.map((p: any) => ({ productNo: p.productNo, name: p.name, price: p.price, display: p.display, selling: p.selling, soldOut: p.soldOut, imageUrl: p.detailImage ?? p.image ?? null, productUrl: p.url }));
+    if (!Array.isArray(attributes.products)) throw new StoreError('unavailable', '상품 행사 제외 자료 형식을 확인해 주세요.');
+    const excludedByProduct = new Map(attributes.products.map((a: any) => [a.productNo, excludedEvents(a.excludedEvents)]));
+    const products: ProductSnapshot[] = catalog.products.map((p: any) => ({ productNo: p.productNo, name: p.name, price: p.price, display: p.display, selling: p.selling, soldOut: p.soldOut, imageUrl: p.detailImage ?? p.image ?? null, productUrl: p.url, excludedEvents: excludedByProduct.get(p.productNo) ?? [] }));
     const assessments = Object.entries(pilot.items).map(([no, item]) => parseProductAssessment({ ...(item as object), productNo: Number(no) }));
     return { products, assessments, policy: { policy: policyFromConfig(config), updatedAt: config.coreRecommendationUpdatedAt ?? null } };
   }

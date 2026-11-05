@@ -247,7 +247,7 @@ export function buildSelectedReason(
     ? (keyFeature.endsWith('.') ? keyFeature : `${keyFeature}.`)
     : '';
 
-  const rankText = candidate.rank === 1 ? '1순위 안' : `${candidate.rank}안`;
+  const rankText = candidate.slot === 'standard' ? '표준안' : candidate.slot === 'practical' ? '실속안' : candidate.slot === 'formal' ? '격식안' : candidate.rank === 1 ? '1순위 안' : `${candidate.rank}안`;
 
   // 확인되지 않은 판단(상징성, 무조건적 예산 적합 등)은 배제하고, 실제 예산 데이터가 있을 때만 분기
   let conclusion: string;
@@ -313,7 +313,7 @@ export function buildDocumentModel(draft: ApprovalDraft): ApprovalDocumentModel 
   }
 
   const selectedRank = selectedCandidate.rank;
-  const selectedPlanLabel = selectedRank === 1 ? '1안(추천)' : `${selectedRank}안`;
+  const selectedPlanLabel = selectedCandidate.slot === 'standard' ? '표준안(추천)' : selectedCandidate.slot === 'practical' ? '실속안' : selectedCandidate.slot === 'formal' ? '격식안' : selectedRank === 1 ? '1안(추천)' : `${selectedRank}안`;
 
   // 단가 및 합계 계산 (대안별 독립 계산)
   const unitPrice = selectedCandidate.price;
@@ -400,7 +400,7 @@ export function buildDocumentModel(draft: ApprovalDraft): ApprovalDocumentModel 
   // 후보 비교표 행들 생성
   const candidateRows: CandidateCalculatedRow[] = candidates.map((c) => {
     const isSelected = c.productNo === selectedCandidate.productNo;
-    const planLabel = c.rank === 1 ? (isSelected ? '1안(추천·선택)' : '1안(추천)') : isSelected ? `${c.rank}안(선택)` : `${c.rank}안`;
+    const planLabel = c.slot ? `${c.slot === 'standard' ? '표준안(추천)' : c.slot === 'practical' ? '실속안' : '격식안'}${isSelected ? '(선택)' : ''}` : c.rank === 1 ? (isSelected ? '1안(추천·선택)' : '1안(추천)') : isSelected ? `${c.rank}안(선택)` : `${c.rank}안`;
     const cItemTotal = c.price * quantity;
     const cShipFee = shippingFee(cItemTotal);
 
@@ -428,7 +428,7 @@ export function buildDocumentModel(draft: ApprovalDraft): ApprovalDocumentModel 
       shippingFee: cShipFee,
       shippingNote: cShipFee === 0 ? '무료 배송' : won(cShipFee),
       tier: c.tier,
-      remark: `추천 ${c.rank}순위 (${c.recommendationScore != null || c.model === 'core-contract-v1' ? `추천점수 ${(c.recommendationScore ?? c.matchScore).toFixed(1)}점` : '추천점수 미확인'})`,
+      remark: `${c.slot ? c.tier : `추천 ${c.rank}순위`} (${c.recommendationScore != null || c.model === 'core-contract-v1' ? `추천점수 ${(c.recommendationScore ?? c.matchScore).toFixed(1)}점` : '추천점수 미확인'})`,
       matchScore: Math.round(c.recommendationScore ?? c.matchScore),
       recommendationScore: c.recommendationScore,
       rarityValue: c.rarityValue,

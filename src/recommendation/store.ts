@@ -1,4 +1,4 @@
-import { FACTOR_IDS, type ErrorCode, type PolicyDocument, type ProductAssessment, type ProductSnapshot, type RecommendationPolicy } from './contracts.ts';
+import { EVENT_IDS, FACTOR_IDS, type EventId, type ErrorCode, type PolicyDocument, type ProductAssessment, type ProductSnapshot, type RecommendationPolicy } from './contracts.ts';
 import { ContractError, parseRecommendationPolicy } from './validation.ts';
 import { createDraftPolicy } from './policy.ts';
 
@@ -11,6 +11,14 @@ export interface CoreStore {
   load(): Promise<CoreData>;
   saveAssessment(assessment: ProductAssessment, expectedUpdatedAt: string | null): Promise<ProductAssessment>;
   savePolicy(policy: RecommendationPolicy, expectedUpdatedAt: string | null): Promise<PolicyDocument>;
+}
+
+export function excludedEvents(value: unknown): EventId[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.flatMap((item) => {
+    const event = item && typeof item === 'object' ? item.event : undefined;
+    return typeof event === 'string' && EVENT_IDS.includes(event as EventId) ? [event as EventId] : [];
+  }))];
 }
 
 export function nextTimestamp(previous: string | null): string {

@@ -11,10 +11,28 @@ import { join } from 'node:path';
 const evaluate = () => { const f = sampleInputs(); return evaluateRecommendation(f.products, f.assessments, f.request, createDraftPolicy()); };
 const near = (actual: number | null, expected: number) => { assert.ok(actual !== null && Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`); };
 
+test('가격 점수 경계와 세 선택안은 예산을 넘지 않고 중복되지 않는다', () => {
+  const policy = createDraftPolicy();
+  const request = { ...sampleRequest, budget: { mode: 'per_item', amount: 10000 } };
+  for (const [price, expected] of [[1, 30.01], [4000, 70], [6999, 99.99], [7000, 100], [9500, 100], [10000, 70]]) {
+    const result = evaluateRecommendation([sampleProduct(1, price)], [sampleAssessment(1)], request, policy);
+    near(result.items[0].priceValueScore, expected);
+  }
+  const products = [4000, 8000, 9500, 10001].map((price, i) => sampleProduct(i + 1, price));
+  const result = evaluateRecommendation(products, products.map((p) => sampleAssessment(p.productNo)), request, policy);
+  assert.deepEqual(result.items.map((i) => i.slot), ['standard', 'practical', 'formal']);
+  assert.equal(new Set(result.items.map((i) => i.productNo)).size, 3);
+  assert.equal(result.exclusions.find((x) => x.productNo === 4)?.code, 'budget_exceeded');
+  assert.equal(result.items[1].unitPrice, 4000);
+  const two = evaluateRecommendation(products.slice(0, 2), products.slice(0, 2).map((p) => sampleAssessment(p.productNo)), request, policy);
+  assert.deepEqual(two.items.map((i) => i.slot), ['standard', 'practical']);
+});
+
 test('설계안의 F/R/E/V/S를 별개로 계산하고 더 싼 상품보다 행사 적합 상품이 앞선다', () => {
   const { items } = evaluate();
-  assert.deepEqual(items.map((i) => i.productNo), [900001, 900002, 900003]);
-  const expected = [[80, 100, 56, 86.8], [90, 90, 64, 82.2], [75, 95, 40, 78.5]];
+  assert.deepEqual(items.map((i) => i.productNo), [900003, 900002, 900001]);
+  assert.deepEqual(items.map((i) => i.slot), ['standard', 'practical', 'formal']);
+  const expected = [[75, 95, 90, 93.5], [90, 90, 66, 82.8], [80, 100, 74, 92.2]];
   for (const [index, item] of items.entries()) {
     assert.equal(item.eventFormality, 80);
     [item.rarityValue, item.eventFitScore, item.priceValueScore, item.recommendationScore].forEach((n, j) => near(n, expected[index][j]));
@@ -27,7 +45,7 @@ test('예산 미입력은 가격 미평가이며 추천점수는 행사 적합�
   const f = sampleInputs();
   f.request.budget = { mode: 'none' };
   const r = evaluateRecommendation(f.products, f.assessments, f.request, createDraftPolicy());
-  assert.deepEqual(r.items.map((i) => i.productNo), [900001, 900003, 900002]);
+  assert.deepEqual(r.items.map((i) => i.productNo), [900001, 900002, 900003]);
   for (const i of r.items) { assert.equal(i.priceValueScore, null); assert.equal(i.recommendationScore, i.eventFitScore); }
 });
 
@@ -48,7 +66,7 @@ test('예산 경계는 상품비 이하이며 자동 예산 완화가 없다', (
   const a = sampleAssessment(1);
   const req = { ...sampleRequest, budget: { mode: 'per_item', amount: 22000 } };
   const r = evaluateRecommendation([p], [a], req, createDraftPolicy());
-  assert.equal(r.items.length, 1); assert.equal(r.items[0].priceValueScore, 0);
+  assert.equal(r.items.length, 1); near(r.items[0].priceValueScore, 70);
   const over = evaluateRecommendation([{ ...p, price: 22001 }], [a], req, createDraftPolicy());
   assert.equal(over.items.length, 0); assert.equal(over.exclusions[0].code, 'budget_exceeded');
 });
@@ -109,7 +127,7 @@ test('동점은 E→판매가→상품번호로 고정하고 입력·정책·평
 test('소수 표시 반올림은 순위를 바꾸지 않고 최대 3개만 반환한다', () => {
   const products = [sampleProduct(1, 10001), sampleProduct(2, 10000), sampleProduct(3, 10002), sampleProduct(4, 10003)];
   const r = evaluateRecommendation(products, products.map((p) => sampleAssessment(p.productNo)), sampleRequest, createDraftPolicy());
-  assert.deepEqual(r.items.map((i) => i.productNo), [2, 1, 3]);
+  assert.deepEqual(r.items.map((i) => i.productNo), [4, 2, 1]);
   assert.equal(r.items[0].recommendationScore.toFixed(1), r.items[1].recommendationScore.toFixed(1));
 });
 

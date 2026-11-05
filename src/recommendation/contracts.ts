@@ -61,6 +61,7 @@ export interface RecommendationPolicy {
   scoreWeights: { eventFit: number; priceValue: number };
 }
 export interface RecommendationItem {
+  slot?: 'standard' | 'practical' | 'formal';
   productNo: number;
   name: string;
   unitPrice: number;
@@ -82,6 +83,7 @@ export interface RecommendationItem {
 export type ExclusionCode = 'invalid_product' | 'unavailable' | 'customer_excluded' | 'event_excluded' | 'unreviewed' | 'insufficient_evidence' | 'rarity_outside' | 'budget_exceeded';
 export interface RecommendationResponse {
   contractVersion: typeof CONTRACT_VERSION;
+  algorithmVersion?: string;
   policyVersion: string;
   request: RecommendationRequest;
   items: RecommendationItem[];

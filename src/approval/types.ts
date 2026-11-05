@@ -1,6 +1,7 @@
 import type { ResultQuery } from '../lib/result-query.ts';
 
 export interface ApprovalCandidate {
+  slot?: 'standard' | 'practical' | 'formal';
   model?: 'v2' | 'core-contract-v1';
   rank: number; // 1, 2, 3
   productNo: number;

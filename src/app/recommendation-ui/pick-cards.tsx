@@ -90,7 +90,7 @@ export function CoreMainPick({
               color: 'var(--pine, #2D5A43)',
             }}
           >
-            1위 대표 추천
+            {item.slot === 'standard' ? "표준안 · ONDAP'S PICK" : '1위 대표 추천'}
           </span>
         </div>
 
@@ -105,6 +105,7 @@ export function CoreMainPick({
             </div>
           )}
         </div>
+        {item.slot && <p className="small muted">{item.reasons[0]}</p>}
 
         {/* 가격 정보 테이블 */}
         <div
@@ -328,7 +329,7 @@ export function CoreOtherPick({
                   color: 'var(--ink-soft, #555)',
                 }}
               >
-                {item.rank}위 대안 추천
+                {item.slot === 'practical' ? '실속안 · 낮은 단가' : item.slot === 'formal' ? '격식안 · 높은 희소값' : `${item.rank}위 대안 추천`}
               </span>
 
               {/* 작은 추천점수 배지 */}
@@ -364,6 +365,7 @@ export function CoreOtherPick({
             <div style={{ fontSize: 13, color: 'var(--ink, #333)' }}>
               1개 {won(item.unitPrice)} · {quantity}개 합계 <b data-testid="item-subtotal">{won(subtotal)}</b>
             </div>
+            {item.slot && <p className="small muted">{item.reasons[0]}</p>}
           </div>
         </div>
 

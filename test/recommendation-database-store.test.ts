@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createDatabaseCoreStore } from '../src/recommendation/database-store.ts';
 import { createDraftPolicy } from '../src/recommendation/policy.ts';
-import { sampleInputs } from './fixtures/recommendation-inputs.ts';
+import { sampleInputs, sampleRequest } from './fixtures/recommendation-inputs.ts';
+import { evaluateRecommendation } from '../src/recommendation/evaluate.ts';
 
 // Query-level substitute: checks conditional writes and RLS error handling, not PostgreSQL/RLS integration.
 function databaseFixture() {
@@ -13,6 +14,7 @@ function databaseFixture() {
   const tables: Record<string, Row[]> = {
     products: products.map((p) => ({ product_no: p.productNo, name: p.name, price: p.price, display: p.display, selling: p.selling, sold_out: p.soldOut, image: p.imageUrl, detail_image: null, url: p.productUrl })),
     product_evidence: assessments.map((a) => ({ product_no: a.productNo, description: a.description, factors: a.factors, reviewed: a.reviewed, updated_at: stamp, reviewed_at: stamp, reviewed_by: 'original-operator' })),
+    product_attributes: [{ product_no: products[0].productNo, excluded_events: [{ event: 'funeral', reason: '제외' }] }],
     engine_config: [{ id: 'active', config: { unrelated: 'preserve', coreRecommendation: createDraftPolicy() }, updated_at: stamp }],
   };
   const writes: { table: string; op: string; filters: [string, unknown][] }[] = [];
@@ -56,6 +58,9 @@ test('database core: recommendation reads only catalog, v2 evidence and policy; 
   const readOnly = createDatabaseCoreStore(f.reader);
   const data = await readOnly.load();
   assert.equal(data.products.length, 3);
+  assert.deepEqual(data.products[0].excludedEvents, ['funeral']);
+  const result = evaluateRecommendation(data.products, data.assessments, { ...sampleRequest, event: 'funeral' }, data.policy.policy);
+  assert.equal(result.exclusions.find((x) => x.productNo === data.products[0].productNo)?.code, 'event_excluded');
   assert.equal(data.assessments.length, 3);
   f.tables.products[0].price = null;
   assert.equal(Number.isNaN((await readOnly.load()).products[0].price), true);

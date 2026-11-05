@@ -126,13 +126,14 @@ export async function POST(req: Request) {
 
       return {
         model: 'core-contract-v1',
+        slot: r.slot,
         rank: r.rank ?? idx + 1,
         productNo: r.productNo,
         productName: r.name,
         price: r.unitPrice,
         imageUrl: r.imageUrl || '',
         localImageFilename,
-        tier: `추천 ${idx + 1}순위`,
+        tier: r.slot === 'standard' ? '표준안' : r.slot === 'practical' ? '실속안' : r.slot === 'formal' ? '격식안' : `추천 ${idx + 1}순위`,
         matchScore: r.recommendationScore,
         recommendationScore: r.recommendationScore, // S (추천점수)
         rarityValue: r.rarityValue, // R (상품 희소값)
@@ -165,7 +166,7 @@ export async function POST(req: Request) {
       query,
       budgetMode: (query.budgetMode ?? (query.budget == null ? 'none' : 'per_item')) as 'per_item' | 'total' | 'none',
       originalTotalBudget: query.totalBudget ?? null,
-      modelVersion: 'core-contract-v1',
+      modelVersion: recResult.data.algorithmVersion ?? 'core-contract-v1',
       policyVersion,
       catalogSyncedAt: snapshotAt,
       snapshotAt,

@@ -110,7 +110,7 @@ test('POST /api/approval: 정상 초안 생성, 새 추천 결과 및 사본 고
   assert.ok(json.token);
   assert.ok(cookieHeader.includes(`ondap_approval_${json.id}`));
   assert.equal(json.draft.revision, 1);
-  assert.equal(json.draft.source.modelVersion, 'core-contract-v1');
+  assert.equal(json.draft.source.modelVersion, 'three-plans-v1');
   assert.ok(json.draft.source.candidates.length > 0);
 
   // 후보 사본에 R(희소값)과 S(추천점수)가 구분 보관되었는지 확인
@@ -119,7 +119,8 @@ test('POST /api/approval: 정상 초안 생성, 새 추천 결과 및 사본 고
   assert.equal(typeof cand0.rarityValue, 'number');
   assert.equal(cand0.model, 'core-contract-v1');
   assert.ok(json.model.selectedReason.includes(cand0.recommendationScore.toFixed(1)));
-  assert.equal(json.model.candidateRows[0].remark, `추천 1순위 (추천점수 ${cand0.recommendationScore.toFixed(1)}점)`);
+  assert.equal(json.model.candidateRows[0].remark, `표준안 (추천점수 ${cand0.recommendationScore.toFixed(1)}점)`);
+  assert.equal(cand0.slot, 'standard');
   assert.equal(cand0.story, undefined);
 
   createdId = json.id;
@@ -268,7 +269,7 @@ test('GET /api/approval/[id]/docx & pdf & hwpx: 실제 파일 다운로드', asy
   assert.equal(hwpxRes.headers.get('Content-Type'), 'application/hwp+zip');
   const hwpxXml = strFromU8(unzipSync(new Uint8Array(await hwpxRes.arrayBuffer()))['Contents/section0.xml']);
   assert.match(hwpxXml, /비고/);
-  assert.match(hwpxXml, /추천 1순위 \(추천점수/);
+  assert.match(hwpxXml, /표준안 \(추천점수/);
   assert.doesNotMatch(hwpxXml, /핵심 특징/);
   assert.match(decodeURIComponent(hwpxRes.headers.get('Content-Disposition') || ''), /답례품_선정검토서.*\.hwpx/);
 
@@ -281,7 +282,7 @@ test('GET /api/approval/[id]/docx & pdf & hwpx: 실제 파일 다운로드', asy
   assert.equal(docxRes.headers.get('Content-Type'), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
   const docxXml = strFromU8(unzipSync(new Uint8Array(await docxRes.arrayBuffer()))['word/document.xml']);
   assert.match(docxXml, /비고/);
-  assert.match(docxXml, /추천 1순위 \(추천점수/);
+  assert.match(docxXml, /표준안 \(추천점수/);
   assert.doesNotMatch(docxXml, /핵심 특징/);
   assert.match(decodeURIComponent(docxRes.headers.get('Content-Disposition') || ''), /답례품_선정검토서/);
 

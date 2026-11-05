@@ -733,6 +733,7 @@
       "id": "three",
       "response": {
         "contractVersion": "core-contract-v1",
+        "algorithmVersion": "three-plans-v1",
         "policyVersion": "core-draft-1",
         "request": {
           "event": "wedding",
@@ -748,28 +749,30 @@
         },
         "items": [
           {
-            "productNo": 900001,
-            "name": "[가상] 비교 상품 900001",
-            "unitPrice": 22000,
-            "itemSubtotal": 220000,
+            "productNo": 900003,
+            "name": "[가상] 비교 상품 900003",
+            "unitPrice": 30000,
+            "itemSubtotal": 300000,
             "imageUrl": null,
-            "productUrl": "https://example.com/products/900001",
+            "productUrl": "https://example.com/products/900003",
             "eventFormality": 80,
-            "rarityValue": 80,
-            "evidenceCount": 5,
+            "rarityValue": 75,
+            "evidenceCount": 2,
             "assessmentMethod": "numeric",
             "assessmentUpdatedAt": "2026-11-01T00:00:00.000Z",
             "rubricVersions": [
               "numeric-draft-1"
             ],
-            "eventFitScore": 100,
-            "priceValueScore": 56.00000000000001,
-            "recommendationScore": 86.8,
+            "eventFitScore": 95,
+            "priceValueScore": 89.99999999999999,
+            "recommendationScore": 93.5,
             "rank": 1,
             "reasons": [
+              "적격 상품 중 행사 적합도와 예산 사용 비율을 종합한 점수가 가장 높습니다.",
               "검수 자료와 행사 희소 기준을 충족합니다.",
               "행사 적합도와 예산 내 가격 실속으로 비교했습니다."
-            ]
+            ],
+            "slot": "standard"
           },
           {
             "productNo": 900002,
@@ -787,37 +790,41 @@
               "numeric-draft-1"
             ],
             "eventFitScore": 90,
-            "priceValueScore": 64,
-            "recommendationScore": 82.2,
+            "priceValueScore": 65.99999999999999,
+            "recommendationScore": 82.8,
             "rank": 2,
             "reasons": [
+              "표준안을 제외한 적격 상품 중 단가가 가장 낮습니다.",
               "검수 자료와 행사 희소 기준을 충족합니다.",
               "행사 적합도와 예산 내 가격 실속으로 비교했습니다."
-            ]
+            ],
+            "slot": "practical"
           },
           {
-            "productNo": 900003,
-            "name": "[가상] 비교 상품 900003",
-            "unitPrice": 30000,
-            "itemSubtotal": 300000,
+            "productNo": 900001,
+            "name": "[가상] 비교 상품 900001",
+            "unitPrice": 22000,
+            "itemSubtotal": 220000,
             "imageUrl": null,
-            "productUrl": "https://example.com/products/900003",
+            "productUrl": "https://example.com/products/900001",
             "eventFormality": 80,
-            "rarityValue": 75,
-            "evidenceCount": 2,
+            "rarityValue": 80,
+            "evidenceCount": 5,
             "assessmentMethod": "numeric",
             "assessmentUpdatedAt": "2026-11-01T00:00:00.000Z",
             "rubricVersions": [
               "numeric-draft-1"
             ],
-            "eventFitScore": 95,
-            "priceValueScore": 40,
-            "recommendationScore": 78.5,
+            "eventFitScore": 100,
+            "priceValueScore": 74,
+            "recommendationScore": 92.2,
             "rank": 3,
             "reasons": [
+              "다른 선택안을 제외한 적격 상품 중 희소값이 가장 높습니다.",
               "검수 자료와 행사 희소 기준을 충족합니다.",
               "행사 적합도와 예산 내 가격 실속으로 비교했습니다."
-            ]
+            ],
+            "slot": "formal"
           }
         ],
         "exclusions": [],
@@ -828,6 +835,7 @@
       "id": "one",
       "response": {
         "contractVersion": "core-contract-v1",
+        "algorithmVersion": "three-plans-v1",
         "policyVersion": "core-draft-1",
         "request": {
           "event": "wedding",
@@ -861,13 +869,15 @@
               "numeric-draft-1"
             ],
             "eventFitScore": 100,
-            "priceValueScore": 56.00000000000001,
-            "recommendationScore": 86.8,
+            "priceValueScore": 74,
+            "recommendationScore": 92.2,
             "rank": 1,
             "reasons": [
+              "적격 상품 중 행사 적합도와 예산 사용 비율을 종합한 점수가 가장 높습니다.",
               "검수 자료와 행사 희소 기준을 충족합니다.",
               "행사 적합도와 예산 내 가격 실속으로 비교했습니다."
-            ]
+            ],
+            "slot": "standard"
           }
         ],
         "exclusions": [
@@ -894,6 +904,7 @@
       "id": "none",
       "response": {
         "contractVersion": "core-contract-v1",
+        "algorithmVersion": "three-plans-v1",
         "policyVersion": "core-draft-1",
         "request": {
           "event": "wedding",
@@ -937,6 +948,7 @@
       "id": "no-budget",
       "response": {
         "contractVersion": "core-contract-v1",
+        "algorithmVersion": "three-plans-v1",
         "policyVersion": "core-draft-1",
         "request": {
           "event": "wedding",
@@ -970,33 +982,11 @@
             "recommendationScore": 100,
             "rank": 1,
             "reasons": [
+              "적격 상품 중 행사 적합도가 가장 높습니다.",
               "검수 자료와 행사 희소 기준을 충족합니다.",
               "예산을 입력하지 않아 행사 적합도로 비교했습니다."
-            ]
-          },
-          {
-            "productNo": 900003,
-            "name": "[가상] 비교 상품 900003",
-            "unitPrice": 30000,
-            "itemSubtotal": 300000,
-            "imageUrl": null,
-            "productUrl": "https://example.com/products/900003",
-            "eventFormality": 80,
-            "rarityValue": 75,
-            "evidenceCount": 2,
-            "assessmentMethod": "numeric",
-            "assessmentUpdatedAt": "2026-11-01T00:00:00.000Z",
-            "rubricVersions": [
-              "numeric-draft-1"
             ],
-            "eventFitScore": 95,
-            "priceValueScore": null,
-            "recommendationScore": 95,
-            "rank": 2,
-            "reasons": [
-              "검수 자료와 행사 희소 기준을 충족합니다.",
-              "예산을 입력하지 않아 행사 적합도로 비교했습니다."
-            ]
+            "slot": "standard"
           },
           {
             "productNo": 900002,
@@ -1016,82 +1006,13 @@
             "eventFitScore": 90,
             "priceValueScore": null,
             "recommendationScore": 90,
-            "rank": 3,
-            "reasons": [
-              "검수 자료와 행사 희소 기준을 충족합니다.",
-              "예산을 입력하지 않아 행사 적합도로 비교했습니다."
-            ]
-          }
-        ],
-        "exclusions": [],
-        "notices": []
-      }
-    },
-    {
-      "id": "total-budget",
-      "response": {
-        "contractVersion": "core-contract-v1",
-        "policyVersion": "core-draft-1",
-        "request": {
-          "event": "wedding",
-          "relation": "business",
-          "quantity": 10,
-          "budget": {
-            "mode": "total",
-            "amount": 500000
-          },
-          "excludedProductNos": [],
-          "sender": "unknown",
-          "purpose": "unknown"
-        },
-        "items": [
-          {
-            "productNo": 900001,
-            "name": "[가상] 비교 상품 900001",
-            "unitPrice": 22000,
-            "itemSubtotal": 220000,
-            "imageUrl": null,
-            "productUrl": "https://example.com/products/900001",
-            "eventFormality": 80,
-            "rarityValue": 80,
-            "evidenceCount": 5,
-            "assessmentMethod": "numeric",
-            "assessmentUpdatedAt": "2026-11-01T00:00:00.000Z",
-            "rubricVersions": [
-              "numeric-draft-1"
-            ],
-            "eventFitScore": 100,
-            "priceValueScore": 56.00000000000001,
-            "recommendationScore": 86.8,
-            "rank": 1,
-            "reasons": [
-              "검수 자료와 행사 희소 기준을 충족합니다.",
-              "행사 적합도와 예산 내 가격 실속으로 비교했습니다."
-            ]
-          },
-          {
-            "productNo": 900002,
-            "name": "[가상] 비교 상품 900002",
-            "unitPrice": 18000,
-            "itemSubtotal": 180000,
-            "imageUrl": null,
-            "productUrl": "https://example.com/products/900002",
-            "eventFormality": 80,
-            "rarityValue": 90,
-            "evidenceCount": 5,
-            "assessmentMethod": "numeric",
-            "assessmentUpdatedAt": "2026-11-01T00:00:00.000Z",
-            "rubricVersions": [
-              "numeric-draft-1"
-            ],
-            "eventFitScore": 90,
-            "priceValueScore": 64,
-            "recommendationScore": 82.2,
             "rank": 2,
             "reasons": [
+              "표준안을 제외한 적격 상품 중 단가가 가장 낮습니다.",
               "검수 자료와 행사 희소 기준을 충족합니다.",
-              "행사 적합도와 예산 내 가격 실속으로 비교했습니다."
-            ]
+              "예산을 입력하지 않아 행사 적합도로 비교했습니다."
+            ],
+            "slot": "practical"
           },
           {
             "productNo": 900003,
@@ -1109,13 +1030,117 @@
               "numeric-draft-1"
             ],
             "eventFitScore": 95,
-            "priceValueScore": 40,
-            "recommendationScore": 78.5,
+            "priceValueScore": null,
+            "recommendationScore": 95,
             "rank": 3,
             "reasons": [
+              "다른 선택안을 제외한 적격 상품 중 희소값이 가장 높습니다.",
+              "검수 자료와 행사 희소 기준을 충족합니다.",
+              "예산을 입력하지 않아 행사 적합도로 비교했습니다."
+            ],
+            "slot": "formal"
+          }
+        ],
+        "exclusions": [],
+        "notices": []
+      }
+    },
+    {
+      "id": "total-budget",
+      "response": {
+        "contractVersion": "core-contract-v1",
+        "algorithmVersion": "three-plans-v1",
+        "policyVersion": "core-draft-1",
+        "request": {
+          "event": "wedding",
+          "relation": "business",
+          "quantity": 10,
+          "budget": {
+            "mode": "total",
+            "amount": 500000
+          },
+          "excludedProductNos": [],
+          "sender": "unknown",
+          "purpose": "unknown"
+        },
+        "items": [
+          {
+            "productNo": 900003,
+            "name": "[가상] 비교 상품 900003",
+            "unitPrice": 30000,
+            "itemSubtotal": 300000,
+            "imageUrl": null,
+            "productUrl": "https://example.com/products/900003",
+            "eventFormality": 80,
+            "rarityValue": 75,
+            "evidenceCount": 2,
+            "assessmentMethod": "numeric",
+            "assessmentUpdatedAt": "2026-11-01T00:00:00.000Z",
+            "rubricVersions": [
+              "numeric-draft-1"
+            ],
+            "eventFitScore": 95,
+            "priceValueScore": 89.99999999999999,
+            "recommendationScore": 93.5,
+            "rank": 1,
+            "reasons": [
+              "적격 상품 중 행사 적합도와 예산 사용 비율을 종합한 점수가 가장 높습니다.",
               "검수 자료와 행사 희소 기준을 충족합니다.",
               "행사 적합도와 예산 내 가격 실속으로 비교했습니다."
-            ]
+            ],
+            "slot": "standard"
+          },
+          {
+            "productNo": 900002,
+            "name": "[가상] 비교 상품 900002",
+            "unitPrice": 18000,
+            "itemSubtotal": 180000,
+            "imageUrl": null,
+            "productUrl": "https://example.com/products/900002",
+            "eventFormality": 80,
+            "rarityValue": 90,
+            "evidenceCount": 5,
+            "assessmentMethod": "numeric",
+            "assessmentUpdatedAt": "2026-11-01T00:00:00.000Z",
+            "rubricVersions": [
+              "numeric-draft-1"
+            ],
+            "eventFitScore": 90,
+            "priceValueScore": 65.99999999999999,
+            "recommendationScore": 82.8,
+            "rank": 2,
+            "reasons": [
+              "표준안을 제외한 적격 상품 중 단가가 가장 낮습니다.",
+              "검수 자료와 행사 희소 기준을 충족합니다.",
+              "행사 적합도와 예산 내 가격 실속으로 비교했습니다."
+            ],
+            "slot": "practical"
+          },
+          {
+            "productNo": 900001,
+            "name": "[가상] 비교 상품 900001",
+            "unitPrice": 22000,
+            "itemSubtotal": 220000,
+            "imageUrl": null,
+            "productUrl": "https://example.com/products/900001",
+            "eventFormality": 80,
+            "rarityValue": 80,
+            "evidenceCount": 5,
+            "assessmentMethod": "numeric",
+            "assessmentUpdatedAt": "2026-11-01T00:00:00.000Z",
+            "rubricVersions": [
+              "numeric-draft-1"
+            ],
+            "eventFitScore": 100,
+            "priceValueScore": 74,
+            "recommendationScore": 92.2,
+            "rank": 3,
+            "reasons": [
+              "다른 선택안을 제외한 적격 상품 중 희소값이 가장 높습니다.",
+              "검수 자료와 행사 희소 기준을 충족합니다.",
+              "행사 적합도와 예산 내 가격 실속으로 비교했습니다."
+            ],
+            "slot": "formal"
           }
         ],
         "exclusions": [],
@@ -1126,6 +1151,7 @@
       "id": "tiny-total-budget",
       "response": {
         "contractVersion": "core-contract-v1",
+        "algorithmVersion": "three-plans-v1",
         "policyVersion": "core-draft-1",
         "request": {
           "event": "wedding",
@@ -1169,6 +1195,7 @@
       "id": "legacy",
       "response": {
         "contractVersion": "core-contract-v1",
+        "algorithmVersion": "three-plans-v1",
         "policyVersion": "core-draft-1",
         "request": {
           "event": "wedding",
@@ -1199,13 +1226,15 @@
               "legacy-level-v1"
             ],
             "eventFitScore": 100,
-            "priceValueScore": 56.00000000000001,
-            "recommendationScore": 86.8,
+            "priceValueScore": 74,
+            "recommendationScore": 92.2,
             "rank": 1,
             "reasons": [
+              "적격 상품 중 행사 적합도와 예산 사용 비율을 종합한 점수가 가장 높습니다.",
               "검수 자료와 행사 희소 기준을 충족합니다.",
               "행사 적합도와 예산 내 가격 실속으로 비교했습니다."
-            ]
+            ],
+            "slot": "standard"
           }
         ],
         "exclusions": [],
@@ -1225,6 +1254,7 @@
       "id": "mixed",
       "response": {
         "contractVersion": "core-contract-v1",
+        "algorithmVersion": "three-plans-v1",
         "policyVersion": "core-draft-1",
         "request": {
           "event": "wedding",
@@ -1256,13 +1286,15 @@
               "numeric-draft-1"
             ],
             "eventFitScore": 96.666666666667,
-            "priceValueScore": 56.00000000000001,
-            "recommendationScore": 84.4666666666669,
+            "priceValueScore": 74,
+            "recommendationScore": 89.8666666666669,
             "rank": 1,
             "reasons": [
+              "적격 상품 중 행사 적합도와 예산 사용 비율을 종합한 점수가 가장 높습니다.",
               "검수 자료와 행사 희소 기준을 충족합니다.",
               "행사 적합도와 예산 내 가격 실속으로 비교했습니다."
-            ]
+            ],
+            "slot": "standard"
           }
         ],
         "exclusions": [],
@@ -1282,6 +1314,7 @@
       "id": "unreviewed",
       "response": {
         "contractVersion": "core-contract-v1",
+        "algorithmVersion": "three-plans-v1",
         "policyVersion": "core-draft-1",
         "request": {
           "event": "wedding",
