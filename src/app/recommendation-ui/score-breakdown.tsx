@@ -4,7 +4,7 @@ export function CoreScoreBreakdown({ item, customer = false }: { item: Recommend
   if (customer) return <div style={{ display: 'grid', gap: 8, fontSize: 13 }}>
     <div>추천점수: <b>{item.recommendationScore.toFixed(1)}점</b></div>
     <div>행사 적합도: {item.eventFitScore.toFixed(1)}점</div>
-    <div>예산 대비 가격: {item.priceValueScore === null ? '예산 미입력' : `${item.priceValueScore.toFixed(1)}점`}</div>
+    <div>예산 대비 가격: {item.priceValueScore === null ? '예산 제한 없음' : `${item.priceValueScore.toFixed(1)}점`}</div>
     <div>상품 특성 점수: {item.rarityValue.toFixed(1)}점</div>
     <p style={{ margin: 0 }}>상품 특성 점수는 제작·지역·이력 등 확인된 특성을 바탕으로 합니다. 추천점수는 행사와 예산 조건도 함께 반영합니다.</p>
   </div>;
@@ -63,7 +63,7 @@ export function CoreScoreBreakdown({ item, customer = false }: { item: Recommend
               color: item.priceValueScore === null ? 'var(--muted, #888)' : 'inherit',
             }}
           >
-            {item.priceValueScore !== null ? `${item.priceValueScore.toFixed(1)}점` : '미평가(예산 미입력)'}
+            {item.priceValueScore !== null ? `${item.priceValueScore.toFixed(1)}점` : '미평가(예산 제한 없음)'}
           </div>
           <div style={{ fontSize: 11, color: 'var(--muted, #888)', marginTop: 2 }}>
             {item.priceValueScore !== null ? '예산 사용 비율에 따른 점수' : '예산 미지정으로 S=E'}

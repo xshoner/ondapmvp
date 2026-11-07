@@ -49,6 +49,18 @@ test('예산 미입력은 가격 미평가이며 추천점수는 행사 적합�
   for (const i of r.items) { assert.equal(i.priceValueScore, null); assert.equal(i.recommendationScore, i.eventFitScore); }
 });
 
+test('격식안이 표준안보다 상품 특성 점수가 낮아도 실제 비교값을 설명한다', () => {
+  const products = [sampleProduct(1, 30000), sampleProduct(2, 10000), sampleProduct(3, 20000)];
+  const assessments = [sampleAssessment(1, 2), sampleAssessment(2, 1), sampleAssessment(3, 1)];
+  const request = { ...sampleRequest, event: 'birthday', relation: 'family', budget: { mode: 'none' }, excludedProductNos: [] };
+  const result = evaluateRecommendation(products, assessments, request, createDraftPolicy());
+  const standard = result.items.find((i) => i.slot === 'standard')!;
+  const formal = result.items.find((i) => i.slot === 'formal')!;
+  assert.ok(formal.rarityValue < standard.rarityValue);
+  assert.match(formal.reasons[0], new RegExp(`표준안의 상품 특성 점수는 ${standard.rarityValue.toFixed(1)}점`));
+  assert.ok(result.items.every((i) => !i.reasons.some((r) => r.includes('예산을 입력하지 않아'))));
+});
+
 test('전체 예산은 원본과 수량으로 직접 계산하고 개당 한도가 0이어도 예산 없음으로 바뀌지 않는다', () => {
   const f = sampleInputs();
   f.request.budget = { mode: 'total', amount: 500000 };

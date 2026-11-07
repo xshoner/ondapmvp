@@ -16,7 +16,7 @@ export function CoreCompareTable({
     [`${quantity.toLocaleString('ko-KR')}개 합계`, (x) => <b>{won(x.itemSubtotal)}</b>],
     ['추천점수', (x) => <span style={{ color: 'var(--pine, #2D5A43)', fontWeight: 700 }}>{x.recommendationScore.toFixed(1)}점</span>],
     ['행사 적합도', (x) => `${x.eventFitScore.toFixed(1)}점`],
-    ['예산 대비 가격', (x) => x.priceValueScore !== null ? `${x.priceValueScore.toFixed(1)}점` : '예산 미입력'],
+    ['예산 대비 가격', (x) => x.priceValueScore !== null ? `${x.priceValueScore.toFixed(1)}점` : '예산 제한 없음'],
     ['상품 특성 점수', (x) => `${x.rarityValue.toFixed(1)}점`],
   ];
 

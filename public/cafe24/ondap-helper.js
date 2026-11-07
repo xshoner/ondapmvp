@@ -203,7 +203,7 @@
     var apply = function () {
       if (touched) return;
       var optInputs = document.querySelectorAll('input.quantity_opt, input[name="quantity_opt[]"], input[id*="quantity_opt"]');
-      if (optInputs.length > 0) {
+      if (optInputs.length === 1) {
         for (var i = 0; i < optInputs.length; i++) {
           var inp = optInputs[i];
           if (inp.value !== String(n)) {
@@ -211,7 +211,7 @@
             fire(inp);
           }
         }
-      } else {
+      } else if (optInputs.length === 0) {
         // 옵션 선택 드롭다운이 없는 일반 단품 상품일 때만 기본 #quantity 수량을 조정한다
         var hasOptionSelects = document.querySelectorAll('select[id*="product_option_id"], select[name*="option"]').length > 0;
         if (!hasOptionSelects) {
@@ -224,6 +224,13 @@
       }
     };
     apply();
+    // 필수 상품 옵션을 고객이 나중에 선택하면 생성된 품목에도 전달 수량을 반영한다.
+    document.addEventListener('change', function (e) {
+      if (e.target && e.target.matches('select[id*="product_option_id"], select[name*="option"], input[type="radio"]')) {
+        setTimeout(apply, 100);
+        setTimeout(apply, 500);
+      }
+    });
     window.addEventListener('load', apply);
     [100, 300, 600, 1200, 2000, 3200].forEach(function (ms) { setTimeout(apply, ms); });
     return apply;
@@ -239,7 +246,7 @@
     var renderBanner = function () {
       var optInputs = document.querySelectorAll('input.quantity_opt, input[name="quantity_opt[]"]');
       var hasOptRow = optInputs.length > 0;
-      if (autoOptSelected && hasOptRow && [].every.call(optInputs, function (input) { return Number(input.value) === qty; })) {
+      if (autoOptSelected && hasOptRow && optInputs.length === 1 && Number(optInputs[0].value) === qty) {
         banner(
           '포장 디자인 ' + badge(state.code) + ' 저장 완료.<br>' +
           '<b>포장 디자인 옵션과 수량(' + qty + '개)을 자동으로 선택</b>하고 총 결제 금액을 맞췄어요.<br>' +
@@ -248,7 +255,7 @@
         );
       } else {
         var baseQtyEl = document.querySelector('#quantity');
-        var qtyInfo = baseQtyEl && baseQtyEl.offsetParent !== null ? ' 수량은 <b>' + qty + '개</b>로 맞춰 두었어요.' : ' 옵션을 고르고 수량 <b>' + qty + '개</b>를 선택해 주세요.';
+        var qtyInfo = baseQtyEl && baseQtyEl.offsetParent !== null && Number(baseQtyEl.value) === qty ? ' 수량은 <b>' + qty + '개</b>로 맞춰 두었어요.' : ' 옵션을 고르고 수량 <b>' + qty + '개</b>를 확인해 주세요.';
         banner(
           '포장 디자인 ' + badge(state.code) + ' 저장 완료.' + qtyInfo + '<br>' +
           '포장 디자인 서비스가 자동 적용되지 않았어요. 쇼핑몰의 옵션과 추가 요금을 확인해 주세요.',
@@ -292,7 +299,7 @@
     } else if (fromLink) {
       keepQuantity(qty);
       var baseQty = document.querySelector('#quantity');
-      var baseQtyText = baseQty && baseQty.offsetParent !== null ? ' 수량은 <b>' + qty + '개</b>로 맞춰 두었어요.' : ' 필요한 옵션을 고르고 수량 <b>' + qty + '개</b>를 선택해 주세요.';
+      var baseQtyText = baseQty && baseQty.offsetParent !== null && Number(baseQty.value) === qty ? ' 수량은 <b>' + qty + '개</b>로 맞춰 두었어요.' : ' 필요한 옵션을 고르고 수량 <b>' + qty + '개</b>를 확인해 주세요.';
       banner('온답에서 고른 상품이에요.' + baseQtyText);
     }
   }
