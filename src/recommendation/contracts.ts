@@ -116,6 +116,15 @@ export interface AdminWorkspace {
   rubric: RubricDocument;
 }
 
+export interface AdminSyncUiServices {
+  preview(): Promise<ActionResult<import('../cafe24/sync-preview.ts').SyncPreviewResult>>;
+  apply(command: {
+    snapshotHash: string;
+    expectedSyncedAt: string | null;
+    products: import('../engine/types.ts').Cafe24Product[];
+  }): Promise<ActionResult<{ count: number; syncedAt: string }>>;
+}
+
 // UI가 필요로 하는 서버 호출 계약. 실제 액션 구현은 Codex가 후속 연결한다.
 // 테스트에서는 이 객체를 주입한다. 테스트 구현을 운영 페이지에 넣지 않는다.
 export interface RecommendationServices {

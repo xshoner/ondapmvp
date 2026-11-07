@@ -146,6 +146,33 @@ export async function saveProducts(mallId: string, products: Cafe24Product[], ex
   if (error) fail('상품 일괄 갱신 (DB 변경 적용 여부도 확인해 주세요)', error);
 }
 
+// 관리자가 검토 후 20% 초과 삭제를 명시적으로 승인하여 반영하는 수동 동기화 (service_role 전용)
+export async function saveProductsWithAdminOverride(
+  mallId: string,
+  products: Cafe24Product[],
+  expectedSyncedAt: string | null,
+  previewToken?: string,
+): Promise<{ count: number }> {
+  validateProductSnapshot(products, [], { allowBulkRemoval: true });
+  if (dataSource() === 'local') {
+    const catalog = local.loadCatalog();
+    validateProductSnapshot(products, catalog.products, { allowBulkRemoval: true });
+    if (local.loadSyncInfo().syncedAt !== expectedSyncedAt) {
+      throw new Error('다른 작업에서 상품이 갱신됐습니다. 최신 상태를 다시 확인해 주세요.');
+    }
+    local.saveCafe24Products(mallId, products);
+    return { count: products.length };
+  }
+  const db = createServiceClient();
+  const { data, error } = await db.rpc('apply_admin_product_sync', {
+    p_products: products.map(productToRow),
+    p_expected_synced_at: expectedSyncedAt,
+    p_preview_token: previewToken ?? null,
+  });
+  if (error) fail('관리자 상품 동기화 적용', error);
+  return { count: (data as number) ?? products.length };
+}
+
 export async function saveExpectation(key: string, productNo: number | null): Promise<void> {
   if (dataSource() === 'local') return local.saveExpectation(key, productNo);
   const db = await createClient();

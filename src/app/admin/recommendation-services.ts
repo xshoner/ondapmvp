@@ -1,6 +1,6 @@
 'use client';
 
-import type { RecommendationServices } from '@/recommendation/contracts.ts';
+import type { AdminSyncUiServices, RecommendationServices } from '@/recommendation/contracts.ts';
 import {
   recommendForCustomer,
   loadAdminWorkspace,
@@ -11,6 +11,10 @@ import {
   saveCorePolicy,
   previewForAdmin,
 } from '@/recommendation/server.ts';
+import {
+  previewCafe24SyncAction,
+  applyCafe24SyncAction,
+} from './formality/sync-actions.ts';
 
 export const adminRecommendationServices: RecommendationServices = {
   recommend: (req) => recommendForCustomer(req),
@@ -21,4 +25,9 @@ export const adminRecommendationServices: RecommendationServices = {
   loadPolicy: () => loadCorePolicy(),
   savePolicy: (cmd) => saveCorePolicy(cmd),
   previewRecommendation: (cmd) => previewForAdmin(cmd),
+};
+
+export const adminSyncServices: AdminSyncUiServices = {
+  preview: () => previewCafe24SyncAction(),
+  apply: (cmd) => applyCafe24SyncAction(cmd),
 };

@@ -1,8 +1,8 @@
 'use client';
 
-import type { AdminWorkspace, RecommendationServices } from '@/recommendation/contracts.ts';
+import type { AdminSyncUiServices, AdminWorkspace, RecommendationServices } from '@/recommendation/contracts.ts';
 import { CoreAdminWorkbench } from '@/app/recommendation-ui/admin-workbench.tsx';
-import { adminRecommendationServices } from '@/app/admin/recommendation-services.ts';
+import { adminRecommendationServices, adminSyncServices } from '@/app/admin/recommendation-services.ts';
 import { loadDescription } from './intake-actions.ts';
 import '@/app/recommendation-ui/recommendation-ui.css';
 
@@ -10,10 +10,12 @@ export function FormalityClientView({
   initialWorkspace,
   initialError,
   services = adminRecommendationServices,
+  syncServices = adminSyncServices,
 }: {
   initialWorkspace?: AdminWorkspace;
   initialError?: string;
   services?: RecommendationServices;
+  syncServices?: AdminSyncUiServices;
 }) {
   return (
     <div style={{ display: 'grid', gap: 16 }}>
@@ -35,6 +37,7 @@ export function FormalityClientView({
       )}
       <CoreAdminWorkbench
         services={services}
+        syncServices={syncServices}
         initialWorkspace={initialWorkspace}
         loadDescription={loadDescription}
       />
