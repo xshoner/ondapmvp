@@ -1,7 +1,7 @@
 'use client';
 
 import { won } from '@/lib/result-query.ts';
-import { PACKAGING_PRICE_PER_ITEM } from '@/packaging/pricing.ts';
+import { calcPackagingTotal, calcExpectedOrderTotal, type PackagingOptionInfo } from '@/packaging/pricing.ts';
 import type { PackagingStyle, StickerShape, StickerSizeCm, TextLayer } from '@/packaging/types.ts';
 import type { EditorLayer } from '../editor-types.ts';
 
@@ -28,6 +28,7 @@ interface Props {
   overlapBoxes: unknown[];
   saving: boolean;
   error: string | null;
+  packagingOption?: PackagingOptionInfo | null;
   onGoStep: (step: 1 | 2 | 3) => void;
   onSave: () => void;
   onOpenRealSize: () => void;
@@ -52,12 +53,15 @@ export function Step3Review(props: Props) {
     overlapBoxes,
     saving,
     error,
+    packagingOption,
     onGoStep,
     onSave,
     onOpenRealSize,
   } = props;
 
   const productTotal = product.price * quantity;
+  const packagingTotal = packagingOption?.status === 'confirmed' ? calcPackagingTotal(packagingOption.unitPrice, quantity) : null;
+  const expectedTotal = packagingOption?.status === 'confirmed' ? calcExpectedOrderTotal(product.price, packagingOption.unitPrice, quantity) : null;
   const textLayers = layers.filter((l): l is TextLayer => l.type === 'text');
 
   return (
@@ -159,19 +163,38 @@ export function Step3Review(props: Props) {
         {/* 4. 추가 비용 및 총 결제 예상 금액 */}
         <div className="pkg-price-breakdown">
           <div className="spread small" style={{ marginBottom: 6 }}>
-            <span>상품 금액 ({quantity}개)</span>
-            <span className="num">{won(productTotal)}</span>
+            <span>상품 금액</span>
+            <span className="num">{won(product.price)} × {quantity.toLocaleString('ko-KR')}개 = {won(productTotal)}</span>
           </div>
           <div className="spread small" style={{ marginBottom: 6 }}>
             <span>포장 서비스 및 맞춤 스티커</span>
-            <span className="num">{won(PACKAGING_PRICE_PER_ITEM)} × {quantity.toLocaleString('ko-KR')}개 = {won(PACKAGING_PRICE_PER_ITEM * quantity)}</span>
+            {packagingOption?.status === 'loading' ? (
+              <span className="num muted">조회 중...</span>
+            ) : packagingOption?.status === 'confirmed' && packagingOption.unitPrice !== null && packagingTotal !== null ? (
+              <span className="num">
+                {won(packagingOption.unitPrice)} × {quantity.toLocaleString('ko-KR')}개 = {won(packagingTotal)}
+              </span>
+            ) : (
+              <span className="num muted" style={{ fontWeight: 500 }}>쇼핑몰에서 확인 필요</span>
+            )}
           </div>
           <div className="spread" style={{ fontWeight: 700, fontSize: 17, paddingTop: 10, borderTop: '1px solid var(--line)' }}>
-            <span>예상 합계</span>
-            <span className="num" style={{ color: 'var(--pine)' }}>{won(productTotal + PACKAGING_PRICE_PER_ITEM * quantity)}</span>
+            <span>상품·포장 예상 합계</span>
+            {packagingOption?.status === 'loading' ? (
+              <span className="num muted" style={{ fontSize: 15 }}>계산 중...</span>
+            ) : expectedTotal !== null ? (
+              <span className="num" style={{ color: 'var(--pine)' }}>
+                {won(expectedTotal)}
+              </span>
+            ) : (
+              <span className="num muted" style={{ fontSize: 15, fontWeight: 600 }}>확인 필요</span>
+            )}
           </div>
           <p className="small muted" style={{ margin: '8px 0 0', fontSize: 12 }}>
-            ※ 쇼핑몰에서 포장 옵션과 수량 자동 선택을 시도합니다. 선택 결과, 배송비와 실제 결제 금액을 확인해 주세요.
+            ※ 배송비 및 최종 결제 금액은 쇼핑몰에서 확인
+          </p>
+          <p className="small muted" style={{ margin: '4px 0 0', fontSize: 11.5 }}>
+            ※ 쇼핑몰에서 포장 옵션과 수량 자동 선택을 시도합니다. 할인 혜택이나 배송비는 포함되어 있지 않은 예상 금액입니다.
           </p>
         </div>
       </div>

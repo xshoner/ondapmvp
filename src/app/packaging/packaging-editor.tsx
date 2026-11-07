@@ -64,12 +64,14 @@ import { Step3Review } from './components/step3-review.tsx';
 import { PreviewPane } from './components/preview-pane.tsx';
 import { ResultModal } from './components/result-modal.tsx';
 import { RealSizeModal } from './components/real-size-modal.tsx';
+import type { PackagingOptionInfo } from '@/packaging/pricing.ts';
 
 export type PackagingEntry = 'recommend' | 'cafe24' | 'pick' | 'mine';
 
 interface Props {
   product: { productNo: number; name: string; price: number; image: string | null; url: string };
   quantity: number;
+  initialPackagingOption?: PackagingOptionInfo | null;
   event: EventType | null;
   events: { id: EventType; name: string }[];
   relation?: string | null;
@@ -146,6 +148,83 @@ export function PackagingEditor(props: Props) {
   const [purpose, setPurpose] = useState<GiftPurpose>('return');
   const [quantity, setQuantity] = useState(props.quantity);
   const [event, setEvent] = useState<DesignCategory | null>(props.event);
+  const [packagingOption, setPackagingOption] = useState<PackagingOptionInfo | null>(
+    props.initialPackagingOption ?? null,
+  );
+
+  const requestSeqRef = useRef(0);
+
+  const fetchLatestOptionPrice = (forceRefresh = false) => {
+    const seq = ++requestSeqRef.current;
+    const targetProductNo = product.productNo;
+
+    // 재조회 시 이전 상품의 확정 가격이나 지연된 이전 금액이 남지 않도록 loading 상태로 즉시 전환
+    setPackagingOption({
+      status: 'loading',
+      productNo: targetProductNo,
+      unitPrice: null,
+      reason: 'loading',
+    });
+
+    const url = `/api/packaging/option-price?product=${targetProductNo}${forceRefresh ? '&refresh=1' : ''}`;
+
+    fetch(url, { cache: 'no-store' })
+      .then(async (res) => {
+        if (seq !== requestSeqRef.current) return;
+        if (!res.ok) {
+          setPackagingOption({
+            status: 'unconfirmed',
+            productNo: targetProductNo,
+            unitPrice: null,
+            reason: 'api_error',
+          });
+          return;
+        }
+        const json = await res.json();
+        // API 응답 봉투 ({ ok: true, data: { status, productNo, unitPrice, ... } }) 대응
+        const data: PackagingOptionInfo = json && typeof json === 'object' && 'data' in json ? json.data : json;
+        if (seq !== requestSeqRef.current) return;
+        if (data && data.productNo === targetProductNo) {
+          setPackagingOption(data);
+        } else {
+          setPackagingOption({
+            status: 'unconfirmed',
+            productNo: targetProductNo,
+            unitPrice: null,
+            reason: 'api_error',
+          });
+        }
+      })
+      .catch(() => {
+        if (seq !== requestSeqRef.current) return;
+        setPackagingOption({
+          status: 'unconfirmed',
+          productNo: targetProductNo,
+          unitPrice: null,
+          reason: 'api_error',
+        });
+      });
+  };
+
+  // STEP 3 진입 시 최신 옵션 가격 재조회 (캐시 우회 refresh=1)
+  useEffect(() => {
+    if (currentStep === 3) {
+      fetchLatestOptionPrice(true);
+    }
+  }, [currentStep, product.productNo]);
+
+  // 상품 번호 변경 시 이전 상품의 옵션 정보가 남지 않도록 초기화 후 조회
+  useEffect(() => {
+    if (!packagingOption || packagingOption.productNo !== product.productNo) {
+      setPackagingOption({
+        status: 'loading',
+        productNo: product.productNo,
+        unitPrice: null,
+        reason: 'loading',
+      });
+      fetchLatestOptionPrice(false);
+    }
+  }, [product.productNo]);
 
   // 사용 가능한 포장 스타일 (상품 제한 targeting.productNos 반영)
   const availableStyles = useMemo(() => {
@@ -823,6 +902,7 @@ export function PackagingEditor(props: Props) {
         relationName={props.relationName}
         backHref={backHref}
         backLabel={backLabel}
+        packagingOption={packagingOption}
       />
 
       {/* 자동 보관 알림 */}
@@ -869,6 +949,7 @@ export function PackagingEditor(props: Props) {
               event={event}
               purpose={purpose}
               eventName={eventName}
+              packagingOption={packagingOption}
               onNext={() => setCurrentStep(2)}
             />
           )}
@@ -931,6 +1012,7 @@ export function PackagingEditor(props: Props) {
               overlapBoxes={overlapBoxes}
               saving={saving}
               error={error}
+              packagingOption={packagingOption}
               onGoStep={setCurrentStep}
               onSave={save}
               onOpenRealSize={() => setRealSizeOpen(true)}
@@ -969,6 +1051,7 @@ export function PackagingEditor(props: Props) {
           product={product}
           quantity={quantity}
           from={from}
+          packagingOption={packagingOption}
           onEditMore={() => setResult(null)}
         />
       )}

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { orderUrl } from '@/packaging/client.ts';
 import { isMobileUA } from '@/lib/device.ts';
-import { PACKAGING_PRICE_PER_ITEM } from '@/packaging/pricing.ts';
+import type { PackagingOptionInfo } from '@/packaging/pricing.ts';
 import { won } from '@/lib/result-query.ts';
 
 interface Props {
@@ -11,11 +11,13 @@ interface Props {
   preview: string | null;
   cutClip: string;
   product: {
+    productNo?: number;
     name: string;
     url: string;
   };
   quantity: number;
   from: string;
+  packagingOption?: PackagingOptionInfo | null;
   onEditMore: () => void;
 }
 
@@ -26,10 +28,101 @@ export function ResultModal({
   product,
   quantity,
   from,
+  packagingOption,
   onEditMore,
 }: Props) {
   const [copied, setCopied] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
+  const [currentOption, setCurrentOption] = useState<PackagingOptionInfo | null>(packagingOption ?? null);
+  const [isCheckingLatest, setIsCheckingLatest] = useState(Boolean(product.productNo));
+  const [ordering, setOrdering] = useState(false);
+
+  // 모달 진입 시 최신 가격 재조회 및 실패 처리
+  useEffect(() => {
+    if (!product.productNo) return;
+    let active = true;
+    setIsCheckingLatest(true);
+    fetch(`/api/packaging/option-price?product=${product.productNo}&refresh=1`, { cache: 'no-store' })
+      .then(async (r) => {
+        if (!active) return;
+        if (!r.ok) {
+          setCurrentOption({
+            status: 'unconfirmed',
+            productNo: product.productNo,
+            unitPrice: null,
+            reason: 'api_error',
+          });
+          return;
+        }
+        const json = await r.json();
+        const data: PackagingOptionInfo = json?.data ?? json;
+        if (active) {
+          if (data && data.productNo === product.productNo) {
+            setCurrentOption(data);
+          } else {
+            setCurrentOption({
+              status: 'unconfirmed',
+              productNo: product.productNo,
+              unitPrice: null,
+              reason: 'api_error',
+            });
+          }
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setCurrentOption({
+            status: 'unconfirmed',
+            productNo: product.productNo,
+            unitPrice: null,
+            reason: 'api_error',
+          });
+        }
+      })
+      .finally(() => {
+        if (active) setIsCheckingLatest(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [product.productNo]);
+
+  // 창을 오래 열어 둔 뒤 주문하러 갈 때 이동 직전 최종 가격 재확인
+  const handleOrderGo = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!product.productNo) return;
+    e.preventDefault();
+    if (ordering) return;
+    setOrdering(true);
+    const targetHref = orderUrl(product.url, code, quantity);
+    // 사용자 클릭 중 창을 열어야 비동기 조회 뒤 팝업 차단을 피할 수 있다.
+    const orderWindow = from === 'cafe24' ? null : window.open('about:blank', '_blank');
+    if (orderWindow) orderWindow.opener = null;
+
+    try {
+      const res = await fetch(`/api/packaging/option-price?product=${product.productNo}&refresh=1`, { signal: AbortSignal.timeout(5000), cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        const data: PackagingOptionInfo = json?.data ?? json;
+        if (data && data.productNo === product.productNo) {
+          setCurrentOption(data);
+        } else {
+          setCurrentOption({ status: 'unconfirmed', productNo: product.productNo, unitPrice: null, reason: 'api_error' });
+        }
+      } else {
+        setCurrentOption({ status: 'unconfirmed', productNo: product.productNo, unitPrice: null, reason: 'api_error' });
+      }
+    } catch {
+      setCurrentOption({ status: 'unconfirmed', productNo: product.productNo, unitPrice: null, reason: 'api_error' });
+    } finally {
+      setOrdering(false);
+      if (from === 'cafe24' || !orderWindow) {
+        window.location.href = targetHref;
+      } else {
+        orderWindow.location.href = targetHref;
+      }
+    }
+  };
 
   const copyCode = async () => {
     try {
@@ -103,7 +196,15 @@ export function ResultModal({
               <b>‘주문하러 가기’</b>를 누르면 쇼핑몰 상품 페이지로 이동합니다. (수량은 <b>{quantity}개</b>로 자동 연동을 시도하나, 쇼핑몰 화면에서 수량을 다시 한 번 확인해 주세요.)
             </li>
             <li>
-              상품 페이지에서 <b>포장 디자인 서비스</b> 옵션과 수량을 자동 선택하도록 시도합니다. 자동 선택되지 않으면 옵션을 직접 선택하고 합계를 확인해 주세요. 예상 포장비는 {won(PACKAGING_PRICE_PER_ITEM)} × {quantity.toLocaleString('ko-KR')}개 = <b>{won(PACKAGING_PRICE_PER_ITEM * quantity)}</b>입니다. 옵션이 보이지 않으면 고객센터에 문의해 주세요.
+              상품 페이지에서 <b>포장 디자인 서비스</b> 옵션과 수량을 자동 선택하도록 시도합니다. 자동 선택되지 않으면 옵션을 직접 선택하고 합계를 확인해 주세요.{' '}
+              {isCheckingLatest ? (
+                <>최신 포장비를 확인하고 있습니다...{' '}</>
+              ) : currentOption?.status === 'confirmed' && currentOption.unitPrice !== null ? (
+                <>예상 포장비는 {won(currentOption.unitPrice)} × {quantity.toLocaleString('ko-KR')}개 = <b>{won(currentOption.unitPrice * quantity)}</b>입니다.{' '}</>
+              ) : (
+                <>예상 포장비는 쇼핑몰 상세 페이지에서 확인해 주세요.{' '}</>
+              )}
+              옵션이 보이지 않으면 고객센터에 문의해 주세요. (※ 최종 결제 금액 및 배송비는 쇼핑몰 기준)
             </li>
             <li>‘바로 구매하기’를 누르면 로그인 또는 <b>비회원 구매</b>로 주문할 수 있습니다.</li>
             <li>
@@ -135,8 +236,9 @@ export function ResultModal({
             href={orderUrl(product.url, code, quantity)}
             target={from === 'cafe24' ? '_self' : '_blank'}
             rel="noreferrer"
+            onClick={handleOrderGo}
           >
-            주문하러 가기 ›
+            {ordering ? '최신 가격 확인 후 이동 중...' : '주문하러 가기 ›'}
           </a>
           <button type="button" className="btn ghost block" onClick={onEditMore}>
             디자인 더 수정하기

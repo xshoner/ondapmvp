@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { won } from '@/lib/result-query.ts';
-import { PACKAGING_PRICE_PER_ITEM } from '@/packaging/pricing.ts';
+import type { PackagingOptionInfo } from '@/packaging/pricing.ts';
 import type { GiftPurpose } from '@/packaging/types.ts';
 import { QtyInput } from '../../components/qty-input.tsx';
 
@@ -22,6 +22,7 @@ interface Props {
   relationName?: string | null;
   backHref: string;
   backLabel: string;
+  packagingOption?: PackagingOptionInfo | null;
 }
 
 export function ProductHeader(props: Props) {
@@ -35,6 +36,7 @@ export function ProductHeader(props: Props) {
     relationName,
     backHref,
     backLabel,
+    packagingOption,
   } = props;
 
   return (
@@ -46,7 +48,13 @@ export function ProductHeader(props: Props) {
         <div className="pkg-tag-badges">
           {eventName && <span className="pill green">{eventName}</span>}
           {relationName && <span className="pill gray">{relationName}</span>}
-          <span className="pill gold">포장·스티커 {won(PACKAGING_PRICE_PER_ITEM)}/개</span>
+          {packagingOption?.status === 'loading' ? (
+            <span className="pill gold">포장 요금 확인 중...</span>
+          ) : packagingOption?.status === 'confirmed' && packagingOption.unitPrice !== null ? (
+            <span className="pill gold">포장·스티커 {won(packagingOption.unitPrice)}/개</span>
+          ) : (
+            <span className="pill gold">포장·스티커 요금: 쇼핑몰 확인</span>
+          )}
         </div>
       </div>
 

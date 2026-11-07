@@ -66,7 +66,7 @@ export function MainPick({ item, quantity, packagingHref, excludeHref, preview =
 
         <div className="pick-actions">
           <a className="btn block" href={packagingHref}>
-            포장·스티커 꾸미기 <span className="small" style={{ fontWeight: 500, color: 'rgba(255,255,255,0.85)', marginLeft: 4 }}>무료</span>
+            포장·스티커 꾸미기(유료)
           </a>
           <a className="btn ghost block" href={productOrderUrl(product.url, quantity, null, mobile)} target="_blank" rel="noreferrer">
             상품 상세 보기 및 주문 ↗
@@ -133,7 +133,7 @@ export function OtherPick({
           )}
         </div>
         <div className="alt-actions" style={{ marginTop: 10, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-          <a className="btn ghost small" href={packagingHref}>포장 꾸미기</a>
+          <a className="btn ghost small" href={packagingHref}>포장·스티커 꾸미기(유료)</a>
           <a className="btn ghost small" href={productOrderUrl(product.url, quantity, null, mobile)} target="_blank" rel="noreferrer">상세보기 ↗</a>
           <SavePickButton variant="inline" pick={{ productNo: product.productNo, name: product.name, price: product.price, image: product.image, url: product.url }} />
           {excludeHref && <a className="btn ghost small" style={{ border: 'none', color: 'var(--muted)' }} href={excludeHref} aria-label={`${product.name} 빼고 다시 보기`}>제외</a>}

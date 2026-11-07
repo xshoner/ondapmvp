@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { useMemo } from 'react';
 import type { DesignCategory, GiftPurpose, PackagingStyle } from '@/packaging/types.ts';
 import { matchesTarget } from '@/packaging/presets.ts';
-import { PACKAGING_PRICE_PER_ITEM } from '@/packaging/pricing.ts';
+import type { PackagingOptionInfo } from '@/packaging/pricing.ts';
 import { won } from '@/lib/result-query.ts';
 
 interface Props {
@@ -15,6 +15,7 @@ interface Props {
   event: DesignCategory | null;
   purpose: GiftPurpose;
   eventName?: string | null;
+  packagingOption?: PackagingOptionInfo | null;
   onNext: () => void;
 }
 
@@ -26,6 +27,7 @@ export function Step1Wrapping({
   event,
   purpose,
   eventName,
+  packagingOption,
   onNext,
 }: Props) {
   // 사용 가능한 포장지 필터링 및 추천 순서 정렬
@@ -53,7 +55,11 @@ export function Step1Wrapping({
         </h2>
         <p className="pkg-step-desc">
           {eventName ? `${eventName} 행사에 어울리는 포장지를 먼저 추천해 드려요.` : '선물에 맞는 단아한 포장지를 골라보세요.'}
-          {' '}포장·스티커 서비스는 1개당 {won(PACKAGING_PRICE_PER_ITEM)}이며, 쇼핑몰에서 옵션을 선택해 주세요.
+          {packagingOption?.status === 'loading'
+            ? ' 포장·스티커 요금을 확인하고 있습니다.'
+            : packagingOption?.status === 'confirmed' && packagingOption.unitPrice !== null
+            ? ` 포장·스티커 서비스는 1개당 ${won(packagingOption.unitPrice)}이며, 쇼핑몰에서 옵션을 선택해 주세요.`
+            : ' 포장·스티커 서비스 요금은 쇼핑몰 옵션에서 확인해 주세요.'}
         </p>
       </div>
 

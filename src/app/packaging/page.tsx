@@ -1,5 +1,6 @@
 import { getCatalog } from '@/data/repository.ts';
 import { getPackagingAssets } from '@/data/packaging-repository.ts';
+import { getPackagingOptionPrice } from '@/cafe24/client.ts';
 import { CATEGORY_ORDER, categoryName } from '@/packaging/rules.ts';
 import type { PackagingAssets } from '@/packaging/types.ts';
 import { stickerFontFamilies } from './fonts.ts';
@@ -65,6 +66,7 @@ export default async function PackagingPage({ searchParams }: { searchParams: Se
 
   const eventNames = Object.fromEntries(Object.entries(catalog.config.events).map(([k, v]) => [k, v.name]));
   const categoryNames = Object.fromEntries(CATEGORY_ORDER.map((c) => [c, categoryName(c, eventNames)]));
+  const initialPackagingOption = product ? await getPackagingOptionPrice(product.productNo) : null;
 
   return (
     <div className="pkg-page-container">
@@ -72,6 +74,7 @@ export default async function PackagingPage({ searchParams }: { searchParams: Se
       <PackagingEditor
         product={{ productNo: product.productNo, name: product.name, price: product.price, image: product.image ?? null, url: product.url }}
         quantity={quantity}
+        initialPackagingOption={initialPackagingOption}
         event={event}
         events={eventIds(catalog.config).map((id) => ({ id, name: eventNames[id] }))}
         relation={relation}

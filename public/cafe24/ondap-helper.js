@@ -135,19 +135,29 @@
   };
 
   var PACKAGING_OPT_REGEX = /포장\s*디자인|포장디자인|포장\s*신청|포장\s*서비스|선물\s*포장|스티커\s*제작/i;
-  var NEGATIVE_OPT_REGEX = /신청\s*안\s*함|미\s*신청|포장\s*없음|선택\s*안\s*함|기본\s*포장\s*없음/i;
+  var NEGATIVE_OPT_REGEX = /신청\s*하지\s*않|안\s*함|않\s*음|미\s*신청|없\s*음|불\s*필요|제\s*외|취\s*소|선택\s*안|선택\s*하지\s*않|미\s*선택|원치\s*않|원하지\s*않|기본\s*포장\s*없음/i;
+  var POSITIVE_OPT_REGEX = /포장\s*신청|포장디자인\s*신청|신청|추가|선물\s*포장|포장\s*포함/i;
+
+  function isPackagingApplicationChoice(contextText, choiceText) {
+    var full = (contextText + ' ' + choiceText).trim();
+    if (NEGATIVE_OPT_REGEX.test(choiceText) || NEGATIVE_OPT_REGEX.test(full)) return false;
+    var isPkgContext = PACKAGING_OPT_REGEX.test(contextText) || PACKAGING_OPT_REGEX.test(choiceText);
+    if (!isPkgContext) return false;
+    return POSITIVE_OPT_REGEX.test(choiceText);
+  }
 
   function findAndSelectPackagingOption() {
     var selects = document.querySelectorAll('select');
     for (var i = 0; i < selects.length; i++) {
       var sel = selects[i];
       if (sel.disabled) continue;
-      var optionName = (sel.getAttribute('option_title') || '') + ' ' + (sel.closest('tr') ? sel.closest('tr').textContent : '');
+      var row = sel.closest('tr');
+      var optionName = (sel.getAttribute('option_title') || '') + ' ' + (row && row.querySelector('th') ? row.querySelector('th').textContent : '');
       for (var j = 0; j < sel.options.length; j++) {
         var opt = sel.options[j];
         var groupName = opt.parentElement && opt.parentElement.tagName === 'OPTGROUP' ? opt.parentElement.label : '';
-        var isPackaging = PACKAGING_OPT_REGEX.test(opt.text) || (PACKAGING_OPT_REGEX.test(optionName + ' ' + groupName) && /신청|추가/i.test(opt.text));
-        if (opt.value && opt.value !== '*' && opt.value !== '**' && !opt.disabled && isPackaging && !NEGATIVE_OPT_REGEX.test(opt.text)) {
+        var context = (optionName + ' ' + groupName).trim();
+        if (opt.value && opt.value !== '*' && opt.value !== '**' && !opt.disabled && isPackagingApplicationChoice(context, opt.text)) {
           if (sel.value !== opt.value) {
             sel.value = opt.value;
             fire(sel);
@@ -161,7 +171,9 @@
       var radio = radios[r];
       var label = radio.closest('label') || document.querySelector('label[for="' + radio.id + '"]');
       var text = (label ? label.textContent : '') + ' ' + (radio.value || '');
-      if (PACKAGING_OPT_REGEX.test(text) && !NEGATIVE_OPT_REGEX.test(text)) {
+      var row = radio.closest('tr');
+      var context = (radio.getAttribute('option_title') || '') + ' ' + (row && row.querySelector('th') ? row.querySelector('th').textContent : '');
+      if (isPackagingApplicationChoice(context, text)) {
         if (!radio.checked) {
           radio.checked = true;
           fire(radio);
@@ -290,6 +302,36 @@
     return String(window.iProductNo || new URLSearchParams(location.search).get('product_no') || (m && m[1]) || '').replace(/\D/g, '');
   }
 
+  function findPackagingOptionPriceText() {
+    var selects = document.querySelectorAll('select');
+    for (var i = 0; i < selects.length; i++) {
+      var sel = selects[i];
+      var row = sel.closest('tr');
+      var optionName = (sel.getAttribute('option_title') || '') + ' ' + (row && row.querySelector('th') ? row.querySelector('th').textContent : '');
+      for (var j = 0; j < sel.options.length; j++) {
+        var opt = sel.options[j];
+        var groupName = opt.parentElement && opt.parentElement.tagName === 'OPTGROUP' ? opt.parentElement.label : '';
+        var context = (optionName + ' ' + groupName).trim();
+        if (opt.value && opt.value !== '*' && opt.value !== '**' && !opt.disabled && isPackagingApplicationChoice(context, opt.text)) {
+          var m = opt.text.match(/\(\s*([+-]?\s*[\d,]+)\s*원?\s*\)/);
+          if (m) {
+            var num = m[1].replace(/[+,\s]/g, '');
+            if (/^\d+$/.test(num)) {
+              return Number(num).toLocaleString('ko-KR') + '원/개';
+            }
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  function getPackagingBtnLabel(again) {
+    if (again) return '포장 다시 꾸미기';
+    var priceText = findPackagingOptionPriceText();
+    return priceText ? '포장·스티커 꾸미기 (' + priceText + ')' : '포장·스티커 꾸미기(유료)';
+  }
+
   // 구매 버튼 묶음 바로 아래에 둔다. 화면 아래에 고정되는 구매 막대(#orderFixArea 등)에는 넣지 않는다
   function addPackagingButton(state) {
     var no = productNoHere();
@@ -307,8 +349,17 @@
       'color:#1f4436 !important', 'text-align:center', 'text-decoration:none', 'line-height:1.4',
       "font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif",
     ].join(';');
-    link.innerHTML = '<b style="font-size:15px;color:#1f4436 !important">' + (again ? '포장 다시 꾸미기' : '포장·스티커 꾸미기 (100원/개)') + '</b>' +
+    link.innerHTML = '<b style="font-size:15px;color:#1f4436 !important">' + getPackagingBtnLabel(again) + '</b>' +
       '<br><span style="font-size:12px;color:#5e6862 !important">포장지를 고르고 스티커에 문구·사진을 넣을 수 있어요</span>';
+
+    var updateLabel = function () {
+      var titleEl = link.querySelector('b');
+      if (titleEl && !again) {
+        titleEl.textContent = getPackagingBtnLabel(false);
+      }
+    };
+    [300, 800, 1500, 3000].forEach(function (ms) { setTimeout(updateLabel, ms); });
+
     // 누르는 순간의 수량을 함께 넘긴다
     var go = function () {
       var q = document.querySelector('#quantity');
