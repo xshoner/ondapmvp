@@ -26,12 +26,6 @@ export function WeightsEditor({ catalog }: { catalog: Catalog }) {
   }
   const relations: Record<Relation, string> = { senior: '상급자/어르신', business: '거래처/공식', peer: '동료/지인', family: '가족/친밀' };
   return <div style={{ display: 'grid', gap: 20 }}>
-    <section className="panel">
-      <h2>종합 추천점수(S) 가중치 (설계 제안값)</h2>
-      <p className="small muted">
-        행사 적합도(E) 70%와 가격 실속(V) 30%의 조합은 추천 설계를 위한 초기 제안값이며, 검증된 특허 산식이 아닙니다.
-      </p>
-    </section>
     <section className="panel"><h2>행사 격식과 받는 분 보정</h2>
       <p className="small muted">행사 점수와 관계 보정을 더해 해당 행사에 적용할 희소 기준을 고릅니다.</p>
       <div className="weights-grid"><div>{Object.entries(OCCASIONS).map(([key, label]) => <label className="spread" key={key}>{label}{input(`${label} 행사 점수`, policy.eventBase[key as keyof typeof OCCASIONS], 0, 100, 1, (v) => edit((p) => { p.eventBase[key as keyof typeof OCCASIONS] = v; }))}</label>)}</div>

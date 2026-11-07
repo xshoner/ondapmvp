@@ -88,7 +88,7 @@ test('CSV 올리기: 점수·행사 이름·상품번호를 검사하고, 없는
   assert.deepEqual(ok.ignoredColumns, ['메모']);
   assert.equal(ok.rows[0].scores.rarity, 8);
   assert.equal(ok.rows[0].scores.formality, 7, '없는 칸은 그대로');
-  assert.deepEqual(ok.rows[0].events, ['funeral', 'longevity']);
+  assert.deepEqual(ok.rows[0].events, ['longevity', 'funeral']);
   assert.equal(ok.rows[0].meanings.funeral, '위로의 뜻');
   assert.equal(ok.rows[0].reviewed, true);
   assert.equal(ok.rows[1].scores.rarity, 3, '지표가 없던 상품은 새로 만든다');

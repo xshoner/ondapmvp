@@ -10,14 +10,14 @@
     { "id": "formality", "name": "격식 적합도", "description": "품격, 가격대, 포장. 상황별 목표 수준에 가까울수록 좋음", "max": 10, "mode": "target", "reasonPhrase": "자리의 격식에 꼭 맞는 상품" }
   ],
   "events": {
-    "funeral":   { "name": "장례",      "formalityTarget": 7, "weights": { "rarity": 0.5, "craftsmanship": 1.5, "regional": 1.0, "trust": 1.5, "practicality": 2.0, "formality": 3.0 } },
     "wedding":   { "name": "결혼",      "formalityTarget": 7, "weights": { "rarity": 1.5, "craftsmanship": 1.5, "regional": 1.0, "trust": 1.0, "practicality": 1.0, "formality": 2.0 } },
     "longevity": { "name": "회갑/칠순", "formalityTarget": 8, "weights": { "rarity": 1.0, "craftsmanship": 2.0, "regional": 1.5, "trust": 1.5, "practicality": 0.5, "formality": 2.5 } },
     "birth":     { "name": "출산",      "formalityTarget": 5, "weights": { "rarity": 0.5, "craftsmanship": 1.0, "regional": 1.0, "trust": 2.5, "practicality": 1.5, "formality": 1.0 } },
     "promotion": { "name": "승진/이직", "formalityTarget": 8, "weights": { "rarity": 2.0, "craftsmanship": 1.5, "regional": 1.0, "trust": 1.0, "practicality": 0.5, "formality": 2.0 } },
     "opening":   { "name": "신축/개업", "formalityTarget": 6, "weights": { "rarity": 1.5, "craftsmanship": 1.0, "regional": 1.5, "trust": 1.0, "practicality": 1.0, "formality": 1.5 } },
     "thanks":    { "name": "감사선물",  "formalityTarget": 6, "weights": { "rarity": 1.5, "craftsmanship": 1.5, "regional": 2.0, "trust": 1.0, "practicality": 1.0, "formality": 1.5 } },
-    "birthday":  { "name": "생일",      "formalityTarget": 4, "weights": { "rarity": 2.0, "craftsmanship": 1.0, "regional": 1.0, "trust": 0.5, "practicality": 1.0, "formality": 1.0 } }
+    "birthday":  { "name": "생일",      "formalityTarget": 4, "weights": { "rarity": 2.0, "craftsmanship": 1.0, "regional": 1.0, "trust": 0.5, "practicality": 1.0, "formality": 1.0 } },
+    "funeral":   { "name": "장례",      "formalityTarget": 7, "weights": { "rarity": 0.5, "craftsmanship": 1.5, "regional": 1.0, "trust": 1.5, "practicality": 2.0, "formality": 3.0 } }
   },
   "relations": {
     "senior":   { "name": "상급자/어르신", "formalityShift": 1.5,  "multipliers": { "craftsmanship": 1.2, "trust": 1.2, "formality": 1.5 } },

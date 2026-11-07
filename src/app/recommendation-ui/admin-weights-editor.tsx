@@ -213,12 +213,9 @@ export function CoreAdminWeightsEditor({ services, initialPolicyDoc }: AdminWeig
 
       {/* 1. 추천점수(S) 가중치 설정 (E vs V) */}
       <section style={{ padding: '18px 20px', background: '#FFF', border: '1px solid var(--line, #E6E1D8)', borderRadius: 8 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 6px' }}>
+        <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 14px' }}>
           종합 추천점수 산식 가중치 (E / V)
         </h2>
-        <p style={{ fontSize: 12, color: 'var(--muted, #666)', margin: '0 0 14px', lineHeight: 1.5 }}>
-          ※ 기본값 <b>70 / 30</b>은 설계 제안값이며 검토 중인 기준입니다. 특허 출원서나 확정 산식이 아닙니다.
-        </p>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <label style={{ display: 'grid', gap: 4 }}>

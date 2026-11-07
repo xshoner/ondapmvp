@@ -18,7 +18,7 @@ export function parseRelation(config: EngineConfig, value: string): Relation {
 }
 
 // 설정을 DB(jsonb)에서 읽으면 키 순서가 바뀐다 → 화면에는 정해 둔 순서로 (설정에 새로 생긴 키는 뒤에)
-const EVENT_ORDER = ['funeral', 'wedding', 'longevity', 'birth', 'promotion', 'opening', 'thanks', 'birthday'];
+const EVENT_ORDER = ['wedding', 'longevity', 'birth', 'promotion', 'opening', 'thanks', 'birthday', 'funeral'];
 const RELATION_ORDER = ['senior', 'business', 'peer', 'family'];
 
 function ordered(keys: string[], order: string[]): string[] {

@@ -41,6 +41,6 @@ test('행사·관계 순서: DB에서 키 순서가 섞여 와도 화면에는 �
     events: { birth: {}, thanks: {}, funeral: {}, opening: {}, wedding: {}, birthday: {}, longevity: {}, promotion: {} },
     relations: { family: {}, peer: {}, senior: {}, business: {} },
   } as unknown as Parameters<typeof eventIds>[0];
-  assert.deepEqual(eventIds(config), ['funeral', 'wedding', 'longevity', 'birth', 'promotion', 'opening', 'thanks', 'birthday']);
+  assert.deepEqual(eventIds(config), ['wedding', 'longevity', 'birth', 'promotion', 'opening', 'thanks', 'birthday', 'funeral']);
   assert.deepEqual(relationIds(config), ['senior', 'business', 'peer', 'family']);
 });
