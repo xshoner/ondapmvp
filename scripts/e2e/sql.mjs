@@ -55,6 +55,7 @@ const asAdmin = async () => db.exec(`reset role; set role authenticated; select 
 await asAnon();
 await db.exec(`insert into public.designs (code, product_no, product_name, quantity, style_name, sticker, print_path, status_changed_at)
   values ('OD-AAAA-AAAA', 27, '멸치', 30, '송학 장생', '{"shape":"circle","sizeCm":6}', 'OD-AAAA-AAAA.png', '2000-01-01')`);
+await expectError('고객은 결제 확인 상태로 직접 저장할 수 없음', () => db.exec(`insert into public.designs (code, product_no, product_name, quantity, style_name, status) values ('OD-EEEE-EEEE', 27, '멸치', 1, '송학', 'order_confirmed')`), /row-level security/);
 await expectError('고객이 원본 연결(source_code)을 직접 넣을 수 없음', () => db.exec(`insert into public.designs (code, product_no, product_name, quantity, style_name, source_code)
   values ('OD-BBBB-BBBB', 27, '멸치', 1, '송학', 'OD-AAAA-AAAA')`), /row-level security/);
 await asAdmin();
@@ -77,8 +78,38 @@ check('다시 주문: 새 코드 반환', r1.code === 'OD-CCCC-CCCC');
 const [r2] = await q(`select public.reorder_design('OD-CCCC-CCCC', 'OD-DDDD-DDDD', 5) as code`);
 await asAdmin();
 const rows = await q(`select code, quantity, status, print_path, source_code, sticker->>'sizeCm' as size, memo, order_no from public.designs where code in ('OD-CCCC-CCCC','OD-DDDD-DDDD') order by code`);
-check('다시 주문: 수량·상태·원본 인쇄 파일 연결', rows[0].quantity === 50 && rows[0].status === 'received' && rows[0].print_path === null && rows[0].source_code === 'OD-AAAA-AAAA' && rows[0].size === '6' && rows[0].memo === '' && rows[0].order_no === null, JSON.stringify(rows[0]));
+check('다시 주문: 수량·결제 대기·원본 인쇄 파일 연결', rows[0].quantity === 50 && rows[0].status === 'pending' && rows[0].print_path === null && rows[0].source_code === 'OD-AAAA-AAAA' && rows[0].size === '6' && rows[0].memo === '' && rows[0].order_no === null, JSON.stringify(rows[0]));
 check('다시 주문의 다시 주문도 처음 원본 파일을 가리킴', rows[1].source_code === 'OD-AAAA-AAAA' && r2.code === 'OD-DDDD-DDDD');
+await asAnon();
+await expectError('고객은 결제 알림 대기 목록을 읽을 수 없음', () => q(`select * from public.cafe24_payment_events`), /permission denied/);
+await expectError('고객은 결제 확인 전환 함수를 실행할 수 없음', () => q(`select public.accept_paid_design('OD-CCCC-CCCC','20261108-0000010',27,50)`), /permission denied/);
+await expectError('고객은 토큰 저장소를 읽을 수 없음', () => q(`select * from public.cafe24_tokens`), /permission denied/);
+await expectError('고객은 결제 이벤트 할당 함수를 실행할 수 없음', () => q(`select * from public.claim_payment_events(10)`), /permission denied/);
+await asAdmin();
+await expectError('관리자 계정도 토큰 저장소를 직접 읽을 수 없음', () => q(`select * from public.cafe24_tokens`), /permission denied/);
+await db.exec(`reset role; set role service_role; select set_config('request.jwt.claims', '{"role":"service_role"}', false);`);
+await db.exec(`insert into public.cafe24_tokens(mall_id,access_token,refresh_token,expires_at,refresh_token_expires_at) values ('axopenlab','acc_test','ref_test',now()+interval '2 hours',now()+interval '14 days')`);
+const [tk] = await q(`select mall_id, access_token from public.cafe24_tokens where mall_id = 'axopenlab'`);
+check('토큰 저장소: 서비스 역할로 저장 및 조회 가능', tk.access_token === 'acc_test');
+await db.exec(`insert into public.cafe24_payment_events(shop_no,order_no) values (1,'20261108-0000010') on conflict (shop_no,order_no) do update set received_at = now()`);
+await db.exec(`insert into public.cafe24_payment_events(shop_no,order_no) values (1,'20261108-0000010') on conflict (shop_no,order_no) do update set received_at = now()`);
+const [queued] = await q(`select count(*)::int as n from public.cafe24_payment_events`);
+check('결제 알림 중복 수신: 주문 식별자 한 건만 보관', queued.n === 1);
+const claimed = await q(`select * from public.claim_payment_events(5)`);
+check('결제 알림 할당: 원자적 잠금 배정', claimed.length === 1 && claimed[0].status === 'processing' && claimed[0].attempts === 1);
+let [decision] = await q(`select public.accept_paid_design('OD-CCCC-CCCC','20261108-0000010',27,5) as result`);
+check('결제 확인: 수량 불일치는 전환하지 않음', decision.result === 'mismatch');
+[decision] = await q(`select public.accept_paid_design('OD-CCCC-CCCC','20261108-0000010',27,50) as result`);
+check('결제 확인: 일치한 디자인만 전환', decision.result === 'confirmed');
+[decision] = await q(`select public.accept_paid_design('OD-CCCC-CCCC','20261108-0000010',27,50) as result`);
+check('결제 확인: 중복 알림은 다시 처리하지 않음', decision.result === 'already_confirmed');
+[decision] = await q(`select public.accept_paid_design('OD-CCCC-CCCC','20261108-0000011',27,50) as result`);
+check('결제 확인: 다른 주문에 이미 사용된 코드는 거절', decision.result === 'conflict');
+// 기존 received 상태 디자인도 결제 확인 시 전환되는지 검증
+await db.exec(`reset role; set role service_role; select set_config('request.jwt.claims', '{"role":"service_role"}', false);`);
+await db.exec(`insert into public.designs (code, product_no, product_name, quantity, style_name, status) values ('OD-7777-7777', 27, '멸치', 10, '송학', 'received')`);
+[decision] = await q(`select public.accept_paid_design('OD-7777-7777','20261108-0000012',27,10) as result`);
+check('결제 확인: 기존 received 접수도 결제 확인 시 정상 전환', decision.result === 'confirmed');
 await asAnon();
 await expectError('다시 주문: 이미 있는 코드는 중복 오류(23505)', () => q(`select public.reorder_design('OD-AAAA-AAAA', 'OD-CCCC-CCCC', 1)`), /duplicate key/);
 await expectError('다시 주문: 수량 범위 검사', () => q(`select public.reorder_design('OD-AAAA-AAAA', 'OD-EEEE-EEEE', 0)`), /수량/);

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { dataDir } from '../lib/paths.ts';
-import { createClient } from '../lib/supabase/server.ts';
+const createClient = async () => (await import('../lib/supabase/server.ts')).createClient();
 import { createServiceClient } from '../lib/supabase/service.ts';
 import { dataSource } from '../lib/supabase/env.ts';
 import { reportOperation, type Operation } from '../lib/operations.ts';
@@ -31,14 +31,62 @@ export interface Health {
   productCount: number;
   errors24h: number;
   events: { created_at: string; operation: string; outcome: string; code: string; duration_ms: number }[];
+  cafe24?: {
+    connected: boolean;
+    mallId?: string;
+    expiresAt?: string;
+    isExpired?: boolean;
+    refreshTokenExpiresAt?: string;
+    isRefreshTokenExpired?: boolean;
+    pendingCount: number;
+    failedCount: number;
+    waitingPaymentCount: number;
+  };
 }
 export async function getOperationalHealth(service = false): Promise<Health> {
+  const { getOAuthStatus } = await import('../cafe24/oauth.ts');
+  const oauth = await getOAuthStatus();
+
+  let queueCounts = { pendingCount: 0, failedCount: 0, waitingPaymentCount: 0 };
+  if (dataSource() !== 'local' && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      const sdb = createServiceClient(2000);
+      const { data: qData } = await sdb.from('cafe24_payment_events').select('status');
+      if (Array.isArray(qData)) {
+        for (const row of qData) {
+          if (row.status === 'pending' || row.status === 'processing') queueCounts.pendingCount++;
+          else if (row.status === 'failed') queueCounts.failedCount++;
+          else if (row.status === 'waiting_payment') queueCounts.waitingPaymentCount++;
+        }
+      }
+    } catch {
+      // 큐 조회 실패 시 기본값 유지
+    }
+  }
+
+  const cafe24Health = {
+    connected: oauth.connected,
+    mallId: oauth.mallId,
+    expiresAt: oauth.expiresAt,
+    isExpired: oauth.isExpired,
+    refreshTokenExpiresAt: oauth.refreshTokenExpiresAt,
+    isRefreshTokenExpired: oauth.isRefreshTokenExpired,
+    ...queueCounts,
+  };
+
   if (dataSource() === 'local') {
     const events = localEvents() as unknown as Health['events'];
-    return { schemaVersion: 'local', lastSync: loadSyncInfo().syncedAt, productCount: loadCatalog().products.length, errors24h: events.filter((e) => e.outcome === 'error' && Date.parse(e.created_at) > Date.now() - 86400000).length, events: events.slice(-50).reverse() };
+    return {
+      schemaVersion: 'local',
+      lastSync: loadSyncInfo().syncedAt,
+      productCount: loadCatalog().products.length,
+      errors24h: events.filter((e) => e.outcome === 'error' && Date.parse(e.created_at) > Date.now() - 86400000).length,
+      events: events.slice(-50).reverse(),
+      cafe24: cafe24Health,
+    };
   }
   const db = service ? createServiceClient() : await createClient();
   const { data, error } = await db.rpc('operational_health');
   if (error || !data || data.schemaVersion !== '20261027') throw new Error('운영 DB 변경 적용과 연결을 확인해 주세요.');
-  return data as Health;
+  return { ...(data as Health), cafe24: cafe24Health };
 }

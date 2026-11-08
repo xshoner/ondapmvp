@@ -92,7 +92,7 @@ export interface DesignDraft {
   fields: { recipient: string; sender: string; date: string };
 }
 
-export type DesignStatus = 'received' | 'order_confirmed' | 'printed' | 'canceled';
+export type DesignStatus = 'pending' | 'received' | 'order_confirmed' | 'printed' | 'canceled';
 
 export interface Design {
   code: string;

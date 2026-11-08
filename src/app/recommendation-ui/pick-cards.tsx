@@ -98,7 +98,7 @@ export function PlanBadge({ slot, rank }: { slot?: RecommendationItem['slot']; r
         border: '1px solid var(--line, #E6E1D8)',
       }}
     >
-      {rank ? `${rank}위 대안 추천` : '1위 대표 추천'}
+      {rank && rank !== 1 ? `${rank}위 대안 추천` : '1위 대표 추천'}
     </span>
   );
 }

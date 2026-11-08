@@ -3,6 +3,7 @@ import { normalizeDesignCode } from './rules.ts';
 import type { Design, DesignStatus } from './types.ts';
 
 export const STATUS_LABEL: Record<DesignStatus, string> = {
+  pending: '결제 대기',
   received: '접수',
   order_confirmed: '주문 확인',
   printed: '인쇄 완료',

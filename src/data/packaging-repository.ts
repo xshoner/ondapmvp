@@ -7,7 +7,6 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { dataDir, projectRoot } from '../lib/paths.ts';
 import { dataSource } from '../lib/supabase/env.ts';
-import { createClient } from '../lib/supabase/server.ts';
 import { fail, readPages, type DbPage } from './db.ts';
 import { cleanTargeting } from '../packaging/presets.ts';
 import type { EventType } from '../engine/types.ts';
@@ -20,26 +19,29 @@ type AssetRow = PackagingStyle | DesignImage | DesignText;
 const TABLE: Record<AssetKind, string> = { styles: 'packaging_styles', images: 'design_images', texts: 'design_texts' };
 const ASSET_BUCKET = 'packaging-assets';
 const PRINT_BUCKET = 'design-files';
+const createClient = async () => (await import('../lib/supabase/server.ts')).createClient();
 
 const bySort = <T extends { sort: number }>(a: T, b: T) => a.sort - b.sort;
 
 // ---------- 로컬 JSON ----------
 
-const assetsFile = join(dataDir, 'packaging.json');
-const designsFile = join(dataDir, 'designs.json');
-const printDir = join(dataDir, 'design-files');
+const currentDataDir = () => process.env.ONDAP_TEST_DATA_DIR || dataDir;
+const assetsFile = () => join(currentDataDir(), 'packaging.json');
+const designsFile = () => join(currentDataDir(), 'designs.json');
+const printDir = () => join(currentDataDir(), 'design-files');
 
 function readLocalAssets(): PackagingAssets & { _note?: string } {
-  return JSON.parse(readFileSync(assetsFile, 'utf8'));
+  return JSON.parse(readFileSync(assetsFile(), 'utf8'));
 }
 
 function writeLocalAssets(value: PackagingAssets & { _note?: string }): void {
-  writeFileSync(assetsFile, JSON.stringify(value, null, 2) + '\n');
+  writeFileSync(assetsFile(), JSON.stringify(value, null, 2) + '\n');
 }
 
 // 예전에 만든 파일에는 상태 시각·원본 칸이 없다 → 접수 시각·없음으로 채운다
 function readLocalDesigns(): Design[] {
-  const all: Design[] = existsSync(designsFile) ? JSON.parse(readFileSync(designsFile, 'utf8')) : [];
+  const f = designsFile();
+  const all: Design[] = existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : [];
   return all.map((d) => {
     const sourceCode = d.sourceCode ?? null;
     return { ...d, sourceCode, statusChangedAt: d.statusChangedAt ?? d.createdAt, printCode: d.hasPrintFile && !sourceCode ? d.code : sourceCode };
@@ -47,7 +49,7 @@ function readLocalDesigns(): Design[] {
 }
 
 function writeLocalDesigns(designs: Design[]): void {
-  writeFileSync(designsFile, JSON.stringify(designs, null, 2) + '\n');
+  writeFileSync(designsFile(), JSON.stringify(designs, null, 2) + '\n');
 }
 
 // ---------- Supabase 행 변환 ----------
@@ -178,13 +180,13 @@ export async function createDesign(design: NewDesign, printPng: Uint8Array | nul
     const all = readLocalDesigns();
     if (all.some((d) => d.code === design.code)) return 'duplicate';
     if (printPng && printPath) {
-      mkdirSync(printDir, { recursive: true });
-      writeFileSync(join(printDir, printPath), printPng);
+      mkdirSync(printDir(), { recursive: true });
+      writeFileSync(join(printDir(), printPath), printPng);
     }
     const now = new Date().toISOString();
     all.unshift({
       ...design, createdAt: now, hasPrintFile: Boolean(printPng), printCode: printPng ? design.code : null, sourceCode: null,
-      status: 'received', statusChangedAt: now, orderNo: null, memo: '',
+      status: 'pending', statusChangedAt: now, orderNo: null, memo: '',
     });
     writeLocalDesigns(all);
     return 'ok';
@@ -219,19 +221,20 @@ const LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, even
 // 20261025000000_operations.sql을 실행하기 전 DB: 새 칸(상태 시각·원본)이 없다 (42703 undefined_column)
 const OLD_LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, event, style_id, style_name, sticker, print_path, status, order_no, memo';
 
-export async function listDesigns(opts: { limit?: number; code?: string | null; status?: DesignStatus | null; from?: string | null; to?: string | null; late?: boolean } = {}): Promise<Design[]> {
+export async function listDesigns(opts: { limit?: number; code?: string | null; status?: DesignStatus | null; from?: string | null; to?: string | null; late?: boolean; includePending?: boolean } = {}): Promise<Design[]> {
   const limit = opts.limit ?? 200;
   const { gte, lt } = kstRange({ from: opts.from ?? null, to: opts.to ?? null });
   const now = Date.now();
   if (dataSource() === 'local') {
     return readLocalDesigns()
-      .filter((d) => (!opts.code || d.code === opts.code) && (!opts.status || d.status === opts.status)
+      .filter((d) => (opts.includePending || opts.status === 'pending' || d.status !== 'pending') && (!opts.code || d.code === opts.code) && (!opts.status || d.status === opts.status)
         && (!gte || d.createdAt >= gte) && (!lt || d.createdAt < lt) && (!opts.late || isLate(d, now)))
       .slice(0, limit).map((d) => ({ ...d, draft: null }));
   }
   const db = await createClient();
   const query = (columns: string, late: boolean) => {
     let q = db.from('designs').select(columns).order('created_at', { ascending: false });
+    if (!opts.includePending && opts.status !== 'pending') q = q.neq('status', 'pending');
     if (opts.code) q = q.eq('code', opts.code);
     if (opts.status) q = q.eq('status', opts.status);
     if (gte) q = q.gte('created_at', gte);
@@ -270,7 +273,7 @@ export async function updateDesign(code: string, patch: { status: DesignStatus; 
 // 관리자 내려받기용 인쇄 파일 (호출하는 쪽에서 관리자 확인)
 export async function readPrintFile(code: string): Promise<Uint8Array | null> {
   if (dataSource() === 'local') {
-    const path = join(printDir, `${code}.png`);
+    const path = join(printDir(), `${code}.png`);
     return existsSync(path) ? new Uint8Array(readFileSync(path)) : null;
   }
   const db = await createClient();
@@ -321,7 +324,7 @@ export async function reorderDesign(code: string, newCode: string, quantity: num
     const now = new Date().toISOString();
     const sourceCode = src.hasPrintFile && !src.sourceCode ? src.code : src.sourceCode;
     all.unshift({
-      ...src, code: newCode, quantity, createdAt: now, status: 'received', statusChangedAt: now, orderNo: null, memo: '',
+      ...src, code: newCode, quantity, createdAt: now, status: 'pending', statusChangedAt: now, orderNo: null, memo: '',
       sourceCode, printCode: sourceCode, hasPrintFile: Boolean(sourceCode),
     });
     writeLocalDesigns(all);

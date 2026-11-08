@@ -1,5 +1,4 @@
 import type { RecommendationItem } from '../../recommendation/contracts.ts';
-import { formatCustomerReason } from './types.ts';
 
 export function CoreScoreBreakdown({ item, customer = false }: { item: RecommendationItem; customer?: boolean }) {
   if (customer) return <div style={{ display: 'grid', gap: 8, fontSize: 13 }}>
@@ -153,7 +152,7 @@ export function CoreScoreBreakdown({ item, customer = false }: { item: Recommend
           </div>
           <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: 'var(--ink-soft, #555)', lineHeight: 1.5 }}>
             {item.reasons.map((r, idx) => (
-              <li key={idx}>{formatCustomerReason(r, item.slot)}</li>
+              <li key={idx}>{r}</li>
             ))}
           </ul>
         </div>

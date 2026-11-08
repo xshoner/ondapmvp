@@ -24,14 +24,15 @@ function CopyButton({ code }: { code: string }) {
 }
 
 const STEPS = [
-  { id: 'received', label: '접수' },
+  { id: 'pending', label: '디자인 저장' },
   { id: 'order_confirmed', label: '주문 확인' },
   { id: 'printed', label: '인쇄 완료' },
 ] as const;
 
 const NEXT_HINT: Record<string, string> = {
+  pending: '디자인을 저장했어요. 쇼핑몰에서 상품 주문 시 포장 옵션을 선택하고 결제해 주시면 제작이 시작돼요.',
   received: '쇼핑몰 주문서에 코드가 들어오면 ‘주문 확인’으로 바뀌어요. 아직 주문 전이면 ‘주문하러 가기’를 눌러 주세요.',
-  order_confirmed: '주문을 확인했어요. 스티커를 인쇄하는 중이에요.',
+  order_confirmed: '주문 결제를 확인했어요. 스티커를 인쇄하는 중이에요.',
   printed: '스티커 인쇄를 마쳤어요. 상품과 함께 정성껏 포장해 보내 드려요.',
 };
 
@@ -39,11 +40,14 @@ const date = (iso: string) => kstLabel(iso).replace(/ \d{2}:\d{2}$/, '');
 const shortDate = (iso: string) => kstLabel(iso).slice(5, 10).replace('-', '/'); // 10/22
 
 function Progress({ design: d, compact = false }: { design: CustomerDesign; compact?: boolean }) {
-  if (d.status === 'canceled') {
-    return <p className="small progress-canceled" role="status">취소된 접수예요{compact ? '' : `. 다시 꾸미거나 새로 저장하면 새 코드로 주문할 수 있어요.`}</p>;
+  if (d.status === 'pending') {
+    if (compact) return <span className="pill">결제 대기</span>;
   }
-  const at = STEPS.findIndex((s) => s.id === d.status);
-  if (compact) return <span className="pill">{STEPS[at]?.label ?? d.status} {shortDate(at === 0 ? d.createdAt : d.statusChangedAt)}</span>;
+  if (d.status === 'canceled') {
+    return <p className="small progress-canceled" role="status">취소된 디자인이에요{compact ? '' : `. 다시 꾸미거나 새로 저장하면 새 코드로 주문할 수 있어요.`}</p>;
+  }
+  const at = d.status === 'received' ? 0 : STEPS.findIndex((s) => s.id === d.status);
+  if (compact) return <span className="pill">{d.status === 'pending' ? '결제 대기' : (STEPS[at]?.label ?? d.status)} {shortDate(at <= 0 ? d.createdAt : d.statusChangedAt)}</span>;
   return (
     <div>
       <ol className="progress" aria-label="진행 상황">
@@ -155,7 +159,7 @@ export function MineView({ initialCode }: { initialCode: string }) {
     <>
       {fresh && (
         <section className="card fresh-code" role="status">
-          <b>새 코드로 다시 접수했어요</b>
+          <b>새 코드로 다시 저장했어요</b>
           <div className="design-code">{fresh.code}</div>
           <p className="small muted" style={{ textAlign: 'center', margin: '4px 0 0' }}>{fresh.productName} · {fresh.quantity.toLocaleString('ko-KR')}개 · 지난번과 같은 디자인</p>
           <div className="row" style={{ gap: 8, justifyContent: 'center', marginTop: 12 }}>
@@ -191,7 +195,7 @@ export function MineView({ initialCode }: { initialCode: string }) {
             <div className="small muted">{found.quantity.toLocaleString('ko-KR')}개, {found.styleName} 포장, {found.sticker}</div>
             <div style={{ marginTop: 14 }}><Progress design={found} /></div>
             <div className="row" style={{ gap: 8, marginTop: 14 }}>
-              {found.productUrl && found.status === 'received' && found.canOrder && <a className="btn small" href={orderUrl(found.productUrl, found.code, found.quantity)}>주문하러 가기</a>}
+              {found.productUrl && (found.status === 'pending' || found.status === 'received') && found.canOrder && <a className="btn small" href={orderUrl(found.productUrl, found.code, found.quantity)}>주문하러 가기</a>}
               {found.status !== 'canceled' && <CopyButton code={found.code} />}
               <Reorder design={found} onDone={reordered(found.code)} />
             </div>
@@ -219,7 +223,7 @@ export function MineView({ initialCode }: { initialCode: string }) {
                     <div className="small" style={{ marginTop: 4, lineHeight: 1.4 }}>{d.productName}</div>
                     <div className="small muted">{d.quantity.toLocaleString('ko-KR')}개 · {kstLabel(d.savedAt)} 저장</div>
                     <div className="alt-actions" style={{ flexWrap: 'wrap' }}>
-                      {d.productUrl && (!s || (s.status === 'received' && s.canOrder)) && <a className="btn small" href={orderUrl(d.productUrl, d.code, d.quantity)}>주문하러 가기</a>}
+                      {d.productUrl && (!s || ((s.status === 'pending' || s.status === 'received') && s.canOrder)) && <a className="btn small" href={orderUrl(d.productUrl, d.code, d.quantity)}>주문하러 가기</a>}
                       <CopyButton code={d.code} />
                     </div>
                     <div className="mine-more small">

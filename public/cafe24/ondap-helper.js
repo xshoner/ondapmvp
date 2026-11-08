@@ -470,7 +470,7 @@
         var timeout = setTimeout(function () { if (controller) controller.abort(); }, 8000);
         fetch(APP + '/api/design/' + state.code, controller ? { signal: controller.signal } : {}).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
           if (!d || d.code !== state.code || String(d.productNo) !== state.productNo) return manual('디자인과 상품을 확인할 수 없어요.');
-          if (d.status !== 'received') return manual('취소됐거나 이미 주문 처리된 디자인이에요. 새 코드를 받아 주세요.');
+          if (d.status !== 'pending' && d.status !== 'received') return manual('취소됐거나 이미 주문 처리된 디자인이에요. 새 코드를 받아 주세요.');
           var qty = orderQuantity(state.productNo);
           if (qty === null || qty !== Number(d.quantity)) return manual('주문 수량과 디자인 수량이 달라요.');
           // 기다리는 사이 고객이 바꾼 입력도 덮어쓰지 않는다.

@@ -123,6 +123,17 @@ export async function updateDesignsStatusAction(rawCodes: string[], status: stri
   const codes = [...new Set((Array.isArray(rawCodes) ? rawCodes : []).map((c) => normalizeDesignCode(String(c))).filter((c): c is string => Boolean(c)))];
   if (codes.length === 0) return { ok: false, message: '고른 접수가 없습니다.' };
   if (codes.length > 500) return { ok: false, message: '한 번에 500건까지 바꿀 수 있습니다.' };
+
+  // 결제 대기(pending) 디자인은 서버 결제 확인 없이 일괄 주문 확인/인쇄 완료로 변경할 수 없다
+  if (['order_confirmed', 'printed'].includes(status)) {
+    const existing = await listDesigns({ limit: 500, includePending: true });
+    const pendingSet = new Set(existing.filter((d) => d.status === 'pending').map((d) => d.code));
+    const invalidCodes = codes.filter((c) => pendingSet.has(c));
+    if (invalidCodes.length > 0) {
+      return { ok: false, message: `결제 대기 중인 디자인(${invalidCodes.slice(0, 3).join(', ')} 등 ${invalidCodes.length}건)은 결제 확인 전 주문 확인/인쇄로 변경할 수 없습니다.` };
+    }
+  }
+
   try {
     const updated = await updateDesignsStatus(codes, status as DesignStatus);
     revalidatePath('/admin', 'layout');
@@ -146,9 +157,24 @@ export async function linkOrdersAction(links: { code: string; orderNo: string }[
       continue;
     }
     try {
-      const [d] = await listDesigns({ code, limit: 1 });
+      const [d] = await listDesigns({ code, limit: 1, includePending: true });
       if (!d) {
         results.push({ code, ok: false, message: '접수를 찾을 수 없습니다.' });
+        continue;
+      }
+      if (d.status === 'pending') {
+        // 결제 대기 건은 카페24 결제 확인을 먼저 거쳐야 한다
+        try {
+          const { processSingleOrder } = await import('@/cafe24/intake-worker.ts');
+          const decision = await processSingleOrder(orderNo);
+          if (decision.status === 'confirmed' || decision.status === 'already_confirmed') {
+            results.push({ code, ok: true, message: '카페24 결제 확인 완료 · 주문 확인' });
+          } else {
+            results.push({ code, ok: false, message: `카페24 결제 미확인: ${decision.message}` });
+          }
+        } catch (err) {
+          results.push({ code, ok: false, message: `결제 대기 건은 카페24 결제 확인이 필요합니다: ${err instanceof Error ? err.message : String(err)}` });
+        }
         continue;
       }
       const status = d.status === 'received' ? 'order_confirmed' : d.status;
@@ -171,8 +197,9 @@ export async function markPrintedAction(raw: string): Promise<
   const code = normalizeDesignCode(String(raw ?? ''));
   if (!code) return { ok: false, message: '디자인 코드를 읽지 못했습니다.' };
   try {
-    const [d] = await listDesigns({ code, limit: 1 });
+    const [d] = await listDesigns({ code, limit: 1, includePending: true });
     if (!d) return { ok: false, message: `${code} 접수를 찾을 수 없습니다.` };
+    if (d.status === 'pending') return { ok: false, message: `${code}는 결제 대기 중인 접수라 인쇄 완료로 바꿀 수 없습니다.` };
     if (d.status === 'canceled') return { ok: false, message: `${code}는 취소된 접수라 바꾸지 않았습니다.` };
     const base = { ok: true as const, code, previous: d.status, productName: d.productName, quantity: d.quantity };
     if (d.status === 'printed') return { ...base, already: true };
@@ -193,6 +220,14 @@ export async function updateDesignAction(code: string, patch: { status: string; 
   // 카페24 주문번호는 숫자·영문·하이픈 (인쇄 PDF 머리글에도 찍힌다)
   const orderNo = String(patch.orderNo ?? '').trim();
   if (!ORDER_NO.test(orderNo)) return { ok: false, message: '주문번호는 숫자·영문·하이픈만 적어 주세요. 예: 20261021-0000123' };
+
+  if (['order_confirmed', 'printed'].includes(patch.status)) {
+    const [d] = await listDesigns({ code: c, limit: 1, includePending: true });
+    if (d?.status === 'pending') {
+      return { ok: false, message: '결제 대기 중인 디자인은 카페24 결제가 확인되어야 주문 확인으로 변경할 수 있습니다.' };
+    }
+  }
+
   return run(() => updateDesign(c, {
     status: patch.status as DesignStatus,
     orderNo: orderNo || null,
