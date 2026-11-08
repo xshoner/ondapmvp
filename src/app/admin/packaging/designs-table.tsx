@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { isTyping, saveBlob } from '@/lib/device.ts';
 import { kstLabel } from '@/lib/kst.ts';
 import { MAX_SHEETS, sheetLayout, sheetsNeeded, type Paper } from '@/packaging/sheet.ts';
-import { LATE_DAYS, STATUS_LABEL, filterQuery, isLate, type DesignFilter } from '@/packaging/design-filter.ts';
+import { LATE_DAYS, STATUS_LABEL, designStatusLabel, filterQuery, isLate, type DesignFilter } from '@/packaging/design-filter.ts';
 import { extractOrderLinks } from '@/packaging/order-paste.ts';
 import type { Design, DesignStatus } from '@/packaging/types.ts';
 import { linkOrdersAction, updateDesignAction, updateDesignsStatusAction, syncCafe24OrdersAction } from './actions.ts';
@@ -302,7 +302,7 @@ function PastePanel({ designs, onDone }: { designs: Design[]; onDone(): void }) 
                 <tr key={l.code}>
                   <td><b className="mono">{l.code}</b></td>
                   <td>{l.orderNo ?? <span style={{ color: 'var(--danger)' }}>못 찾음</span>}</td>
-                  <td className="small">{d ? `${STATUS_LABEL[d.status]}${d.orderNo ? ` · ${d.orderNo}` : ''}` : <span className="muted">목록에 없음 (저장 때 다시 찾음)</span>}</td>
+                  <td className="small">{d ? `${designStatusLabel(d)}${d.orderNo ? ` · ${d.orderNo}` : ''}` : <span className="muted">목록에 없음 (저장 때 다시 찾음)</span>}</td>
                   <td className="small" style={{ color: r ? (r.ok ? 'var(--green)' : 'var(--danger)') : undefined }}>
                     {r ? r.message : d && d.orderNo === l.orderNo ? '이미 연결됨' : ''}
                   </td>
@@ -347,6 +347,7 @@ function DesignRow({ design: d, eventNames, options, now, active, selected, onTo
   const printable = Boolean(d.printCode && d.sticker);
   const sheets = d.sticker ? sheetsNeeded(sheetLayout(d.sticker, options.paper), d.quantity) : 0;
   const late = isLate(d, now);
+  const isAwaitingPayment = d.status === 'pending' && Boolean(d.orderNo || d.memo?.includes('카페24 주문') || d.memo?.includes('무통장 입금 대기'));
 
   const save = () => start(async () => {
     setMessage(null);
@@ -371,9 +372,15 @@ function DesignRow({ design: d, eventNames, options, now, active, selected, onTo
         <b className="mono" style={{ fontSize: 14 }}>{d.code}</b>
         <div className="small muted">{kstLabel(d.createdAt)}</div>
         {d.status === 'pending' && (
-          <span className="badge" style={{ display: 'inline-block', marginTop: 4, padding: '2px 8px', borderRadius: 4, background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d', fontSize: 12, fontWeight: 600 }}>
-            결제 대기
-          </span>
+          isAwaitingPayment ? (
+            <span className="badge" style={{ display: 'inline-block', marginTop: 4, padding: '2px 8px', borderRadius: 4, background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d', fontSize: 12, fontWeight: 600 }}>
+              무통장 입금 대기
+            </span>
+          ) : (
+            <span className="badge" style={{ display: 'inline-block', marginTop: 4, padding: '2px 8px', borderRadius: 4, background: '#f3f4f6', color: '#4b5563', border: '1px solid #e5e7eb', fontSize: 12, fontWeight: 600 }}>
+              디자인 저장 (주문서 미접수)
+            </span>
+          )
         )}
         {d.sourceCode && <div className="small muted">{d.sourceCode} 다시 주문</div>}
         {late && (
@@ -382,9 +389,15 @@ function DesignRow({ design: d, eventNames, options, now, active, selected, onTo
           </div>
         )}
         {printable && d.status === 'pending' && (
-          <div className="small" style={{ color: '#b45309', marginTop: 6, fontWeight: 500 }}>
-            ⚠️ 결제 확인 전 (입금 대기)
-          </div>
+          isAwaitingPayment ? (
+            <div className="small" style={{ color: '#b45309', marginTop: 6, fontWeight: 500 }}>
+              ⚠️ 무통장 입금 대기 (카페24 결제 확인 전)
+            </div>
+          ) : (
+            <div className="small muted" style={{ marginTop: 6 }}>
+              ℹ️ 주문서 작성 전 (디자인 보관 상태)
+            </div>
+          )
         )}
         {printable && d.status !== 'pending' && (
           <div className="row" style={{ gap: 6, marginTop: 6 }}>
@@ -419,7 +432,7 @@ function DesignRow({ design: d, eventNames, options, now, active, selected, onTo
           <input type="text" value={memo} maxLength={500} placeholder="메모" onChange={(e) => setMemo(e.target.value)} style={{ flex: 1 }} />
           <button type="button" className="btn small" disabled={!dirty || pending} onClick={save}>{pending ? '저장 중' : '저장'}</button>
         </div>
-        {d.status !== 'received' && <div className="small muted" style={{ marginTop: 4 }}>{STATUS_LABEL[d.status]} {kstLabel(d.statusChangedAt)}</div>}
+        {d.status !== 'received' && <div className="small muted" style={{ marginTop: 4 }}>{designStatusLabel(d)} {kstLabel(d.statusChangedAt)}</div>}
         {message && <div className="small" style={{ marginTop: 4 }}>{message}</div>}
       </td>
     </tr>

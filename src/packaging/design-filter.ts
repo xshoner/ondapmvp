@@ -3,12 +3,22 @@ import { normalizeDesignCode } from './rules.ts';
 import type { Design, DesignStatus } from './types.ts';
 
 export const STATUS_LABEL: Record<DesignStatus, string> = {
-  pending: '결제 대기',
+  pending: '대기 (결제전/미접수)',
   received: '접수',
   order_confirmed: '주문 확인',
   printed: '인쇄 완료',
   canceled: '취소',
 };
+
+export function designStatusLabel(design: Pick<Design, 'status'> & { orderNo?: string | null; memo?: string | null }): string {
+  if (design.status === 'pending') {
+    if (design.orderNo || design.memo?.includes('카페24 주문') || design.memo?.includes('무통장 입금 대기')) {
+      return '무통장 입금 대기';
+    }
+    return '디자인 저장 (주문서 미접수)';
+  }
+  return STATUS_LABEL[design.status] || design.status;
+}
 
 export interface DesignFilter {
   code: string | null;
@@ -62,7 +72,7 @@ export function csvCell(v: unknown): string {
 export function designsCsv(designs: Design[], eventNames: Record<string, string>, kst: (iso: string) => string): string {
   const head = ['접수일시', '디자인 코드', '상태', '카페24 주문번호', '상품번호', '상품명', '수량', '행사', '포장지', '스티커', '인쇄 파일', '메모'];
   const rows = designs.map((d) => [
-    kst(d.createdAt), d.code, STATUS_LABEL[d.status], d.orderNo ?? '', d.productNo, d.productName, d.quantity,
+    kst(d.createdAt), d.code, designStatusLabel(d), d.orderNo ?? '', d.productNo, d.productName, d.quantity,
     d.event ? (eventNames[d.event] ?? d.event) : '', d.styleName,
     d.sticker ? `${d.sticker.shape === 'circle' ? '원형' : '사각'} ${d.sticker.sizeCm}cm` : '없음',
     d.hasPrintFile ? '있음' : '없음', d.memo,

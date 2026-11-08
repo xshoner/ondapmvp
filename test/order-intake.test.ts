@@ -410,6 +410,51 @@ test('syncRecentCafe24Orders: 주문 추가정보의 디자인 코드를 추출�
     const [dConflict] = await listDesigns({ code: 'OD-EJF4-JSV2', limit: 1, includePending: true });
     assert.ok(!dConflict?.memo.includes('20261108-0000044'), '다른 주문번호가 이미 지정된 디자인은 덮어쓰지 않아야 함');
 
+    // 4-6. 주문 목록 API에 additional_order_info_list가 누락된 경우 단건 상세 조회를 통해 복구
+    const orderWithoutInfoInList: Cafe24AdminOrder = {
+      ...order38,
+      order_id: '20261108-0000045',
+      additional_order_info_list: undefined, // 목록 API에서는 누락됨
+    };
+    await updateDesign('OD-EJF4-JSV2', {
+      status: 'pending',
+      orderNo: null,
+      memo: '기존 관리자 메모 유지 테스트',
+    });
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const urlStr = String(input);
+      if (urlStr.includes('/api/v2/admin/orders/20261108-0000045')) {
+        // 단건 상세 API 호출 시 추가정보 반환
+        return new Response(JSON.stringify({
+          order: {
+            ...orderWithoutInfoInList,
+            additional_order_info_list: [
+              { id: 1, name: '온답 포장 디자인 코드', value: 'OD-EJF4-JSV2' },
+            ],
+          },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (urlStr.includes('/api/v2/admin/orders')) {
+        return new Response(JSON.stringify({ orders: [orderWithoutInfoInList] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response('Not Found', { status: 404 });
+    }) as typeof fetch;
+
+    const fallbackResult = await syncRecentCafe24Orders(3);
+    assert.equal(fallbackResult.pendingOrders, 1, '단건 보완 조회를 통해 미결제 주문 1건이 정상 감지되어야 함');
+    const [dRecovered] = await listDesigns({ code: 'OD-EJF4-JSV2', limit: 1, includePending: true });
+    assert.equal(dRecovered?.status, 'pending', '상태는 여전히 pending으로 유지되어야 함');
+    assert.equal(dRecovered?.orderNo, null, '미결제 상태에서는 정식 orderNo가 null이어야 함');
+    assert.ok(dRecovered?.memo.includes('기존 관리자 메모 유지 테스트'), '기존 메모가 보존되어야 함');
+    assert.ok(dRecovered?.memo.includes('카페24 주문: 20261108-0000045 (무통장 입금 대기)'), '자동 메모가 추가되어야 함');
+
+    const { designStatusLabel } = await import('../src/packaging/design-filter.ts');
+    assert.equal(designStatusLabel(dRecovered!), '무통장 입금 대기', '주문 연결된 pending 디자인은 무통장 입금 대기로 표시');
+    assert.equal(designStatusLabel({ status: 'pending', orderNo: null, memo: '' }), '디자인 저장 (주문서 미접수)', '주문서 미접수 디자인은 디자인 저장으로 표시');
+
     // 5. 결제 완료된 주문에 대한 기존 정상 처리 유지 검증
     // 미결제 주문 38이 이후 고객 입금 완료되어 payment_status='P', order_status='N10'으로 변경된 경우
     const paidOrder38: Cafe24AdminOrder = {

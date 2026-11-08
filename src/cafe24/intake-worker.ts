@@ -251,17 +251,38 @@ export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number;
   for (const order of allOrders) {
     if (isOrderCanceled(order)) continue;
 
-    const code = extractDesignCode(order);
+    let fullOrder = order;
+    let code = extractDesignCode(fullOrder);
+
+    // 카페24 주문 목록 API는 additional_order_info_list가 누락되거나 미포함될 수 있으므로,
+    // 코드가 추출되지 않은 주문 중 포장 옵션이 있거나 후보 주문인 경우 단건 상세 API(fetchAdminOrder)로 보완 조회한다.
+    if (!code) {
+      const needsDetail =
+        !Array.isArray(order.items) ||
+        order.items.length === 0 ||
+        order.items.some(hasPackagingOption) ||
+        allOrders.length <= 20;
+
+      if (needsDetail) {
+        try {
+          fullOrder = await fetchAdminOrder(order.order_id, token);
+          code = extractDesignCode(fullOrder);
+        } catch (err) {
+          console.warn(`[Cafe24 Sync] 주문 ${order.order_id} 상세 보완 조회 실패:`, err instanceof Error ? err.message : err);
+        }
+      }
+    }
+
     if (!code) continue;
 
-    if (isOrderPaid(order)) {
-      const decision = await verifyAndAcceptOrder(order);
+    if (isOrderPaid(fullOrder)) {
+      const decision = await verifyAndAcceptOrder(fullOrder);
       if (decision.status === 'confirmed' || decision.status === 'already_confirmed') {
         confirmed++;
       }
     } else {
       // 미결제(무통장 입금 대기 등) 주문:
-      // 디자인 코드, 상품번호, 수량, 포장 옵션이 안전하게 일치하는 경우에만 pending 상태를 유지하며 관리자 메모를 작성한다.
+      // 디자인 코드, 상품번호, 수량, 포장 옵션이 안전하게 일치하는 경우에만 pending 상태를 유지하며 관리자 메모 및 주문번호를 작성한다.
       try {
         let d: { code: string; productNo: number; quantity: number; status: string; orderNo: string | null; memo: string } | null = null;
 
@@ -303,27 +324,39 @@ export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number;
         if (!d || d.status !== 'pending') continue;
 
         // 2. 다른 주문에 이미 연결된 디자인인지 확인
-        if (d.orderNo && d.orderNo !== order.order_id) continue;
+        if (d.orderNo && d.orderNo !== fullOrder.order_id) {
+          console.warn(`[Cafe24 Sync] 디자인 ${code}는 이미 다른 주문(${d.orderNo})에 연결되어 있어 주문 ${fullOrder.order_id} 연결을 건너뜁니다.`);
+          continue;
+        }
 
         // 3. 상품번호 일치 품목 탐색
-        const matchingItem = Array.isArray(order.items)
-          ? order.items.find((item) => item.product_no === d.productNo)
+        const matchingItem = Array.isArray(fullOrder.items)
+          ? fullOrder.items.find((item) => item.product_no === d.productNo)
           : undefined;
-        if (!matchingItem) continue;
+        if (!matchingItem) {
+          console.warn(`[Cafe24 Sync] 주문 ${fullOrder.order_id} 상품번호와 디자인 ${code} 상품번호(${d.productNo}) 불일치`);
+          continue;
+        }
 
         // 4. 수량 일치 확인
-        if (matchingItem.quantity !== d.quantity) continue;
+        if (matchingItem.quantity !== d.quantity) {
+          console.warn(`[Cafe24 Sync] 주문 ${fullOrder.order_id} 수량(${matchingItem.quantity})과 디자인 ${code} 수량(${d.quantity}) 불일치`);
+          continue;
+        }
 
         // 5. 포장 디자인 옵션 신청 여부 확인
-        if (!hasPackagingOption(matchingItem)) continue;
+        if (!hasPackagingOption(matchingItem)) {
+          console.warn(`[Cafe24 Sync] 주문 ${fullOrder.order_id} 포장 디자인 유료 옵션 미선택`);
+          continue;
+        }
 
         pendingOrders++;
 
         // 6. 관리자 메모 안전 작성 (기존 관리자 메모 보존 및 동일 주문 중복 작성 방지)
-        const note = `카페24 주문: ${order.order_id} (무통장 입금 대기)`;
+        const note = `카페24 주문: ${fullOrder.order_id} (무통장 입금 대기)`;
         const existingMemo = d.memo ? d.memo.trim() : '';
 
-        if (existingMemo.includes(order.order_id)) continue;
+        if (existingMemo.includes(fullOrder.order_id)) continue;
 
         const newMemo = existingMemo ? `${existingMemo}\n${note}` : note;
 
@@ -348,7 +381,7 @@ export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number;
           if (uErr) throw new Error(`디자인 메모 저장 실패: ${uErr.message}`);
         }
       } catch (err) {
-        console.warn(`[Cafe24 Sync] 미결제 주문 ${order.order_id} (디자인: ${code}) 메모 작성 실패:`, err instanceof Error ? err.message : err);
+        console.warn(`[Cafe24 Sync] 미결제 주문 ${fullOrder.order_id} (디자인: ${code}) 메모 작성 실패:`, err instanceof Error ? err.message : err);
       }
     }
   }
