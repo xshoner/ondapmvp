@@ -1,4 +1,4 @@
-# 온답 추천 엔진 MVP
+# 답례큐 (구 온답) 추천 엔진 MVP
 
 > **작업 시작 전 필독:** [인계 기록 START-HERE.md](START-HERE.md) — 운영 배포(https://ondapmvp.vercel.app , 기준 커밋 `526e0b1`) 완료 및 결재 활성화(`ENABLE_APPROVAL_DOCS=true`). 현재 통합·검증 브랜치: `codex/core-ui-validation`.
 

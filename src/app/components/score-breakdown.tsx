@@ -27,11 +27,11 @@ export function ScoreBreakdown({ item }: { item: ScoredProduct | RecommendationI
             </div>
           </div>
           <div style={{ padding: '6px 8px', border: '1px solid var(--line, #E6E1D8)', borderRadius: 4 }}>
-            <span style={{ color: 'var(--muted, #777)' }}>상품 희소값(R)</span>
+            <span style={{ color: 'var(--muted, #777)' }}>상품 희소도(R)</span>
             <div style={{ fontWeight: 600, fontSize: 14 }}>{item.rarityValue.toFixed(1)}점</div>
           </div>
           <div style={{ padding: '6px 8px', border: '1px solid var(--line, #E6E1D8)', borderRadius: 4 }}>
-            <span style={{ color: 'var(--muted, #777)' }}>유효 근거 수</span>
+            <span style={{ color: 'var(--muted, #777)' }}>검토 항목 수</span>
             <div style={{ fontWeight: 600, fontSize: 14 }}>{item.evidenceCount} / 5개</div>
           </div>
         </div>
@@ -63,7 +63,7 @@ export function ScoreBreakdown({ item }: { item: ScoredProduct | RecommendationI
 
   // 레거시 ScoredProduct
   if (item.model === 'v2') {
-    return <p className="small muted">상품 희소값 {item.baseIndex}점. 행사 기준과 예산을 충족한 상품을 판매가가 낮은 순으로 표시합니다.</p>;
+    return <p className="small muted">상품 추천점수 {item.baseIndex}점. 행사 기준과 예산을 충족한 상품을 추천점수 순으로 표시합니다.</p>;
   }
   const bonusTotal = item.bonuses.reduce((s, b) => s + b.points, 0);
   const maxPoints = Math.max(...item.indicators.map((c) => c.points), 1);

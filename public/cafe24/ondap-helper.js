@@ -17,7 +17,8 @@
   'use strict';
 
   var KEY = 'ondap_packaging';
-  var LABEL = '온답 포장 디자인 코드';
+  var LABEL = '답례큐 포장 디자인 코드';
+  var LABELS = ['답례큐 포장 디자인 코드', '온답 포장 디자인 코드'];
   var CODE = /^OD-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/;
   var TTL = 24 * 3600 * 1000;
   // 주문서에 넣은 뒤로는 1시간만 기억 (주문 완료 화면에 스크립트가 없어도 다음 주문에 남지 않게)
@@ -300,7 +301,7 @@
       keepQuantity(qty);
       var baseQty = document.querySelector('#quantity');
       var baseQtyText = baseQty && baseQty.offsetParent !== null && Number(baseQty.value) === qty ? ' 수량은 <b>' + qty + '개</b>로 맞춰 두었어요.' : ' 필요한 옵션을 고르고 수량 <b>' + qty + '개</b>를 확인해 주세요.';
-      banner('온답에서 고른 상품이에요.' + baseQtyText);
+      banner('답례큐에서 고른 상품이에요.' + baseQtyText);
     }
   }
 
@@ -389,7 +390,8 @@
     var heads = document.querySelectorAll('th, dt, label');
     var found = [];
     for (var i = 0; i < heads.length; i++) {
-      if (heads[i].textContent.indexOf(LABEL) === -1) continue;
+      var txt = heads[i].textContent;
+      if (!LABELS.some(function (l) { return txt.indexOf(l) !== -1; })) continue;
       var row = heads[i].closest('tr, li, dl');
       var field = row && row.querySelector('input[type="text"], input:not([type]), textarea');
       if (field && found.indexOf(field) === -1) found.push(field);
@@ -430,9 +432,9 @@
       var qty = orderQuantity(String(d.productNo));
       var lines = ['포장 디자인 ' + badge(state.code) + ' · ' + esc(d.styleName) + ' 포장 · ' + sticker + ' · ' + designQty + '개'];
       if (d.status === 'canceled') {
-        lines.push('<b>이 디자인은 취소된 접수예요.</b> 온답에서 다시 꾸며 새 코드를 받아 주세요.');
+        lines.push('<b>이 디자인은 취소된 접수예요.</b> 답례큐에서 다시 꾸며 새 코드를 받아 주세요.');
       } else if (qty !== null && qty !== designQty) {
-        lines.push('<b>주문 수량(' + qty + '개)과 디자인 수량(' + designQty + '개)이 달라요.</b> 스티커는 ' + designQty + '개를 인쇄해요. 수량을 맞추거나 온답 ‘내 디자인’에서 수량을 바꿔 다시 주문해 주세요.');
+        lines.push('<b>주문 수량(' + qty + '개)과 디자인 수량(' + designQty + '개)이 달라요.</b> 스티커는 ' + designQty + '개를 인쇄해요. 수량을 맞추거나 답례큐 ‘내 디자인’에서 수량을 바꿔 다시 주문해 주세요.');
       } else {
         lines.push('주문서 ‘' + LABEL + '’ 칸에 코드를 넣어 두었어요. 이대로 주문하시면 돼요.');
       }

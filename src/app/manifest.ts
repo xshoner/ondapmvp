@@ -3,8 +3,8 @@ import type { MetadataRoute } from 'next';
 // 휴대폰 '홈 화면에 추가' 했을 때의 이름·아이콘·색
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: '온답 답례 큐레이션',
-    short_name: '온답',
+    name: '답례큐 답례 큐레이션',
+    short_name: '답례큐',
     description: '행사와 받는 분, 예산에 맞춰 지역 답례품을 격식지수로 골라 드립니다.',
     start_url: '/',
     display: 'standalone',

@@ -2,13 +2,13 @@
 import { ImageResponse } from 'next/og';
 import { OG_COLORS as C, OG_SIZE, ogFonts } from '@/og/font.ts';
 
-export const alt = '온답 답례 큐레이션: 자리에 맞는 답례, 온답이 골라 드립니다';
+export const alt = '답례큐 답례 큐레이션: 자리에 맞는 답례, 답례큐가 골라 드립니다';
 export const size = OG_SIZE;
 export const contentType = 'image/png';
 
-const TITLE = ['자리에 맞는 답례,', '온답이 골라 드립니다'];
+const TITLE = ['자리에 맞는 답례,', '답례큐가 골라 드립니다'];
 const SUB = ['행사와 받는 분, 예산만 알려 주시면', '격식지수로 비교해 지역 답례품 세 가지를 추천합니다.'];
-const BRAND = '온답 답례 큐레이션';
+const BRAND = '답례큐 답례 큐레이션';
 const MARKS = '弔婚壽誕榮開謝生';
 
 export default async function Image() {

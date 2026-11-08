@@ -47,7 +47,7 @@ export default async function PackagingPage({ searchParams }: { searchParams: Se
   const back = (
     <header className="topbar pkg-topbar">
       <a className="back" href={backHref}>{backLabel}</a>
-      <span className="title">온답 포장 꾸미기</span>
+      <span className="title">답례큐 포장 꾸미기</span>
       <a className="small link-btn" href="/packaging/mine" style={{ textAlign: 'right' }}>내 디자인</a>
     </header>
   );

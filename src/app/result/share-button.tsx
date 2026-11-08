@@ -21,7 +21,7 @@ export function ShareButton({
     const url = href ? new URL(href, location.origin).href : location.href;
     try {
       if (navigator.share && isMobileUA()) {
-        await navigator.share({ title, text: `${title} 온답 답례 추천 결과입니다.`, url });
+        await navigator.share({ title, text: `${title} 답례큐 답례 추천 결과입니다.`, url });
         return;
       }
       await navigator.clipboard.writeText(url);

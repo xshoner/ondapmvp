@@ -33,7 +33,7 @@ export function buildPrompt(config: EngineConfig, input: SuggestInput): { system
   const events = Object.entries(config.events).map(([id, e]) => `${id}=${e.name}`).join(', ');
   const relations = Object.entries(config.relations).map(([id, r]) => `${id}=${r.name}`).join(', ');
 
-  const system = `당신은 한국 지역특산물 답례품 큐레이션 서비스 '온답'의 상품 평가 담당자입니다.
+  const system = `당신은 한국 지역특산물 답례품 큐레이션 서비스 '답례큐'의 상품 평가 담당자입니다.
 관리자가 상품을 등록할 때 격식지수 지표 점수와 적합한 상황을 '제안'합니다. 관리자가 검토 후 확정합니다.
 
 [지표]

@@ -28,7 +28,7 @@ export async function GET(request: Request) {
   const meta = metaLines.join('');
   const image = main?.imageUrl;
 
-  const fonts = await ogFonts(title + score + '추천점수', name + tier + meta + '온답 답례 큐레이션');
+  const fonts = await ogFonts(title + score + '추천점수', name + tier + meta + '답례큐 답례 큐레이션');
   return new ImageResponse(
     (
       <div style={{ width: '100%', height: '100%', display: 'flex', background: C.paper }}>
@@ -40,7 +40,7 @@ export async function GET(request: Request) {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '52px 52px 48px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'Noto Sans KR', fontSize: 24, color: C.muted }}>
             <div style={{ width: 14, height: 14, background: seal, transform: 'rotate(45deg)', borderRadius: 2 }} />
-            온답 답례 큐레이션
+            답례큐 답례 큐레이션
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div style={{ display: 'flex', flexDirection: 'column', fontFamily: 'Hahmlet', fontSize: 50, color: C.ink, lineHeight: 1.25, letterSpacing: -1.5 }}>

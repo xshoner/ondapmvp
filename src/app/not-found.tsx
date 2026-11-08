@@ -3,7 +3,7 @@ export default function NotFound() {
   return (
     <main className="mobile">
       <header className="topbar">
-        <a className="brand" href="/"><span className="brand-mark" aria-hidden />온답<small>답례 큐레이션</small></a>
+        <a className="brand" href="/"><span className="brand-mark" aria-hidden />답례큐<small>답례 큐레이션</small></a>
       </header>
       <div className="state-screen">
         <span className="seal-outline still" aria-hidden><span>無</span></span>

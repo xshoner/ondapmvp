@@ -176,7 +176,7 @@ export function ResultModal({
 
         {/* 발급된 디자인 코드 */}
         <div className="pkg-result-code-card">
-          <span className="small muted">온답 디자인 코드</span>
+          <span className="small muted">답례큐 디자인 코드</span>
           <div className="design-code">{code}</div>
           <button
             type="button"
@@ -208,7 +208,7 @@ export function ResultModal({
             </li>
             <li>‘바로 구매하기’를 누르면 로그인 또는 <b>비회원 구매</b>로 주문할 수 있습니다.</li>
             <li>
-              주문서 작성 화면의 <b>‘온답 포장 디자인 코드’</b> 칸에 코드가 자동 입력되었는지 확인해 주세요. 칸이 비어 있거나 비회원 주문 시에는 위 &lsquo;코드 복사하기&rsquo;를 눌러 직접 붙여넣어 주세요.
+              주문서 작성 화면의 <b>‘답례큐 포장 디자인 코드’</b>(또는 온답 포장 디자인 코드) 칸에 코드가 자동 입력되었는지 확인해 주세요. 칸이 비어 있거나 비회원 주문 시에는 위 &lsquo;코드 복사하기&rsquo;를 눌러 직접 붙여넣어 주세요.
             </li>
           </ol>
         </div>
@@ -219,7 +219,7 @@ export function ResultModal({
             <div className="small muted">
               <b>스마트폰으로 디자인 확인하기</b>
               <p style={{ margin: '2px 0 0' }}>
-                휴대폰 카메라로 QR 코드를 스캔하면 <b>온답 내 디자인 상세 조회 페이지</b>로 연결되어, 저장된 포장 디자인을 확인하고 쇼핑몰 주문을 진행하실 수 있습니다.
+                휴대폰 카메라로 QR 코드를 스캔하면 <b>답례큐 내 디자인 상세 조회 페이지</b>로 연결되어, 저장된 포장 디자인을 확인하고 쇼핑몰 주문을 진행하실 수 있습니다.
               </p>
               {typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
                 <p className="small" style={{ color: 'var(--brass)', margin: '4px 0 0', fontSize: 11.5 }}>

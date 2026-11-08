@@ -8,7 +8,7 @@ import type { CanvasApi, EditorLayer, TextRect } from '../editor-types.ts';
 
 const StickerCanvas = dynamic(() => import('../sticker-canvas.tsx'), {
   ssr: false,
-  loading: () => <div className="stage-loading">캔버스 불러오는 중…</div>,
+  loading: () => <div className="stage-loading">스티커 편집 화면을 불러오는 중…</div>,
 });
 
 interface Props {

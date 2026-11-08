@@ -25,11 +25,11 @@ const cta = readFileSync(join(projectRoot, 'cafe24', 'ondap-cta.html'), 'utf8').
 writeFileSync(join(out, 'ondap-cta.html'), cta);
 
 const script = `<script src="${origin}/cafe24/ondap-helper.js" defer></script>`;
-const guide = `온답 카페24 붙이기 안내 (${origin})
+const guide = `답례큐 카페24 붙이기 안내 (${origin})
 =====================================================
 
 1) 메인 버튼 — PC·모바일 메인 index.html, 메인 배너 바로 아래
-   cafe24/out/ondap-cta.html 내용을 통째로 붙인다 (예전 온답 버튼 블록이 있으면 통째로 바꾼다)
+   cafe24/out/ondap-cta.html 내용을 통째로 붙인다 (예전 온답/답례큐 버튼 블록이 있으면 통째로 바꾼다)
 
 2) 포장 도우미 스크립트 — 아래 한 줄을 네 곳에 (PC 스킨, 모바일 스킨 각각)
    - layout/basic/layout.html : </body> 바로 위
@@ -38,11 +38,11 @@ const guide = `온답 카페24 붙이기 안내 (${origin})
    ${script}
 
 3) 주문서 추가 항목 — 쇼핑몰 설정 > 주문 설정 > 주문서 추가 항목 관리
-   항목명: 온답 포장 디자인 코드   (글자 그대로. 도우미가 이 이름으로 칸을 찾는다)
+   항목명: 답례큐 포장 디자인 코드   (또는 기존 '온답 포장 디자인 코드'도 지원)
    입력 형식: 텍스트 박스(한 줄) / 적용 상품: 전체 상품 / 필수 여부: 선택
 
-4) 확인 — 상품 상세에 '포장·스티커 꾸미기' 버튼이 보이고, 온답에서 디자인 코드를 받아 주문하러 가면
-   주문서의 '온답 포장 디자인 코드' 칸이 자동으로 채워지면 끝.
+4) 확인 — 상품 상세에 '포장·스티커 꾸미기' 버튼이 보이고, 답례큐에서 디자인 코드를 받아 주문하러 가면
+   주문서의 '답례큐 포장 디자인 코드'(또는 '온답 포장 디자인 코드') 칸이 자동으로 채워지면 끝.
 `;
 writeFileSync(join(out, 'README.txt'), guide);
 

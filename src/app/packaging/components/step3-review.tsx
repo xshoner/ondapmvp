@@ -107,7 +107,7 @@ export function Step3Review(props: Props) {
           <div className="pkg-review-value">
             <div style={{ fontWeight: 600 }}>{style?.name ?? '선택한 포장지'}</div>
             <div className="small muted">
-              {style?.description ? style.description : '온답 맞춤 선물 포장'}
+              {style?.description ? style.description : '답례큐 맞춤 선물 포장'}
             </div>
           </div>
           <button
@@ -283,7 +283,7 @@ export function Step3Review(props: Props) {
       </div>
 
       <p className="small muted" style={{ textAlign: 'center', margin: '10px 0 0', lineHeight: 1.5 }}>
-        디자인 완료 후 발급되는 코드로 카페24 쇼핑몰 주문서에서 자동 연동을 시도합니다. (주문서의 &lsquo;온답 포장 디자인 코드&rsquo; 칸에 코드가 들어갔는지 확인해 주시고, 비어 있거나 비회원 주문 시에는 코드를 직접 복사하여 붙여넣으실 수 있습니다.)
+        디자인 완료 후 발급되는 코드로 카페24 쇼핑몰 주문서에서 자동 연동을 시도합니다. (주문서의 &lsquo;답례큐 포장 디자인 코드&rsquo; 칸에 코드가 들어갔는지 확인해 주시고, 비어 있거나 비회원 주문 시에는 코드를 직접 복사하여 붙여넣으실 수 있습니다.)
       </p>
     </div>
   );

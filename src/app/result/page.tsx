@@ -11,10 +11,10 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 export async function generateMetadata({ searchParams }: { searchParams: SearchParams }): Promise<Metadata> {
   try {
     const request = requestFromSearchParams(await searchParams);
-    const title = `${EVENT_NAMES[request.event]} 자리에 맞춘 답례품 | 온답`;
+    const title = `${EVENT_NAMES[request.event]} 자리에 맞춘 답례품 | 답례큐`;
     const image = { url: `/og${recommendationResultHref(request)}`, width: 1200, height: 630, alt: title };
     return { title, openGraph: { title, images: [image], locale: 'ko_KR' }, twitter: { card: 'summary_large_image', title, images: [image.url] } };
-  } catch { return { title: '답례품 추천 | 온답' }; }
+  } catch { return { title: '답례품 추천 | 답례큐' }; }
 }
 
 export default async function ResultPage({ searchParams }: { searchParams: SearchParams }) {

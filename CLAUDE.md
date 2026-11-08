@@ -1,6 +1,6 @@
-# 온답 추천 엔진 — 작업 규칙
+# 답례큐 추천 엔진 — 작업 규칙
 
-온답(답례 큐레이션)의 격식지수 추천 엔진 + 포장 디자인 + 카페24 연동. 처음이면 [docs/CLONE.md](docs/CLONE.md)(복제·전체 그림) → [docs/RUNBOOK.md](docs/RUNBOOK.md)(단계별 기록·심이사 플레이북) 순서로 읽는다.
+답례큐(구 온답, 답례 큐레이션)의 격식지수 추천 엔진 + 포장 디자인 + 카페24 연동. 처음이면 [docs/CLONE.md](docs/CLONE.md)(복제·전체 그림) → [docs/RUNBOOK.md](docs/RUNBOOK.md)(단계별 기록·심이사 플레이북) 순서로 읽는다.
 
 **새 계정·새 PC에서 처음 열었거나 "인계"라는 말이 나오면** [docs/handoff/README.md](docs/handoff/README.md)부터 읽는다. 이전 대화 전체(`CONVERSATION-HISTORY.md`), Claude 기억(`memory/`), 고객 원자료(`source/`)가 거기 있다. 큰 작업을 마치면 `npm run handoff:export`로 갱신해 함께 커밋한다.
 

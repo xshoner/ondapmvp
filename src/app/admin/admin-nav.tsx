@@ -16,7 +16,7 @@ export function AdminNav({ email }: { email: string | null }) {
   const path = usePathname();
   return (
     <nav className="admin-nav" aria-label="관리자 메뉴">
-      <a className="brand" href="/admin/formality"><span className="brand-mark" aria-hidden />온답<small>관리</small></a>
+      <a className="brand" href="/admin/formality"><span className="brand-mark" aria-hidden />답례큐<small>관리</small></a>
       {LINKS.map((l) => (
         <a key={l.href} className="nav-link" href={l.href} aria-current={path === l.href ? 'page' : undefined}>{l.label}</a>
       ))}

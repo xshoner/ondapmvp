@@ -47,7 +47,7 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
       <header className="page-head" style={{ marginBottom: 0 }}>
         <h1>실적</h1>
         <p>추천 사용과 포장 디자인 접수를 기간별로 봅니다. 결과보고와 지원사업 실적 자료로 쓸 수 있도록 CSV로 내려받거나 A4 한 장으로 인쇄할 수 있습니다.</p>
-        <p className="print-only small">온답 실적 · {from} ~ {to} · {kstLabel(new Date().toISOString())} 출력</p>
+        <p className="print-only small">답례큐 실적 · {from} ~ {to} · {kstLabel(new Date().toISOString())} 출력</p>
       </header>
 
       <form className="panel filter-bar no-print" method="get" action="/admin/stats">

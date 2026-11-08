@@ -103,7 +103,7 @@ export function Step1Wrapping({
                       className="pkg-style-img"
                     />
                     {isRecommended && (
-                      <span className="pkg-badge-recommend">온답 추천</span>
+                      <span className="pkg-badge-recommend">답례큐 추천</span>
                     )}
                     {isSelected && (
                       <span className="pkg-badge-selected">
