@@ -13,7 +13,7 @@ export default async function WeightsPage() {
   return (
     <div style={{ display: 'grid', gap: 16 }}>
       <header className="page-head" style={{ marginBottom: 0 }}>
-        <h1>격식지수 기준 설정</h1>
+        <h1>가중치 설정</h1>
         <p>
           행사별 기본 점수, 관계 보정치, 희소성 가중치 및 추천 점수 비중을 설정합니다. 저장된 기준은 고객 추천과 <a className="text-link" href="/admin/verify">알고리즘 검증</a>에 실시간 적용됩니다.
         </p>

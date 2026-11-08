@@ -1050,9 +1050,6 @@ export function CoreAdminWorkbench({
                   >
                     {aiLoading ? 'AI 분석 중…' : '✦ AI 제안 받기'}
                   </button>
-                  <span style={{ fontSize: 11, color: 'var(--muted, #888)' }}>
-                    ※ AI는 제안일 뿐 자동 저장되지 않습니다.
-                  </span>
                 </div>
 
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -1115,7 +1112,7 @@ export function CoreAdminWorkbench({
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap', gap: 6 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <label htmlFor="product-desc" style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink, #333)' }}>
-                      상품 원자료 (상세 설명 문구)
+                      상품 원자료 (상세 설명 문구) 또는 직접 입력
                     </label>
                     {descLoading && (
                       <span style={{ fontSize: 11, color: 'var(--pine, #2D5A43)' }}>

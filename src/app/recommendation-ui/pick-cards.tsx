@@ -4,7 +4,7 @@ import type { RecommendationItem } from '../../recommendation/contracts.ts';
 import { SavePickButton } from '../result/client-bits.tsx';
 import { CoreScoreBreakdown } from './score-breakdown.tsx';
 import { shippingFee } from '../../lib/result-query.ts';
-import { won } from './types.ts';
+import { formatCustomerReason, won } from './types.ts';
 
 export interface PickCardProps {
   item: RecommendationItem;
@@ -13,6 +13,94 @@ export interface PickCardProps {
   excludeHref?: string | null;
   onExclude?: (productNo: number) => void;
   preview?: boolean;
+}
+
+export { formatCustomerReason };
+
+export function PlanBadge({ slot, rank }: { slot?: RecommendationItem['slot']; rank?: number }) {
+  if (slot === 'standard') {
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          fontSize: 12,
+          fontWeight: 700,
+          padding: '3px 8px',
+          borderRadius: 5,
+          backgroundColor: '#EBF4EE',
+          color: '#1F4D36',
+          border: '1px solid rgba(31, 77, 54, 0.22)',
+          boxShadow: '0 1px 3px rgba(31, 77, 54, 0.08)',
+          letterSpacing: '-0.01em',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        표준안 · ONDAP'S PICK
+      </span>
+    );
+  }
+  if (slot === 'practical') {
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          fontSize: 12,
+          fontWeight: 700,
+          padding: '3px 8px',
+          borderRadius: 5,
+          backgroundColor: '#FFF7ED',
+          color: '#9A3412',
+          border: '1px solid rgba(154, 52, 18, 0.22)',
+          boxShadow: '0 1px 3px rgba(154, 52, 18, 0.08)',
+          letterSpacing: '-0.01em',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        실속안 · 우수한 가성비
+      </span>
+    );
+  }
+  if (slot === 'formal') {
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          fontSize: 12,
+          fontWeight: 700,
+          padding: '3px 8px',
+          borderRadius: 5,
+          backgroundColor: '#FDF2F8',
+          color: '#9D174D',
+          border: '1px solid rgba(157, 23, 77, 0.22)',
+          boxShadow: '0 1px 3px rgba(157, 23, 77, 0.08)',
+          letterSpacing: '-0.01em',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        격식안 · 높은 희소값
+      </span>
+    );
+  }
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        fontSize: 12,
+        fontWeight: 600,
+        padding: '3px 8px',
+        borderRadius: 5,
+        backgroundColor: 'var(--paper-deep, #F6F4EF)',
+        color: 'var(--ink-soft, #555)',
+        border: '1px solid var(--line, #E6E1D8)',
+      }}
+    >
+      {rank ? `${rank}위 대안 추천` : '1위 대표 추천'}
+    </span>
+  );
 }
 
 export function CoreMainPick({
@@ -79,18 +167,7 @@ export function CoreMainPick({
       {/* 본문 영역 */}
       <div style={{ padding: '18px 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <span
-            style={{
-              fontSize: 12,
-              fontWeight: 700,
-              padding: '3px 8px',
-              borderRadius: 4,
-              backgroundColor: 'var(--paper-deep, #F6F4EF)',
-              color: 'var(--pine, #2D5A43)',
-            }}
-          >
-            {item.slot === 'standard' ? "표준안 · ONDAP'S PICK" : '1위 대표 추천'}
-          </span>
+          <PlanBadge slot={item.slot} rank={1} />
         </div>
 
         {/* 제목 및 우상단 찜 버튼 [Requirement 2] */}
@@ -104,7 +181,7 @@ export function CoreMainPick({
             </div>
           )}
         </div>
-        {item.slot && <p className="small muted">{item.reasons[0]}</p>}
+        {item.slot && <p className="small muted">{formatCustomerReason(item.reasons[0], item.slot)}</p>}
 
         {/* 가격 정보 테이블 */}
         <div
@@ -317,19 +394,8 @@ export function CoreOtherPick({
 
           {/* 상품 정보 영역 */}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  padding: '2px 6px',
-                  borderRadius: 4,
-                  backgroundColor: 'var(--paper-deep, #F6F4EF)',
-                  color: 'var(--ink-soft, #555)',
-                }}
-              >
-                {item.slot === 'practical' ? '실속안 · 낮은 단가' : item.slot === 'formal' ? '격식안 · 높은 희소값' : `${item.rank}위 대안 추천`}
-              </span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+              <PlanBadge slot={item.slot} rank={item.rank} />
 
               {/* 작은 추천점수 배지 */}
               <div
@@ -364,7 +430,7 @@ export function CoreOtherPick({
             <div style={{ fontSize: 13, color: 'var(--ink, #333)' }}>
               1개 {won(item.unitPrice)} · {quantity}개 합계 <b data-testid="item-subtotal">{won(subtotal)}</b>
             </div>
-            {item.slot && <p className="small muted">{item.reasons[0]}</p>}
+            {item.slot && <p className="small muted">{formatCustomerReason(item.reasons[0], item.slot)}</p>}
           </div>
         </div>
 
