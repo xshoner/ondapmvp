@@ -10,7 +10,7 @@ import { MAX_SHEETS, sheetLayout, sheetsNeeded, type Paper } from '@/packaging/s
 import { LATE_DAYS, STATUS_LABEL, filterQuery, isLate, type DesignFilter } from '@/packaging/design-filter.ts';
 import { extractOrderLinks } from '@/packaging/order-paste.ts';
 import type { Design, DesignStatus } from '@/packaging/types.ts';
-import { linkOrdersAction, updateDesignAction, updateDesignsStatusAction } from './actions.ts';
+import { linkOrdersAction, updateDesignAction, updateDesignsStatusAction, syncCafe24OrdersAction } from './actions.ts';
 
 type PrintOptions = { paper: Paper; fill: boolean };
 type Props = { designs: Design[]; eventNames: Record<string, string>; filter: DesignFilter & { rawCode: string; codeInvalid: boolean }; now: number };
@@ -41,10 +41,20 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
   const [batchStatus, setBatchStatus] = useState<DesignStatus>('order_confirmed');
   const [batchMessage, setBatchMessage] = useState<string | null>(null);
   const [batchPending, startBatch] = useTransition();
+  const [syncPending, startSync] = useTransition();
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const printableSelected = designs.filter((d) => selected.has(d.code) && d.printCode && d.sticker);
   const allSelected = designs.length > 0 && designs.every((d) => selected.has(d.code));
   const lateCount = useMemo(() => designs.filter((d) => isLate(d, now)).length, [designs, now]);
+
+  // 접수 및 결제 상태 자동 갱신 (30초마다 백그라운드 갱신)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      router.refresh();
+    }, 30000);
+    return () => clearInterval(timer);
+  }, [router]);
 
   const toggle = (c: string) => setSelected((s) => {
     const next = new Set(s);
@@ -143,8 +153,29 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
           {filtered && <a className="btn ghost small" href="/admin/packaging?tab=designs">조건 지우기</a>}
           <a className="btn ghost small" href={`/admin/packaging/export${exportQuery ? `?${exportQuery}` : ''}`}>CSV 내려받기</a>
           <button type="button" className="btn ghost small" aria-expanded={pasteOpen} onClick={() => setPasteOpen((o) => !o)}>주문 상세 붙여넣기</button>
+          <button
+            type="button"
+            className="btn small"
+            style={{ background: '#2563eb', color: '#fff', fontWeight: 600 }}
+            disabled={syncPending}
+            onClick={() => {
+              setSyncMessage(null);
+              startSync(async () => {
+                const res = await syncCafe24OrdersAction();
+                setSyncMessage(res.message);
+                router.refresh();
+              });
+            }}
+          >
+            {syncPending ? '카페24 동기화 중...' : '🔄 카페24 주문 동기화'}
+          </button>
           <a className="btn ghost small" href="/admin/scan">QR로 완료 처리</a>
         </div>
+        {syncMessage && (
+          <div className="panel" style={{ flexBasis: '100%', padding: '8px 12px', background: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe', borderRadius: 6, fontSize: 13, marginTop: 4 }}>
+            {syncMessage}
+          </div>
+        )}
         <span className="small muted" style={{ flexBasis: '100%' }}>
           {designs.length}건{designs.length >= 200 ? ' (최근 200건까지 표시, CSV는 최대 5,000건)' : ''}
           {lateCount > 0 && <b style={{ color: 'var(--danger)' }}> · 늦어지는 건 {lateCount}</b>}
@@ -339,13 +370,23 @@ function DesignRow({ design: d, eventNames, options, now, active, selected, onTo
       <td>
         <b className="mono" style={{ fontSize: 14 }}>{d.code}</b>
         <div className="small muted">{kstLabel(d.createdAt)}</div>
+        {d.status === 'pending' && (
+          <span className="badge" style={{ display: 'inline-block', marginTop: 4, padding: '2px 8px', borderRadius: 4, background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d', fontSize: 12, fontWeight: 600 }}>
+            결제 대기
+          </span>
+        )}
         {d.sourceCode && <div className="small muted">{d.sourceCode} 다시 주문</div>}
         {late && (
           <div className="late-badge">
             {d.status === 'received' ? `접수 ${daysSince(d.createdAt, now)}일째 주문 확인 전` : `주문 확인 ${daysSince(d.statusChangedAt, now)}일째 인쇄 전`}
           </div>
         )}
-        {printable && (
+        {printable && d.status === 'pending' && (
+          <div className="small" style={{ color: '#b45309', marginTop: 6, fontWeight: 500 }}>
+            ⚠️ 결제 확인 전 (입금 대기)
+          </div>
+        )}
+        {printable && d.status !== 'pending' && (
           <div className="row" style={{ gap: 6, marginTop: 6 }}>
             {sheets > MAX_SHEETS ? (
               <span className="small" style={{ color: 'var(--red)' }}>{sheets}장 필요 · 한 번에 {MAX_SHEETS}장까지</span>

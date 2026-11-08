@@ -178,3 +178,63 @@ export async function processPaymentEventQueue(limit = 10): Promise<{ processed:
 
   return { processed: claimed.length, confirmed, errors };
 }
+
+export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number; confirmed: number; pendingOrders: number }> {
+  const mallId = (process.env.CAFE24_MALL_ID || '').trim();
+  if (!mallId) return { total: 0, confirmed: 0, pendingOrders: 0 };
+
+  const { readStoredToken, getValidAccessToken } = await import('./oauth.ts');
+  const tokenRecord = await readStoredToken(mallId);
+  if (!tokenRecord) return { total: 0, confirmed: 0, pendingOrders: 0 };
+
+  const token = await getValidAccessToken();
+  const today = new Date().toISOString().slice(0, 10);
+  const from = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+  const apiVersion = (process.env.CAFE24_API_VERSION || '2026-09-01').trim();
+
+  const url = `https://${mallId}.cafe24api.com/api/v2/admin/orders?start_date=${from}&end_date=${today}&embed=items&limit=100`;
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'X-Cafe24-Api-Version': apiVersion,
+    },
+    cache: 'no-store',
+  });
+
+  if (!res.ok) return { total: 0, confirmed: 0, pendingOrders: 0 };
+  const data = (await res.json()) as { orders?: Cafe24AdminOrder[] };
+  const orders = data.orders || [];
+
+  let confirmed = 0;
+  let pendingOrders = 0;
+
+  for (const order of orders) {
+    const code = extractDesignCode(order);
+    if (!code) continue;
+
+    if (isOrderPaid(order)) {
+      const decision = await verifyAndAcceptOrder(order);
+      if (decision.status === 'confirmed' || decision.status === 'already_confirmed') {
+        confirmed++;
+      }
+    } else {
+      pendingOrders++;
+      try {
+        const { listDesigns, updateDesign } = await import('../data/packaging-repository.ts');
+        const [d] = await listDesigns({ code, limit: 1, includePending: true });
+        if (d && d.status === 'pending' && (!d.memo || !d.memo.includes(order.order_id))) {
+          await updateDesign(code, {
+            status: 'pending',
+            orderNo: null,
+            memo: `카페24 주문: ${order.order_id} (무통장 입금 대기)`,
+          });
+        }
+      } catch {
+        // 무시
+      }
+    }
+  }
+
+  return { total: orders.length, confirmed, pendingOrders };
+}

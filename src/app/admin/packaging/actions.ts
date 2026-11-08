@@ -234,3 +234,22 @@ export async function updateDesignAction(code: string, patch: { status: string; 
     memo: String(patch.memo ?? '').trim().slice(0, 500),
   }));
 }
+
+export async function syncCafe24OrdersAction(): Promise<{ ok: boolean; message: string; confirmed?: number; total?: number }> {
+  const no = await denied();
+  if (no) return { ok: false, message: no.message };
+  try {
+    const { syncRecentCafe24Orders } = await import('@/cafe24/intake-worker.ts');
+    const result = await syncRecentCafe24Orders(3);
+    revalidatePath('/admin/packaging');
+    revalidatePath('/admin/health');
+    return {
+      ok: true,
+      message: `카페24 주문 동기화 완료: 최근 주문 ${result.total}건 확인 (입금 완료: ${result.confirmed}건, 결제 대기: ${result.pendingOrders}건)`,
+      confirmed: result.confirmed,
+      total: result.total,
+    };
+  } catch (e) {
+    return { ok: false, message: `카페24 주문 동기화 실패: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}

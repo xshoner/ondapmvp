@@ -31,8 +31,19 @@ export default async function PackagingAdminPage({ searchParams }: { searchParam
   let designs: Design[] = [];
   let error: string | null = null;
   try {
+    if (tab === 'designs') {
+      try {
+        const { syncRecentCafe24Orders } = await import('@/cafe24/intake-worker.ts');
+        await syncRecentCafe24Orders(3);
+      } catch (syncErr) {
+        console.warn('카페24 주문 자동 동기화 스킵:', syncErr);
+      }
+    }
+
     assets = await getPackagingAssets({ includeInactive: true });
-    if (tab === 'designs' && !filter.codeInvalid) designs = await listDesigns(filter);
+    if (tab === 'designs' && !filter.codeInvalid) {
+      designs = await listDesigns({ ...filter, includePending: true });
+    }
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
