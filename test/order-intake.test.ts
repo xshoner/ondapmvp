@@ -432,6 +432,42 @@ test('syncRecentCafe24Orders: 주문 추가정보의 디자인 코드를 추출�
       /카페24 주문 목록 조회 실패 \(500\)/,
       'API 오류 시 0건 성공으로 위장하지 않고 오류를 던져야 함',
     );
+
+    // 7. 401(토큰 만료) 발생 시 자동 갱신 및 재시도 검증
+    let attempts = 0;
+    process.env.CAFE24_CLIENT_ID = 'test-client';
+    process.env.CAFE24_CLIENT_SECRET = 'test-secret';
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const urlStr = String(input);
+      if (urlStr.includes('/oauth/token')) {
+        return new Response(JSON.stringify({
+          access_token: 'new_refreshed_access_token',
+          expires_at: '2026-11-09T01:30:00.000',
+          refresh_token: 'new_refreshed_refresh_token',
+          refresh_token_expires_at: '2026-11-23T01:30:00.000',
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (urlStr.includes('/api/v2/admin/orders')) {
+        attempts++;
+        if (attempts === 1) {
+          // 첫 번째 호출은 401 만료 반환
+          return new Response(JSON.stringify({ error: { code: 401, message: 'access_token time expired.' } }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        // 두 번째 호출(재시도)은 새 토큰으로 정상 반환
+        return new Response(JSON.stringify({ orders: [] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response('Not Found', { status: 404 });
+    }) as typeof fetch;
+
+    const retryResult = await syncRecentCafe24Orders(3);
+    assert.equal(attempts, 2, '401 발생 시 토큰을 리프레시한 후 1회 재시도해야 함');
+    assert.equal(retryResult.total, 0);
   } finally {
     globalThis.fetch = originalFetch;
     setLocalTokenCacheForTesting(null);

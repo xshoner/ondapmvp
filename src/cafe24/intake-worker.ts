@@ -183,13 +183,13 @@ export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number;
   const mallId = (process.env.CAFE24_MALL_ID || '').trim();
   if (!mallId) throw new Error('CAFE24_MALL_ID 환경변수가 필요합니다.');
 
-  const { readStoredToken, getValidAccessToken } = await import('./oauth.ts');
+  const { readStoredToken, getValidAccessToken, refreshAccessToken } = await import('./oauth.ts');
   const tokenRecord = await readStoredToken(mallId);
   if (!tokenRecord) {
-    throw new Error('카페24 관리자 OAuth 연동이 필요합니다. 관리자 메뉴에서 연동해 주세요.');
+    throw new Error('카페24 관리자 OAuth 연동이 필요합니다. 관리자 메뉴(운영 상태)에서 계정을 연동해 주세요.');
   }
 
-  const token = await getValidAccessToken();
+  let token = await getValidAccessToken();
 
   // 한국 표준시(KST: UTC+9) 기준으로 조회 기간 산출
   const kstNow = new Date(Date.now() + 9 * 3600 * 1000);
@@ -205,7 +205,7 @@ export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number;
 
   for (let page = 0; page < maxPages; page++) {
     const url = `https://${mallId}.cafe24api.com/api/v2/admin/orders?start_date=${from}&end_date=${today}&embed=items,additional_order_info_list&limit=${limit}&offset=${offset}`;
-    const res = await fetch(url, {
+    let res = await fetch(url, {
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
@@ -213,6 +213,24 @@ export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number;
       },
       cache: 'no-store',
     });
+
+    // 401(토큰 만료/무효) 시 1회 자동 리프레시 후 재시도
+    if (res.status === 401) {
+      try {
+        const refreshed = await refreshAccessToken();
+        token = refreshed.access_token;
+        res = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'X-Cafe24-Api-Version': apiVersion,
+          },
+          cache: 'no-store',
+        });
+      } catch {
+        throw new Error('카페24 관리자 OAuth 인증이 만료되었습니다. 관리자 메뉴(운영 상태)에서 "카페24 관리자 계정 연동하기"를 눌러 다시 인증해 주세요.');
+      }
+    }
 
     if (!res.ok) {
       const errText = await res.text().catch(() => '');

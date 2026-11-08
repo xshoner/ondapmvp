@@ -66,6 +66,21 @@ export function getCafe24OAuthAuthorizeUrl(state: string): string {
   return `https://${mallId}.cafe24api.com/api/v2/oauth/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}`;
 }
 
+export function parseCafe24Date(dateStr?: string | null): number {
+  if (!dateStr || typeof dateStr !== 'string') return NaN;
+  const trimmed = dateStr.trim();
+  const withT = trimmed.includes('T') ? trimmed : trimmed.replace(' ', 'T');
+  // 카페24 API 응답에 타임존(+09:00, Z 등)이 누락된 경우 한국 표준시(KST: UTC+9)로 처리
+  const hasTimezone = /(Z|[+-]\d{2}(:?\d{2})?)$/i.test(withT);
+  const normalized = hasTimezone ? withT : `${withT}+09:00`;
+  return Date.parse(normalized);
+}
+
+export function toIsoWithKstFallback(dateStr?: string | null): string {
+  const ms = parseCafe24Date(dateStr);
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : (dateStr || '');
+}
+
 // 로컬 테스트용 인메모리 토큰 캐시
 let localTokenCache: Cafe24TokenRecord | null = null;
 
@@ -146,8 +161,8 @@ export async function exchangeAuthorizationCode(code: string): Promise<Cafe24Tok
     shop_no: Number(data.shop_no) || 1,
     access_token: data.access_token,
     refresh_token: data.refresh_token,
-    expires_at: data.expires_at,
-    refresh_token_expires_at: data.refresh_token_expires_at,
+    expires_at: toIsoWithKstFallback(data.expires_at),
+    refresh_token_expires_at: toIsoWithKstFallback(data.refresh_token_expires_at),
     scope: Array.isArray(data.scope) ? data.scope.join(',') : (data.scope || ''),
   };
 
@@ -171,9 +186,9 @@ export async function refreshAccessToken(): Promise<Cafe24TokenRecord> {
       const current = await readStoredToken(mallId);
       if (!current) throw new Error('저장된 카페24 토큰이 없습니다. 관리자 연동을 먼저 진행해 주세요.');
 
-      const refreshExpires = Date.parse(current.refresh_token_expires_at);
+      const refreshExpires = parseCafe24Date(current.refresh_token_expires_at);
       if (Number.isFinite(refreshExpires) && refreshExpires <= Date.now()) {
-        throw new Error('카페24 리프레시 토큰이 만료되었습니다. 관리자 연동을 다시 진행해 주세요.');
+        throw new Error('카페24 리프레시 토큰이 만료되었습니다. 관리자 메뉴(운영 상태)에서 계정을 다시 연동해 주세요.');
       }
 
       const url = `https://${mallId}.cafe24api.com/api/v2/oauth/token`;
@@ -212,8 +227,8 @@ export async function refreshAccessToken(): Promise<Cafe24TokenRecord> {
         shop_no: Number(data.shop_no) || current.shop_no || 1,
         access_token: data.access_token,
         refresh_token: data.refresh_token,
-        expires_at: data.expires_at,
-        refresh_token_expires_at: data.refresh_token_expires_at,
+        expires_at: toIsoWithKstFallback(data.expires_at),
+        refresh_token_expires_at: toIsoWithKstFallback(data.refresh_token_expires_at),
         scope: Array.isArray(data.scope) ? data.scope.join(',') : (data.scope || current.scope || ''),
       };
 
@@ -226,15 +241,15 @@ export async function refreshAccessToken(): Promise<Cafe24TokenRecord> {
   return refreshPromise;
 }
 
-export async function getValidAccessToken(): Promise<string> {
+export async function getValidAccessToken(forceRefresh = false): Promise<string> {
   const current = await readStoredToken();
   if (!current) {
-    throw new Error('카페24 관리자 OAuth 연동이 필요합니다. 관리자 메뉴에서 연동해 주세요.');
+    throw new Error('카페24 관리자 OAuth 연동이 필요합니다. 관리자 메뉴(운영 상태)에서 계정을 연동해 주세요.');
   }
 
-  const expiresAtMs = Date.parse(current.expires_at);
-  // 만료 10분 전이면 선제적으로 토큰 갱신
-  if (!Number.isFinite(expiresAtMs) || expiresAtMs - Date.now() < 10 * 60 * 1000) {
+  const expiresAtMs = parseCafe24Date(current.expires_at);
+  // 만료 10분 전이거나 강제 갱신 요청 시 선제적으로 토큰 갱신
+  if (forceRefresh || !Number.isFinite(expiresAtMs) || expiresAtMs - Date.now() < 10 * 60 * 1000) {
     const refreshed = await refreshAccessToken();
     return refreshed.access_token;
   }
@@ -245,8 +260,8 @@ export async function getOAuthStatus(): Promise<OAuthStatus> {
   const mallId = cleanEnv(process.env.CAFE24_MALL_ID);
   const current = await readStoredToken(mallId);
   if (!current) return { connected: false, mallId };
-  const expiresMs = Date.parse(current.expires_at);
-  const refreshExpiresMs = Date.parse(current.refresh_token_expires_at);
+  const expiresMs = parseCafe24Date(current.expires_at);
+  const refreshExpiresMs = parseCafe24Date(current.refresh_token_expires_at);
   const now = Date.now();
   return {
     connected: true,

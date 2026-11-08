@@ -145,11 +145,11 @@ export async function fetchAdminOrder(orderId: string, customToken?: string): Pr
   if (!mallId) throw new Error('CAFE24_MALL_ID 환경변수가 필요합니다.');
   if (!/^20\d{6}-\d{7}$/.test(orderId)) throw new Error('주문번호 형식이 올바르지 않습니다.');
 
-  const token = customToken || (await getValidAccessToken());
+  let token = customToken || (await getValidAccessToken());
   const apiVersion = (process.env.CAFE24_API_VERSION || '2026-09-01').trim();
 
   const url = `https://${mallId}.cafe24api.com/api/v2/admin/orders/${orderId}?embed=items,additional_order_info_list`;
-  const res = await fetch(url, {
+  let res = await fetch(url, {
     headers: {
       Authorization: `Bearer ${token}`,
       'X-Cafe24-Api-Version': apiVersion,
@@ -157,6 +157,24 @@ export async function fetchAdminOrder(orderId: string, customToken?: string): Pr
     },
     cache: 'no-store',
   });
+
+  if (res.status === 401 && !customToken) {
+    try {
+      const { refreshAccessToken } = await import('./oauth.ts');
+      const refreshed = await refreshAccessToken();
+      token = refreshed.access_token;
+      res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'X-Cafe24-Api-Version': apiVersion,
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+      });
+    } catch {
+      // 리프레시 실패 시 아래에서 오류 처리
+    }
+  }
 
   if (!res.ok) {
     throw new Error(`카페24 주문 조회 실패 (${res.status})`);

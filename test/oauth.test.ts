@@ -50,3 +50,23 @@ test('로컬 환경에서 토큰 저장 및 조회가 정상 동작한다', asyn
   assert.equal(read?.access_token, 'acc_sample');
   assert.equal(read?.mall_id, 'axopenlab');
 });
+
+test('parseCafe24Date: 타임존이 누락된 카페24 날짜를 KST(+09:00)로 정확히 해석한다', async () => {
+  const { parseCafe24Date } = await import('../src/cafe24/oauth.ts');
+
+  // 카페24 응답 형식 (타임존 없는 ISO 문자열)
+  const cafe24Time = '2026-11-08T21:30:00.000';
+  const parsedMs = parseCafe24Date(cafe24Time);
+
+  // KST 21:30은 UTC 12:30과 동일해야 함
+  const expectedUtcMs = Date.parse('2026-11-08T12:30:00.000Z');
+  assert.equal(parsedMs, expectedUtcMs);
+
+  // 공백 형식 ("2026-11-08 21:30:00")
+  const spaceTime = '2026-11-08 21:30:00';
+  assert.equal(parseCafe24Date(spaceTime), expectedUtcMs);
+
+  // 이미 타임존이 포함된 경우 원본 유지
+  const utcTime = '2026-11-08T12:30:00.000Z';
+  assert.equal(parseCafe24Date(utcTime), expectedUtcMs);
+});
