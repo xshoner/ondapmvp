@@ -181,35 +181,58 @@ export async function processPaymentEventQueue(limit = 10): Promise<{ processed:
 
 export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number; confirmed: number; pendingOrders: number }> {
   const mallId = (process.env.CAFE24_MALL_ID || '').trim();
-  if (!mallId) return { total: 0, confirmed: 0, pendingOrders: 0 };
+  if (!mallId) throw new Error('CAFE24_MALL_ID 환경변수가 필요합니다.');
 
   const { readStoredToken, getValidAccessToken } = await import('./oauth.ts');
   const tokenRecord = await readStoredToken(mallId);
-  if (!tokenRecord) return { total: 0, confirmed: 0, pendingOrders: 0 };
+  if (!tokenRecord) {
+    throw new Error('카페24 관리자 OAuth 연동이 필요합니다. 관리자 메뉴에서 연동해 주세요.');
+  }
 
   const token = await getValidAccessToken();
-  const today = new Date().toISOString().slice(0, 10);
-  const from = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+
+  // 한국 표준시(KST: UTC+9) 기준으로 조회 기간 산출
+  const kstNow = new Date(Date.now() + 9 * 3600 * 1000);
+  const today = kstNow.toISOString().slice(0, 10);
+  const fromDate = new Date(Date.now() + 9 * 3600 * 1000 - days * 86400000);
+  const from = fromDate.toISOString().slice(0, 10);
   const apiVersion = (process.env.CAFE24_API_VERSION || '2026-09-01').trim();
 
-  const url = `https://${mallId}.cafe24api.com/api/v2/admin/orders?start_date=${from}&end_date=${today}&embed=items&limit=100`;
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'X-Cafe24-Api-Version': apiVersion,
-    },
-    cache: 'no-store',
-  });
+  let allOrders: Cafe24AdminOrder[] = [];
+  let offset = 0;
+  const limit = 100;
+  const maxPages = 10;
 
-  if (!res.ok) return { total: 0, confirmed: 0, pendingOrders: 0 };
-  const data = (await res.json()) as { orders?: Cafe24AdminOrder[] };
-  const orders = data.orders || [];
+  for (let page = 0; page < maxPages; page++) {
+    const url = `https://${mallId}.cafe24api.com/api/v2/admin/orders?start_date=${from}&end_date=${today}&embed=items,additional_order_info_list&limit=${limit}&offset=${offset}`;
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'X-Cafe24-Api-Version': apiVersion,
+      },
+      cache: 'no-store',
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new Error(`카페24 주문 목록 조회 실패 (${res.status}): ${errText.slice(0, 200)}`);
+    }
+
+    const data = (await res.json()) as { orders?: Cafe24AdminOrder[] };
+    const batch = data.orders || [];
+    allOrders.push(...batch);
+
+    if (batch.length < limit) break;
+    offset += limit;
+  }
 
   let confirmed = 0;
   let pendingOrders = 0;
 
-  for (const order of orders) {
+  for (const order of allOrders) {
+    if (isOrderCanceled(order)) continue;
+
     const code = extractDesignCode(order);
     if (!code) continue;
 
@@ -219,22 +242,98 @@ export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number;
         confirmed++;
       }
     } else {
-      pendingOrders++;
+      // 미결제(무통장 입금 대기 등) 주문:
+      // 디자인 코드, 상품번호, 수량, 포장 옵션이 안전하게 일치하는 경우에만 pending 상태를 유지하며 관리자 메모를 작성한다.
       try {
-        const { listDesigns, updateDesign } = await import('../data/packaging-repository.ts');
-        const [d] = await listDesigns({ code, limit: 1, includePending: true });
-        if (d && d.status === 'pending' && (!d.memo || !d.memo.includes(order.order_id))) {
+        let d: { code: string; productNo: number; quantity: number; status: string; orderNo: string | null; memo: string } | null = null;
+
+        if (dataSource() === 'local') {
+          const { listDesigns } = await import('../data/packaging-repository.ts');
+          const [localD] = await listDesigns({ code, limit: 1, includePending: true });
+          if (localD) {
+            d = {
+              code: localD.code,
+              productNo: localD.productNo,
+              quantity: localD.quantity,
+              status: localD.status,
+              orderNo: localD.orderNo,
+              memo: localD.memo,
+            };
+          }
+        } else {
+          const { createServiceClient } = await import('../lib/supabase/service.ts');
+          const db = createServiceClient();
+          const { data: rows, error: rErr } = await db
+            .from('designs')
+            .select('code, product_no, quantity, status, order_no, memo')
+            .eq('code', code)
+            .limit(1);
+          if (rErr) throw new Error(`디자인 조회 실패: ${rErr.message}`);
+          if (rows && rows[0]) {
+            d = {
+              code: rows[0].code,
+              productNo: rows[0].product_no,
+              quantity: rows[0].quantity,
+              status: rows[0].status,
+              orderNo: rows[0].order_no,
+              memo: rows[0].memo || '',
+            };
+          }
+        }
+
+        // 1. 디자인이 존재하고 status가 pending인지 확인 (이미 확인/인쇄/취소된 건은 변경하지 않음)
+        if (!d || d.status !== 'pending') continue;
+
+        // 2. 다른 주문에 이미 연결된 디자인인지 확인
+        if (d.orderNo && d.orderNo !== order.order_id) continue;
+
+        // 3. 상품번호 일치 품목 탐색
+        const matchingItem = Array.isArray(order.items)
+          ? order.items.find((item) => item.product_no === d.productNo)
+          : undefined;
+        if (!matchingItem) continue;
+
+        // 4. 수량 일치 확인
+        if (matchingItem.quantity !== d.quantity) continue;
+
+        // 5. 포장 디자인 옵션 신청 여부 확인
+        if (!hasPackagingOption(matchingItem)) continue;
+
+        pendingOrders++;
+
+        // 6. 관리자 메모 안전 작성 (기존 관리자 메모 보존 및 동일 주문 중복 작성 방지)
+        const note = `카페24 주문: ${order.order_id} (무통장 입금 대기)`;
+        const existingMemo = d.memo ? d.memo.trim() : '';
+
+        if (existingMemo.includes(order.order_id)) continue;
+
+        const newMemo = existingMemo ? `${existingMemo}\n${note}` : note;
+
+        if (dataSource() === 'local') {
+          const { updateDesign } = await import('../data/packaging-repository.ts');
           await updateDesign(code, {
             status: 'pending',
             orderNo: null,
-            memo: `카페24 주문: ${order.order_id} (무통장 입금 대기)`,
+            memo: newMemo,
           });
+        } else {
+          const { createServiceClient } = await import('../lib/supabase/service.ts');
+          const db = createServiceClient();
+          const { error: uErr } = await db
+            .from('designs')
+            .update({
+              memo: newMemo,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('code', code)
+            .eq('status', 'pending');
+          if (uErr) throw new Error(`디자인 메모 저장 실패: ${uErr.message}`);
         }
-      } catch {
-        // 무시
+      } catch (err) {
+        console.warn(`[Cafe24 Sync] 미결제 주문 ${order.order_id} (디자인: ${code}) 메모 작성 실패:`, err instanceof Error ? err.message : err);
       }
     }
   }
 
-  return { total: orders.length, confirmed, pendingOrders };
+  return { total: allOrders.length, confirmed, pendingOrders };
 }

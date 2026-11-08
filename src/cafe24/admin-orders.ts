@@ -1,4 +1,4 @@
-import { normalizeDesignCode } from '../packaging/rules.ts';
+import { findDesignCode, normalizeDesignCode } from '../packaging/rules.ts';
 import { PACKAGING_NEGATIVE_VALUE_REGEX, PACKAGING_OPTION_NAME_REGEX, PACKAGING_POSITIVE_VALUE_REGEX } from './client.ts';
 import { getValidAccessToken } from './oauth.ts';
 
@@ -65,7 +65,7 @@ export function extractDesignCode(order: Cafe24AdminOrder): string | null {
     for (const info of order.additional_order_info_list) {
       if (!info || typeof info.value !== 'string') continue;
       const val = info.value.trim();
-      const code = normalizeDesignCode(val);
+      const code = normalizeDesignCode(val) || findDesignCode(val);
       if (code) return code;
     }
   }
@@ -75,21 +75,21 @@ export function extractDesignCode(order: Cafe24AdminOrder): string | null {
     for (const item of order.items) {
       if (Array.isArray(item.options)) {
         for (const opt of item.options) {
-          const code = normalizeDesignCode(opt.value);
+          const code = normalizeDesignCode(opt.value) || findDesignCode(opt.value);
           if (code) return code;
         }
       }
       if (Array.isArray(item.additional_option)) {
         for (const opt of item.additional_option as { name?: string; value?: string }[]) {
           if (typeof opt?.value === 'string') {
-            const code = normalizeDesignCode(opt.value);
+            const code = normalizeDesignCode(opt.value) || findDesignCode(opt.value);
             if (code) return code;
           }
         }
       }
       if (typeof item.option_value === 'string') {
-        const match = item.option_value.match(/OD-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}/);
-        if (match) return normalizeDesignCode(match[0]);
+        const code = normalizeDesignCode(item.option_value) || findDesignCode(item.option_value);
+        if (code) return code;
       }
     }
   }
@@ -101,13 +101,15 @@ export function hasPackagingOption(item: Cafe24AdminOrderItem): boolean {
   if (!item) return false;
 
   const check = (name: string, value: string): boolean => {
-    if (!PACKAGING_OPTION_NAME_REGEX.test(name)) return false;
-    if (PACKAGING_NEGATIVE_VALUE_REGEX.test(value)) return false;
-    return PACKAGING_POSITIVE_VALUE_REGEX.test(value);
+    const combined = `${name} ${value}`.trim();
+    if (PACKAGING_NEGATIVE_VALUE_REGEX.test(value) || PACKAGING_NEGATIVE_VALUE_REGEX.test(combined)) return false;
+    const isPkg = PACKAGING_OPTION_NAME_REGEX.test(name) || PACKAGING_OPTION_NAME_REGEX.test(value) || PACKAGING_OPTION_NAME_REGEX.test(combined);
+    if (!isPkg) return false;
+    return PACKAGING_POSITIVE_VALUE_REGEX.test(value) || PACKAGING_POSITIVE_VALUE_REGEX.test(combined);
   };
 
   if (typeof item.option_value === 'string') {
-    if (PACKAGING_OPTION_NAME_REGEX.test(item.option_value) && !PACKAGING_NEGATIVE_VALUE_REGEX.test(item.option_value)) {
+    if (check('', item.option_value)) {
       return true;
     }
   }
@@ -146,7 +148,7 @@ export async function fetchAdminOrder(orderId: string, customToken?: string): Pr
   const token = customToken || (await getValidAccessToken());
   const apiVersion = (process.env.CAFE24_API_VERSION || '2026-09-01').trim();
 
-  const url = `https://${mallId}.cafe24api.com/api/v2/admin/orders/${orderId}?embed=items`;
+  const url = `https://${mallId}.cafe24api.com/api/v2/admin/orders/${orderId}?embed=items,additional_order_info_list`;
   const res = await fetch(url, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -180,6 +182,29 @@ export async function fetchAdminOrder(orderId: string, customToken?: string): Pr
       if (Array.isArray(itemsBody?.items)) {
         order.items = itemsBody.items;
       }
+    }
+  }
+
+  // additional_order_info_list가 embed 되지 않았거나 비어있는 경우 별도 엔드포인트 조회
+  if (!Array.isArray(order.additional_order_info_list) || order.additional_order_info_list.length === 0) {
+    try {
+      const infoUrl = `https://${mallId}.cafe24api.com/api/v2/admin/orders/${orderId}/additionalorderinfo`;
+      const infoRes = await fetch(infoUrl, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'X-Cafe24-Api-Version': apiVersion,
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+      });
+      if (infoRes.ok) {
+        const infoBody = (await infoRes.json()) as { additional_order_info_list?: Cafe24AdditionalOrderInfo[] };
+        if (Array.isArray(infoBody?.additional_order_info_list)) {
+          order.additional_order_info_list = infoBody.additional_order_info_list;
+        }
+      }
+    } catch {
+      // 무시
     }
   }
 
