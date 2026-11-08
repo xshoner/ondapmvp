@@ -24,25 +24,37 @@ export interface Cafe24AdminOrder {
   order_id: string;
   shop_no: number;
   order_date: string;
-  payment_status: string; // 'F': 미결제, 'M': 추가입금대기, 'T': 수동입금, 'A': 자동입금, 'P': 결제완료
-  order_status: string;   // 'N00': 입금전, 'N10': 상품준비중, 'C00'-'C49': 취소
+  paid?: string;          // 'T': 결제완료, 'F': 미결제
+  canceled?: string;      // 'T': 취소, 'F': 정상
+  payment_status?: string; // 'F': 미결제, 'M': 추가입금대기, 'T': 수동입금, 'A': 자동입금, 'P': 결제완료
+  order_status?: string;   // 'N00': 입금전, 'N10': 상품준비중, 'C00'-'C49': 취소
   items: Cafe24AdminOrderItem[];
   additional_order_info_list?: Cafe24AdditionalOrderInfo[];
 }
 
 export function isOrderPaid(order: Cafe24AdminOrder): boolean {
   if (!order) return false;
-  // 입금전(F) 또는 추가입금대기(M) 상태는 결제 완료가 아님
-  if (['F', 'M'].includes(order.payment_status)) return false;
-  // 취소(C로 시작) 또는 입금전(N00) 주문 상태는 제외
-  if (order.order_status.startsWith('C') || order.order_status === 'N00') return false;
-  // 수동입금완료(T), 자동입금완료(A), 결제완료(P) 확인
-  return ['T', 'A', 'P'].includes(order.payment_status);
+  // 1. 취소 주문 제외
+  if (order.canceled === 'T') return false;
+  if (typeof order.order_status === 'string' && order.order_status.startsWith('C')) return false;
+
+  // 2. paid 필드 확인 (Cafe24 2026-09-01 사양)
+  if (order.paid === 'F') return false;
+  if (order.paid === 'T') return true;
+
+  // 3. payment_status / order_status 필드 확인 (호환성)
+  if (order.payment_status && ['F', 'M'].includes(order.payment_status)) return false;
+  if (order.order_status === 'N00') return false;
+  if (order.payment_status && ['T', 'A', 'P'].includes(order.payment_status)) return true;
+
+  return false;
 }
 
 export function isOrderCanceled(order: Cafe24AdminOrder): boolean {
   if (!order) return false;
-  return order.order_status.startsWith('C');
+  if (order.canceled === 'T') return true;
+  if (typeof order.order_status === 'string' && order.order_status.startsWith('C')) return true;
+  return false;
 }
 
 export function extractDesignCode(order: Cafe24AdminOrder): string | null {
@@ -94,21 +106,32 @@ export function hasPackagingOption(item: Cafe24AdminOrderItem): boolean {
     return PACKAGING_POSITIVE_VALUE_REGEX.test(value);
   };
 
+  if (typeof item.option_value === 'string') {
+    if (PACKAGING_OPTION_NAME_REGEX.test(item.option_value) && !PACKAGING_NEGATIVE_VALUE_REGEX.test(item.option_value)) {
+      return true;
+    }
+  }
+
   if (Array.isArray(item.options)) {
-    for (const opt of item.options) {
-      if (check(opt.name || '', opt.value || '')) return true;
+    for (const opt of item.options as Record<string, unknown>[]) {
+      const name = String(opt.option_name || opt.name || '');
+      let val = '';
+      if (typeof opt.option_value === 'object' && opt.option_value !== null) {
+        val = String((opt.option_value as { option_text?: unknown }).option_text || '');
+      } else if (typeof opt.option_value === 'string') {
+        val = opt.option_value;
+      } else if (typeof opt.value === 'string') {
+        val = opt.value;
+      }
+      if (check(name, val)) return true;
     }
   }
 
   if (Array.isArray(item.additional_option)) {
-    for (const opt of item.additional_option as { name?: string; value?: string }[]) {
-      if (check(opt.name || '', opt.value || '')) return true;
-    }
-  }
-
-  if (typeof item.option_value === 'string') {
-    if (PACKAGING_OPTION_NAME_REGEX.test(item.option_value) && !PACKAGING_NEGATIVE_VALUE_REGEX.test(item.option_value)) {
-      return true;
+    for (const opt of item.additional_option as Record<string, unknown>[]) {
+      const name = String(opt.option_name || opt.name || '');
+      const val = String(opt.value || '');
+      if (check(name, val)) return true;
     }
   }
 
@@ -121,7 +144,7 @@ export async function fetchAdminOrder(orderId: string, customToken?: string): Pr
   if (!/^20\d{6}-\d{7}$/.test(orderId)) throw new Error('주문번호 형식이 올바르지 않습니다.');
 
   const token = customToken || (await getValidAccessToken());
-  const apiVersion = (process.env.CAFE24_API_VERSION || '2026-03-01').trim();
+  const apiVersion = (process.env.CAFE24_API_VERSION || '2026-09-01').trim();
 
   const url = `https://${mallId}.cafe24api.com/api/v2/admin/orders/${orderId}?embed=items`;
   const res = await fetch(url, {

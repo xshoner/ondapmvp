@@ -34,7 +34,8 @@ export async function verifyAndAcceptOrder(order: Cafe24AdminOrder): Promise<Int
 
   // 2. 결제 완료 여부 확인 (입금전/추가입금대기는 제외)
   if (!isOrderPaid(order)) {
-    return { status: 'unpaid', message: `결제 미완료 (상태: ${order.payment_status}/${order.order_status})` };
+    const statusDesc = order.paid ? `paid=${order.paid}` : `${order.payment_status || '미결제'}/${order.order_status || '상태없음'}`;
+    return { status: 'unpaid', message: `결제 미완료 (상태: ${statusDesc})` };
   }
 
   // 3. 주문에서 디자인 코드 추출
