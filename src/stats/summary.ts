@@ -11,6 +11,14 @@ export interface Summary {
   topProducts: { productNo: number; first: number; top3: number }[];
 }
 
+export function validStatsPeriod(from: string, to: string): boolean {
+  const date = (s: string) =>
+    /^\d{4}-\d{2}-\d{2}$/.test(s) &&
+    Number.isFinite(Date.parse(s)) &&
+    new Date(s).toISOString().slice(0, 10) === s;
+  return date(from) && date(to) && from <= to && Date.parse(to) - Date.parse(from) <= 399 * 86400000;
+}
+
 // UTC 시각 → 한국 날짜(YYYY-MM-DD)
 export function kstDate(iso: string): string {
   return new Date(Date.parse(iso) + 9 * 3600 * 1000).toISOString().slice(0, 10);

@@ -2,15 +2,12 @@ import { getCatalog, getFeedback } from '../data/repository.ts';
 import { listDesigns } from '../data/packaging-repository.ts';
 import { createClient } from '../lib/supabase/server.ts';
 import { dataSource } from '../lib/supabase/env.ts';
-import { summarize, unmetDemand, type Summary, type UnmetRow } from './summary.ts';
+import { summarize, unmetDemand, validStatsPeriod, type Summary, type UnmetRow } from './summary.ts';
 import { summarizeFeedback, type FeedbackSummary } from '../lib/feedback.ts';
 import { kstRange } from '../packaging/design-filter.ts';
 
 export interface StatsResult { summary: Summary; feedback: FeedbackSummary | null; unmet: UnmetRow[] }
-export function validStatsPeriod(from: string, to: string): boolean {
-  const date = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && Number.isFinite(Date.parse(s)) && new Date(s).toISOString().slice(0, 10) === s;
-  return date(from) && date(to) && from <= to && Date.parse(to) - Date.parse(from) <= 399 * 86400000;
-}
+export { validStatsPeriod };
 
 // 화면/CSV가 같은 입구를 사용한다. 구 DB의 잘린 원시 기록으로 합계를 대신 만들지 않는다.
 export async function getStats(from: string, to: string): Promise<StatsResult> {
