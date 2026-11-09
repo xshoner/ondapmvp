@@ -23,7 +23,6 @@ export async function TodayBar() {
           늦어지는 건 <b className="num">{late}</b>
         </a>
         {todo.received + todo.confirmed === 0 && <span className="muted">밀린 접수가 없습니다</span>}
-        <a href="/admin/scan" className="today-scan">QR로 완료 처리</a>
       </nav>
     </TodayBarWrapper>
   );

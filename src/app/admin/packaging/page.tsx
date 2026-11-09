@@ -41,10 +41,10 @@ export default async function PackagingAdminPage({ searchParams }: { searchParam
   return (
     <>
       <header className="page-head">
-        <h1>포장 디자인</h1>
+        <h1>포장 디자인 및 접수</h1>
       </header>
 
-      <nav className="admin-tabs" style={{ marginBottom: 20 }} aria-label="포장 디자인 메뉴">
+      <nav className="admin-tabs" style={{ marginBottom: 20 }} aria-label="포장 디자인 및 접수 메뉴">
         {TABS.map((t) => (
           <a key={t.id} href={`/admin/packaging?tab=${t.id}`} aria-selected={tab === t.id}>{t.label}</a>
         ))}

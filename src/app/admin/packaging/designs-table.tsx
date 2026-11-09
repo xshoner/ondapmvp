@@ -1,16 +1,15 @@
 'use client';
 
 // 디자인 접수 목록: 카페24 주문서의 '온답 포장 디자인 코드'로 찾아 주문번호를 잇고, 인쇄 파일을 내려받는다.
-// 여러 건 상태 바꾸기, 주문 상세 붙여넣기, 늦어지는 건 표시, 키보드(j·k·x·p·s·?)로 빠르게 처리한다.
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+// 여러 건 상태 바꾸기, 늦어지는 건 표시, 키보드(j·k·x·p·s·?)로 빠르게 처리한다.
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { isTyping, saveBlob } from '@/lib/device.ts';
 import { kstLabel } from '@/lib/kst.ts';
 import { MAX_SHEETS, sheetLayout, sheetsNeeded, type Paper } from '@/packaging/sheet.ts';
-import { LATE_DAYS, STATUS_LABEL, designStatusLabel, filterQuery, isLate, type DesignFilter } from '@/packaging/design-filter.ts';
-import { extractOrderLinks } from '@/packaging/order-paste.ts';
+import { STATUS_LABEL, designStatusLabel, filterQuery, isLate, type DesignFilter } from '@/packaging/design-filter.ts';
 import type { Design, DesignStatus } from '@/packaging/types.ts';
-import { linkOrdersAction, updateDesignAction, updateDesignsStatusAction, syncCafe24OrdersAction } from './actions.ts';
+import { updateDesignAction, updateDesignsStatusAction, syncCafe24OrdersAction } from './actions.ts';
 
 type PrintOptions = { paper: Paper; fill: boolean };
 type Props = { designs: Design[]; eventNames: Record<string, string>; filter: DesignFilter & { rawCode: string; codeInvalid: boolean }; now: number };
@@ -45,10 +44,8 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [autoSyncing, setAutoSyncing] = useState(false);
   const syncing = useRef(false);
-  const [pasteOpen, setPasteOpen] = useState(false);
   const printableSelected = designs.filter((d) => selected.has(d.code) && d.printCode && d.sticker);
   const allSelected = designs.length > 0 && designs.every((d) => selected.has(d.code));
-  const lateCount = useMemo(() => designs.filter((d) => isLate(d, now)).length, [designs, now]);
 
   useEffect(() => {
     let active = true;
@@ -160,15 +157,10 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
           <span className="field-label">접수일 (까지)</span>
           <input type="date" name="to" defaultValue={filter.to ?? ''} />
         </label>
-        <label className="small row" style={{ gap: 4, alignSelf: 'end', paddingBottom: 8 }}>
-          <input type="checkbox" name="late" value="1" defaultChecked={filter.late} />
-          늦어지는 건만 <span className="muted">(접수 {LATE_DAYS.received}일·주문 확인 {LATE_DAYS.order_confirmed}일 넘음)</span>
-        </label>
         <div className="row" style={{ gap: 8, alignSelf: 'end' }}>
-          <button type="submit" className="btn small">거르기</button>
+          <button type="submit" className="btn small">조회하기</button>
           {filtered && <a className="btn ghost small" href="/admin/packaging?tab=designs">조건 지우기</a>}
           <a className="btn ghost small" href={`/admin/packaging/export${exportQuery ? `?${exportQuery}` : ''}`}>CSV 내려받기</a>
-          <button type="button" className="btn ghost small" aria-expanded={pasteOpen} onClick={() => setPasteOpen((o) => !o)}>주문 상세 붙여넣기</button>
           <button
             type="button"
             className="btn small"
@@ -191,22 +183,15 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
           >
             {syncPending || autoSyncing ? '카페24 동기화 중...' : '🔄 카페24 주문 동기화'}
           </button>
-          <a className="btn ghost small" href="/admin/scan">QR로 완료 처리</a>
         </div>
         {syncMessage && (
           <div className="panel" style={{ flexBasis: '100%', padding: '8px 12px', background: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe', borderRadius: 6, fontSize: 13, marginTop: 4 }}>
             {syncMessage}
           </div>
         )}
-        <span className="small muted" style={{ flexBasis: '100%' }}>
-          {designs.length}건{designs.length >= 200 ? ' (최근 200건까지 표시, CSV는 최대 5,000건)' : ''}
-          {lateCount > 0 && <b style={{ color: 'var(--danger)' }}> · 늦어지는 건 {lateCount}</b>}
-          . 카페24 주문 상세를 복사해 ‘주문 상세 붙여넣기’에 넣으면 주문번호가 이어집니다. 단축키는 <kbd>?</kbd>
-        </span>
+        {designs.length >= 200 && <span className="small muted" style={{ flexBasis: '100%' }}>최근 200건까지 표시합니다. CSV는 최대 5,000건까지 내려받을 수 있습니다.</span>}
       </form>
       {filter.codeInvalid && <p className="small" style={{ color: 'var(--danger)', margin: 0 }}>코드 형식이 맞지 않습니다. 예: OD-7QDF-3P6M</p>}
-
-      {pasteOpen && <PastePanel designs={designs} onDone={() => router.refresh()} />}
 
       {help && (
         <div className="panel shortcut-help" role="dialog" aria-label="단축키">
@@ -238,7 +223,7 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
           <select value={batchStatus} onChange={(e) => setBatchStatus(e.target.value as DesignStatus)} aria-label="바꿀 상태">
             {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
-          <button type="button" className="btn small" disabled={batchPending} onClick={changeStatus}>{batchPending ? '바꾸는 중' : '상태 한꺼번에 바꾸기'}</button>
+          <button type="button" className="btn small" disabled={batchPending} onClick={changeStatus}>{batchPending ? '바꾸는 중' : '상태 변경하기'}</button>
           <button type="button" className="btn ghost small" disabled={printableSelected.length === 0 || zipping !== null} onClick={() => void downloadZip()}>
             {zipping ? `묶는 중 ${zipping}` : `인쇄 파일 묶어 받기 ${printableSelected.length}건 (PNG+PDF)`}
           </button>
@@ -281,67 +266,6 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
         </div>
       )}
     </div>
-  );
-}
-
-// 카페24 주문 상세를 통째로 붙여넣으면 코드와 주문번호를 찾아 미리 보여 주고, 확인 후 한꺼번에 잇는다
-function PastePanel({ designs, onDone }: { designs: Design[]; onDone(): void }) {
-  const [text, setText] = useState('');
-  const [result, setResult] = useState<{ code: string; ok: boolean; message: string }[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
-  const links = useMemo(() => extractOrderLinks(text), [text]);
-  const byCode = new Map(designs.map((d) => [d.code, d]));
-  const ready = links.filter((l) => l.orderNo);
-
-  const apply = () => start(async () => {
-    setError(null);
-    const res = await linkOrdersAction(ready.map((l) => ({ code: l.code, orderNo: l.orderNo! })));
-    if (!res.ok) return setError(res.message);
-    setResult(res.results);
-    onDone();
-  });
-
-  return (
-    <section className="panel" aria-label="주문 상세 붙여넣기">
-      <b className="small">주문 상세 붙여넣기</b>
-      <p className="small muted" style={{ margin: '4px 0 8px' }}>
-        카페24 관리자 주문 상세(또는 주문 목록)를 드래그해 복사한 뒤 아래에 붙여넣으세요. 주문번호(20261022-0000123 꼴)와 디자인 코드(OD-…)를 찾아 짝지어 줍니다. 연결 전에 카페24에서 포장 디자인 서비스 유료 옵션과 결제 여부를 확인해 주세요. 연결 시 ‘접수’ 상태는 ‘주문 확인’으로 바뀝니다.
-      </p>
-      <textarea
-        value={text} onChange={(e) => { setText(e.target.value); setResult(null); }} rows={5} placeholder="여기에 붙여넣기 (Ctrl+V)"
-        style={{ width: '100%', border: '1px solid var(--line)', borderRadius: 8, padding: 10, fontSize: 13 }} aria-label="붙여넣을 주문 상세"
-      />
-      {text.trim() && links.length === 0 && <p className="small" style={{ color: 'var(--danger)' }}>디자인 코드(OD-XXXX-XXXX)를 찾지 못했습니다.</p>}
-      {links.length > 0 && (
-        <table className="data" style={{ marginTop: 10 }}>
-          <thead><tr><th>디자인 코드</th><th>찾은 주문번호</th><th>지금</th><th>결과</th></tr></thead>
-          <tbody>
-            {links.map((l) => {
-              const d = byCode.get(l.code);
-              const r = result?.find((x) => x.code === l.code);
-              return (
-                <tr key={l.code}>
-                  <td><b className="mono">{l.code}</b></td>
-                  <td>{l.orderNo ?? <span style={{ color: 'var(--danger)' }}>못 찾음</span>}</td>
-                  <td className="small">{d ? `${designStatusLabel(d)}${d.orderNo ? ` · ${d.orderNo}` : ''}` : <span className="muted">목록에 없음 (저장 때 다시 찾음)</span>}</td>
-                  <td className="small" style={{ color: r ? (r.ok ? 'var(--green)' : 'var(--danger)') : undefined }}>
-                    {r ? r.message : d && d.orderNo === l.orderNo ? '이미 연결됨' : ''}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
-      {error && <p className="small" style={{ color: 'var(--danger)' }}>{error}</p>}
-      <div className="row" style={{ gap: 8, marginTop: 10 }}>
-        <button type="button" className="btn small" disabled={ready.length === 0 || pending || result !== null} onClick={apply}>
-          {pending ? '잇는 중' : `주문번호 ${ready.length}건 잇기`}
-        </button>
-        <button type="button" className="btn ghost small" onClick={() => { setText(''); setResult(null); }}>비우기</button>
-      </div>
-    </section>
   );
 }
 

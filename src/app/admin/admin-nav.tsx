@@ -7,7 +7,7 @@ import { signOutAction } from '../login/actions.ts';
 const PRIMARY_LINKS = [
   { href: '/admin', label: '대시보드', match: (p: string) => p === '/admin' || p === '/admin/stats' },
   { href: '/admin/formality', label: '격식지수 판정', match: (p: string) => p.startsWith('/admin/formality') },
-  { href: '/admin/packaging', label: '포장 디자인', match: (p: string) => p.startsWith('/admin/packaging') },
+  { href: '/admin/packaging', label: '포장 디자인 및 접수', match: (p: string) => p.startsWith('/admin/packaging') },
 ];
 
 const DATAROOM_LINKS = [

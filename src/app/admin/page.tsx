@@ -96,9 +96,6 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
             <span>오늘 할 일</span>
             <span className="small muted">포장 디자인 및 인쇄 주문 현황</span>
           </div>
-          <a href="/admin/scan" className="btn ghost small no-print">
-            QR로 완료 처리
-          </a>
         </div>
 
         {todo ? (
