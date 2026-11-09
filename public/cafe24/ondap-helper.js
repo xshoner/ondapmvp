@@ -492,6 +492,7 @@
   function isOrderBoxVisible(box) {
     if (!box || box.nodeType !== 1) return false;
     if (box.closest && (box.closest('.displaynone') || box.closest('[hidden]'))) return false;
+    if (box.getClientRects && box.getClientRects().length === 0) return false;
     if (box.offsetParent === null) {
       if (box.style && box.style.display === 'none') return false;
       if (typeof window !== 'undefined' && window.getComputedStyle) {

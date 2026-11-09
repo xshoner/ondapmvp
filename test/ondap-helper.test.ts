@@ -29,6 +29,8 @@ class MockElement {
     this.offsetParent = this; // 기본 가시(visible) 상태
   }
 
+  getClientRects(): number[] { return [1]; }
+
   get isConnected(): boolean {
     let p: MockElement | null = this;
     while (p) {
@@ -723,4 +725,14 @@ test('옵션명 2개입을 주문 수량으로 오인하지 않는다', async ()
   await runHelper({ document: doc, location: { pathname: '/order/orderform.html', search: '', href: 'https://axopenlab.cafe24.com/order/orderform.html' }, localStorage: storage,
     fetchFn: async () => ({ ok: true, json: async () => ({ code, productNo: 11, quantity: 2, status: 'pending' }) }) });
   assert.equal(doc.querySelector('input[name="oa_content[1]"]')?.value, '');
+});
+
+test('숨겨진 주문 확인 영역의 상품 복제는 실제 상품으로 세지 않는다', async () => {
+  const { doc } = createCafe24OrderDom({ activeProducts: [{ productNo: 11, qty: 10 }, { productNo: 11, qty: 10 }] });
+  doc.querySelectorAll('.prdBox').filter((box) => box.querySelector('.prdName')?.textContent)[1].getClientRects = () => [];
+  const storage = new MockLocalStorage();
+  const code = 'OD-A2B3-C4D5';
+  storage.setItem('ondap_packaging', JSON.stringify({ version: 2, entries: [{ productNo: '11', code, qty: 10, at: Date.now() }] }));
+  await runHelper({ document: doc, location: { pathname: '/order/orderform.html', search: '', href: 'https://axopenlab.cafe24.com/order/orderform.html' }, localStorage: storage });
+  assert.equal(doc.querySelector('input[name="oa_content[1]"]')?.value, code);
 });
