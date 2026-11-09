@@ -9,6 +9,18 @@ const allow = createRateLimiter({ limit: 60, windowMs: 10 * 60 * 1000 });
 const HEADERS = { 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store', 'Content-Type': 'application/json; charset=utf-8' };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: HEADERS });
 
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+      'Access-Control-Max-Age': '86400',
+    },
+  });
+}
+
 export async function GET(request: Request, { params }: { params: Promise<{ code: string }> }) {
   if (!allow(clientIp(request.headers))) return json({ error: 'too_many' }, 429);
   const code = normalizeDesignCode((await params).code);
