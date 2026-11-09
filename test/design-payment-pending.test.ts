@@ -18,6 +18,10 @@ test('디자인 저장과 재주문은 결제 대기로 남고 관리자 접수�
     assert.equal(await reorderDesign(base.code, 'OD-BBBB-BBBB', 3), 'ok');
     assert.equal((await lookupDesign('OD-BBBB-BBBB'))?.status, 'pending');
     assert.deepEqual(await listDesigns(), []);
+    assert.deepEqual(await listDesigns({ includePending: true, intakeOnly: true }), []);
+    await updateDesign('OD-BBBB-BBBB', { status: 'pending', orderNo: null, memo: '카페24 주문: 20261108-0000038 (무통장 입금 대기)' });
+    assert.deepEqual((await listDesigns({ includePending: true, intakeOnly: true })).map((d) => d.code), ['OD-BBBB-BBBB']);
+    assert.equal((await lookupDesign(base.code))?.status, 'pending');
     await updateDesign(base.code, { status: 'order_confirmed', orderNo: '20261108-0000001', memo: '' });
     assert.deepEqual((await listDesigns()).map((d) => d.code), [base.code]);
     assert.equal((await getDesignTodo({ received: new Date().toISOString(), confirmed: new Date().toISOString() })).confirmed, 1);

@@ -42,7 +42,7 @@ export default async function PackagingAdminPage({ searchParams }: { searchParam
 
     assets = await getPackagingAssets({ includeInactive: true });
     if (tab === 'designs' && !filter.codeInvalid) {
-      designs = await listDesigns({ ...filter, includePending: true });
+      designs = await listDesigns({ ...filter, includePending: true, intakeOnly: true });
     }
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
@@ -52,7 +52,6 @@ export default async function PackagingAdminPage({ searchParams }: { searchParam
     <>
       <header className="page-head">
         <h1>포장 디자인</h1>
-        <p>고객이 포장지를 고르고 스티커를 꾸미면 디자인 코드가 나오고, 그 코드가 카페24 주문서에 함께 들어옵니다.</p>
       </header>
 
       <nav className="admin-tabs" style={{ marginBottom: 20 }} aria-label="포장 디자인 메뉴">

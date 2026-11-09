@@ -221,13 +221,13 @@ const LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, even
 // 20261025000000_operations.sql을 실행하기 전 DB: 새 칸(상태 시각·원본)이 없다 (42703 undefined_column)
 const OLD_LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, event, style_id, style_name, sticker, print_path, status, order_no, memo';
 
-export async function listDesigns(opts: { limit?: number; code?: string | null; status?: DesignStatus | null; from?: string | null; to?: string | null; late?: boolean; includePending?: boolean } = {}): Promise<Design[]> {
+export async function listDesigns(opts: { limit?: number; code?: string | null; status?: DesignStatus | null; from?: string | null; to?: string | null; late?: boolean; includePending?: boolean; intakeOnly?: boolean } = {}): Promise<Design[]> {
   const limit = opts.limit ?? 200;
   const { gte, lt } = kstRange({ from: opts.from ?? null, to: opts.to ?? null });
   const now = Date.now();
   if (dataSource() === 'local') {
     return readLocalDesigns()
-      .filter((d) => (opts.includePending || opts.status === 'pending' || d.status !== 'pending') && (!opts.code || d.code === opts.code) && (!opts.status || d.status === opts.status)
+      .filter((d) => (opts.includePending || opts.status === 'pending' || d.status !== 'pending') && (!opts.intakeOnly || d.status !== 'pending' || d.orderNo != null || (d.memo || '').includes('카페24 주문: 20')) && (!opts.code || d.code === opts.code) && (!opts.status || d.status === opts.status)
         && (!gte || d.createdAt >= gte) && (!lt || d.createdAt < lt) && (!opts.late || isLate(d, now)))
       .slice(0, limit).map((d) => ({ ...d, draft: null }));
   }
@@ -235,6 +235,7 @@ export async function listDesigns(opts: { limit?: number; code?: string | null; 
   const query = (columns: string, late: boolean) => {
     let q = db.from('designs').select(columns).order('created_at', { ascending: false });
     if (!opts.includePending && opts.status !== 'pending') q = q.neq('status', 'pending');
+    if (opts.intakeOnly) q = q.or('status.neq.pending,order_no.not.is.null,memo.like.*카페24 주문: 20*');
     if (opts.code) q = q.eq('code', opts.code);
     if (opts.status) q = q.eq('status', opts.status);
     if (gte) q = q.gte('created_at', gte);

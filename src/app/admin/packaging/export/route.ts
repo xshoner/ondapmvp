@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 
   const filter = parseDesignFilter(Object.fromEntries(new URL(request.url).searchParams));
   if (filter.codeInvalid) return new Response('코드 형식이 맞지 않습니다.', { status: 400 });
-  const [designs, { config }] = await Promise.all([listDesigns({ ...filter, limit: 5000 }), getCatalog()]);
+  const [designs, { config }] = await Promise.all([listDesigns({ ...filter, includePending: true, intakeOnly: true, limit: 5000 }), getCatalog()]);
   const eventNames = Object.fromEntries(Object.entries(config.events).map(([k, v]) => [k, v.name]));
 
   const stamp = kstLabel(new Date().toISOString()).slice(0, 10).replaceAll('-', '');
