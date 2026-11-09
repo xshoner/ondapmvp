@@ -42,7 +42,7 @@ const countBy = <T>(xs: T[], key: (x: T) => string) => {
 const isOrdered = (d: DesignLog) => Boolean(d.orderNo) || d.status === 'order_confirmed' || d.status === 'printed';
 
 export function summarize(recs: RecLog[], designs: DesignLog[], range: { from: string; to: string }): Summary {
-  const live = designs.filter((d) => d.status !== 'canceled');
+  const live = designs.filter((d) => d.status !== 'canceled' && d.status !== 'pending');
   const recByDay = new Map<string, number>();
   const desByDay = new Map<string, number>();
   for (const r of recs) recByDay.set(kstDate(r.createdAt), (recByDay.get(kstDate(r.createdAt)) ?? 0) + 1);

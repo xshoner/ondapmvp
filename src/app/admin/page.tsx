@@ -156,7 +156,7 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
             </div>
             {todo.received + todo.confirmed === 0 && (
               <p className="small muted" style={{ margin: '14px 0 0', textAlign: 'center' }}>
-                현재 밀린 접수나 지연된 건이 없습니다. 모든 주문 확인 및 인쇄 작업이 정상 완료되었습니다.
+                현재 주문 확인 또는 인쇄 대기 건이 없습니다.
               </p>
             )}
           </>
@@ -223,9 +223,9 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
             <small className="kpi-unit">건</small>
           </b>
           <span className="kpi-note">
-            스티커 포함 {num(s.totals.withSticker)}건 (취소·미결제 제외)
+            스티커 포함 {num(s.totals.withSticker)}건 (취소·결제 대기 상태 제외)
           </span>
-          <span className="kpi-subnote">미결제 임시저장 및 취소 건을 제외한 정상 접수 건수</span>
+          <span className="kpi-subnote">결제 대기 및 취소 상태를 제외한 접수 건수</span>
         </div>
 
         <div className="dashboard-kpi">
@@ -359,7 +359,7 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
           </p>
           {unmet.length === 0 ? (
             <p className="small muted" style={{ margin: 0 }}>
-              이 기간에는 모든 조건을 예산 안에서 충분히 채웠습니다.
+              표시할 부족 조건이 없습니다.
             </p>
           ) : (
             <div style={{ overflowX: 'auto' }}>

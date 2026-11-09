@@ -73,6 +73,7 @@ test('대시보드 핵심 지표: 결제 완료가 아닌 주문 연결 및 인�
     { createdAt: '2026-11-02T02:00:00Z', status: 'received', orderNo: null, hasSticker: false },
     // 5. 취소된 접수 (집계 제외)
     { createdAt: '2026-11-02T03:00:00Z', status: 'canceled', orderNo: null, hasSticker: true },
+    { createdAt: '2026-11-02T03:00:00Z', status: 'pending', orderNo: null, hasSticker: true },
   ];
 
   const s = summarize(recs, designs, { from: '2026-11-01', to: '2026-11-03' });

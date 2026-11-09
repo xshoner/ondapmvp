@@ -43,17 +43,33 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
   const [batchPending, startBatch] = useTransition();
   const [syncPending, startSync] = useTransition();
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [autoSyncing, setAutoSyncing] = useState(false);
+  const syncing = useRef(false);
   const [pasteOpen, setPasteOpen] = useState(false);
   const printableSelected = designs.filter((d) => selected.has(d.code) && d.printCode && d.sticker);
   const allSelected = designs.length > 0 && designs.every((d) => selected.has(d.code));
   const lateCount = useMemo(() => designs.filter((d) => isLate(d, now)).length, [designs, now]);
 
-  // 접수 및 결제 상태 자동 갱신 (30초마다 백그라운드 갱신)
   useEffect(() => {
-    const timer = setInterval(() => {
-      router.refresh();
-    }, 30000);
-    return () => clearInterval(timer);
+    let active = true;
+    const sync = async () => {
+      if (syncing.current || document.hidden) return;
+      syncing.current = true;
+      setAutoSyncing(true);
+      try {
+        const result = await syncCafe24OrdersAction();
+        if (active) {
+          if (!result.ok) setSyncMessage(result.message);
+          else setSyncMessage(null);
+          router.refresh();
+        }
+      } catch {
+        if (active) setSyncMessage('자동 동기화에 실패했습니다. 카페24 주문 동기화 버튼으로 다시 시도해 주세요.');
+      } finally { syncing.current = false; if (active) setAutoSyncing(false); }
+    };
+    void sync();
+    const timer = setInterval(() => void sync(), 30000);
+    return () => { active = false; clearInterval(timer); };
   }, [router]);
 
   const toggle = (c: string) => setSelected((s) => {
@@ -157,17 +173,23 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
             type="button"
             className="btn small"
             style={{ background: '#2563eb', color: '#fff', fontWeight: 600 }}
-            disabled={syncPending}
+            disabled={syncPending || autoSyncing}
             onClick={() => {
+              if (syncing.current) return setSyncMessage('자동 동기화가 진행 중입니다. 잠시만 기다려 주세요.');
+              syncing.current = true;
               setSyncMessage(null);
               startSync(async () => {
-                const res = await syncCafe24OrdersAction();
-                setSyncMessage(res.message);
-                router.refresh();
+                try {
+                  const res = await syncCafe24OrdersAction();
+                  setSyncMessage(res.message);
+                  router.refresh();
+                } catch {
+                  setSyncMessage('동기화에 실패했습니다. 다시 시도해 주세요.');
+                } finally { syncing.current = false; }
               });
             }}
           >
-            {syncPending ? '카페24 동기화 중...' : '🔄 카페24 주문 동기화'}
+            {syncPending || autoSyncing ? '카페24 동기화 중...' : '🔄 카페24 주문 동기화'}
           </button>
           <a className="btn ghost small" href="/admin/scan">QR로 완료 처리</a>
         </div>

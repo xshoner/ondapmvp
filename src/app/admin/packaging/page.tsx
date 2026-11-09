@@ -32,18 +32,8 @@ export default async function PackagingAdminPage({ searchParams }: { searchParam
   let error: string | null = null;
   try {
     if (tab === 'designs') {
-      try {
-        const { syncRecentCafe24Orders } = await import('@/cafe24/intake-worker.ts');
-        await syncRecentCafe24Orders(3);
-      } catch (syncErr) {
-        console.warn('카페24 주문 자동 동기화 스킵:', syncErr);
-      }
-    }
-
-    assets = await getPackagingAssets({ includeInactive: true });
-    if (tab === 'designs' && !filter.codeInvalid) {
-      designs = await listDesigns({ ...filter, includePending: true, intakeOnly: true });
-    }
+      if (!filter.codeInvalid) designs = await listDesigns({ ...filter, includePending: true, intakeOnly: true });
+    } else assets = await getPackagingAssets({ includeInactive: true });
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
@@ -65,7 +55,7 @@ export default async function PackagingAdminPage({ searchParams }: { searchParam
           포장 디자인 데이터를 읽지 못했습니다: {error}
           <br />Supabase를 쓴다면 SQL Editor에서 <code>supabase/migrations/20261021000000_packaging.sql</code>을 실행했는지 확인하세요.
         </div>
-      ) : assets && tab === 'designs' ? (
+      ) : tab === 'designs' ? (
         <DesignsTable designs={designs} eventNames={eventNames} filter={filter} now={Date.now()} />
       ) : assets ? (
         <AssetManager key={tab} kind={tab as 'styles' | 'images' | 'texts'} assets={assets} categoryNames={categoryNames} />

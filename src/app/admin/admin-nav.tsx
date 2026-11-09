@@ -85,7 +85,6 @@ export function AdminNav({ email }: { email: string | null }) {
           ref={triggerRef}
           type="button"
           className="nav-link dataroom-trigger"
-          aria-haspopup="menu"
           aria-expanded={open}
           aria-controls="dataroom-submenu"
           data-child-active={isDataRoomActive ? 'true' : undefined}
@@ -99,7 +98,7 @@ export function AdminNav({ email }: { email: string | null }) {
           id="dataroom-submenu"
           className="dataroom-submenu"
           data-open={open ? 'true' : 'false'}
-          role="menu"
+          aria-hidden={!open}
           aria-label="데이터룸 서브메뉴"
         >
           {DATAROOM_LINKS.map((l) => {
@@ -109,7 +108,6 @@ export function AdminNav({ email }: { email: string | null }) {
                 key={l.href}
                 className="dataroom-sublink"
                 href={l.href}
-                role="menuitem"
                 tabIndex={open ? 0 : -1}
                 aria-current={isCurrent ? 'page' : undefined}
               >
