@@ -74,22 +74,25 @@ export function createStyleRegistry() {
   const BF_LABEL = registerBorderFill({ isPageBorder: false, fillColor: '#F2F2F2' });
 
   // 2. D1 & D4: charPr 사전 등록 (연속 번호 0..n-1, 완전한 템플릿 구조)
-  const CP_NORMAL = registerCharPr({ height: 1000, bold: false, color: '#111827' }); // id=0 (기본 바탕글)
-  const CP_TITLE = registerCharPr({ height: 1600, bold: true, color: '#111827' }); // id=1 (16pt 굵게)
+  const CP_NORMAL = registerCharPr({ height: 1000, bold: false, color: '#111827' }); // id=0 (기본 바탕글 10pt)
+  const CP_TITLE = registerCharPr({ height: 1900, bold: true, color: '#111827' }); // id=1 (19pt 굵게)
   const CP_HEADING = registerCharPr({ height: 1200, bold: true, color: '#111827' }); // id=2 (12pt 굵게)
   const CP_LABEL = registerCharPr({ height: 1000, bold: true, color: '#111827' }); // id=3 (10pt 굵게)
   const CP_VALUE = registerCharPr({ height: 1000, bold: false, color: '#111827' }); // id=4 (10pt 보통)
   const CP_VALUE_BOLD = registerCharPr({ height: 1000, bold: true, color: '#111827' }); // id=5 (10pt 굵게)
-  const CP_NOTE = registerCharPr({ height: 900, bold: false, color: '#4B5563' }); // id=6 (9pt 보통)
-  const CP_META = registerCharPr({ height: 900, bold: false, color: '#4B5563' }); // id=7 (9pt 보통)
+  const CP_NOTE = registerCharPr({ height: 950, bold: false, color: '#4B5563' }); // id=6 (9.5pt 보통)
+  const CP_META = registerCharPr({ height: 850, bold: false, color: '#4B5563' }); // id=7 (8.5pt 보통)
 
-  // 3. paraPr 사전 등록 (연속 번호 0..n-1, 문단 테두리 없음, 줄간격 160%)
-  const PP_LEFT = registerParaPr({ align: 'LEFT', prev: 0, next: 0, lineSpacingPercent: 160 }); // id=0
-  const PP_CENTER = registerParaPr({ align: 'CENTER', prev: 0, next: 0, lineSpacingPercent: 160 }); // id=1
-  const PP_RIGHT = registerParaPr({ align: 'RIGHT', prev: 0, next: 0, lineSpacingPercent: 160 }); // id=2
-  const PP_HEADING = registerParaPr({ align: 'LEFT', prev: 240, next: 100, lineSpacingPercent: 160 }); // id=3 (위12pt, 아래5pt)
-  const PP_TITLE = registerParaPr({ align: 'CENTER', prev: 360, next: 360, lineSpacingPercent: 160 }); // id=4 (위18pt, 아래18pt)
-  const PP_META = registerParaPr({ align: 'LEFT', prev: 240, next: 0, lineSpacingPercent: 160 }); // id=5 (위12pt)
+  // 3. paraPr 사전 등록 (연속 번호 0..n-1, 문단 테두리 없음, 줄간격 180%)
+  const PP_LEFT = registerParaPr({ align: 'LEFT', prev: 0, next: 0, lineSpacingPercent: 150 }); // id=0 (줄간격 150%)
+  const PP_CENTER = registerParaPr({ align: 'CENTER', prev: 0, next: 0, lineSpacingPercent: 150 }); // id=1
+  const PP_RIGHT = registerParaPr({ align: 'RIGHT', prev: 0, next: 0, lineSpacingPercent: 150 }); // id=2
+  const PP_HEADING = registerParaPr({ align: 'LEFT', prev: 500, next: 300, lineSpacingPercent: 140 }); // id=3 (위5pt, 아래3pt)
+  const PP_TITLE = registerParaPr({ align: 'CENTER', prev: 300, next: 500, lineSpacingPercent: 140 }); // id=4 (위3pt, 아래5pt)
+  const PP_META = registerParaPr({ align: 'LEFT', prev: 800, next: 100, lineSpacingPercent: 140 }); // id=5 (위8pt)
+
+  const PP_TBL_LEFT = registerParaPr({ align: 'LEFT', prev: 0, next: 0, lineSpacingPercent: 100 }); // id=6 (표 담는 문단)
+  const PP_TBL_RIGHT = registerParaPr({ align: 'RIGHT', prev: 0, next: 0, lineSpacingPercent: 100 }); // id=7 (표 담는 문단, 우측)
 
   // 4. style 사전 등록 (id=0: 바탕글)
   const ST_NORMAL = registerStyle({ name: '바탕글', engName: 'Normal', paraPrId: '0', charPrId: '0' });
@@ -139,12 +142,12 @@ export function createStyleRegistry() {
     `</hh:borderFill>`;
   }
 
-  // paraPr 직렬화 함수 (문단 테두리 borderFill 참조 제거, 줄간격 160% 통일)
+  // paraPr 직렬화 함수 (문단 테두리 borderFill 참조 제거, 줄간격 180% 통일)
   function renderParaPrXml(pp: ParaPrSpec & { id: string }): string {
     const align = pp.align || 'LEFT';
     const prev = pp.prev || 0;
     const next = pp.next || 0;
-    const lSpacing = pp.lineSpacingPercent || 160;
+    const lSpacing = pp.lineSpacingPercent || 180;
     return `<hh:paraPr id="${pp.id}" tabPrIDRef="0" condense="0" fontLineHeight="0" snapToGrid="1" suppressLineNumbers="0" checked="0">` +
       `<hh:align horizontal="${align}" vertical="BASELINE"/>` +
       `<hh:heading type="NONE" idRef="0" level="0"/>` +
@@ -187,6 +190,8 @@ export function createStyleRegistry() {
       HEADING: PP_HEADING, // '3'
       TITLE: PP_TITLE, // '4'
       META: PP_META, // '5'
+      TBL_LEFT: PP_TBL_LEFT, // '6'
+      TBL_RIGHT: PP_TBL_RIGHT, // '7'
     },
     styles: {
       NORMAL: ST_NORMAL, // '0'

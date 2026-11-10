@@ -10,6 +10,13 @@ import { createStyleRegistry } from './hwpxStyles.ts';
 // OWPML 단위: 1pt = 100 hwp unit. A4 가로: 210mm (~59528 hwp unit). 여백 15mm 제외 가용 폭: 51,000 hwp unit (180mm).
 const TOTAL_WIDTH = 51000;
 
+// 화면 미리보기와 맞춘 표 서식: 셀 안쪽 여백(상하 6pt / 좌우 7.5pt), 한 줄 높이(11pt × 줄간격 180% ≈ 20pt), 행 최소 높이
+const CELL_PAD_X = 700;
+const CELL_PAD_Y = 300;
+const LINE_H = 1500; // 10pt × 150% 보다 약간 넉넉하게 추정
+const MIN_ROW_H = 2000;
+const PAGE_MARGIN_Y = 2400;
+
 function escapeXml(str: string): string {
   if (!str) return '';
   return str
@@ -56,15 +63,15 @@ function getVisualLength(str: string): number {
   return len;
 }
 
-// D5: 셀 높이 계산 함수: (줄 수 × 1600 + 400) 이상으로 계산, 최소 2000
+// D5: 셀 높이 계산 함수: 줄 수 × 한 줄 높이 + 상하 여백, 최소 행 높이 보장
 function estimateCellHeight(cell: TableCellSpec, cellWidth: number): number {
   if (cell.imageRef) {
     const imgH = cell.imageHeight ?? 8000;
-    return imgH + 1600 + 400; // 사진 + 캡션 1줄(1600) + 상하여백(400) = 10000
+    return imgH + CELL_PAD_Y * 2 + 200; // 사진 + 상하 여백
   }
 
-  const usableWidth = Math.max(1000, cellWidth - 1020); // 좌우 여백 510*2 제외
-  const charsPerLine = Math.max(1, Math.floor(usableWidth / 950)); // 10pt 기준 줄당 한글 글자 수
+  const usableWidth = Math.max(1000, cellWidth - CELL_PAD_X * 2); // 좌우 여백 제외
+  const charsPerLine = Math.max(1, Math.floor(usableWidth / 1040)); // 10pt 기준 줄당 한글 글자 수
 
   let totalLines = 0;
   if (cell.paragraphs && cell.paragraphs.length > 0) {
@@ -82,7 +89,7 @@ function estimateCellHeight(cell: TableCellSpec, cellWidth: number): number {
   }
 
   totalLines = Math.max(1, totalLines);
-  return totalLines * 1600 + 400;
+  return totalLines * LINE_H + CELL_PAD_Y * 2;
 }
 
 export async function generateApprovalHwpx(model: ApprovalDocumentModel): Promise<Uint8Array> {
@@ -187,7 +194,7 @@ export async function generateApprovalHwpx(model: ApprovalDocumentModel): Promis
     // D5: 각 행의 모든 셀 높이를 계산하여 같은 행은 동일한 높이를 부여 (명시된 rowHeights 우선)
     const computedRowHeights: number[] = opts.rows.map((row, rowIdx) => {
       const explicitH = opts.rowHeights?.[rowIdx];
-      let maxH = explicitH ?? 2000;
+      let maxH = explicitH ?? MIN_ROW_H;
       let colCursor = 0;
       row.forEach((cell) => {
         const cSpan = cell.colSpan ?? 1;
@@ -201,7 +208,7 @@ export async function generateApprovalHwpx(model: ApprovalDocumentModel): Promis
           if (est > maxH && !explicitH) maxH = est;
         }
       });
-      return explicitH !== undefined ? explicitH : Math.max(2000, maxH);
+      return explicitH !== undefined ? explicitH : Math.max(MIN_ROW_H, maxH);
     });
 
     const totalTableHeight = computedRowHeights.reduce((sum, h) => sum + h, 0);
@@ -282,8 +289,8 @@ export async function generateApprovalHwpx(model: ApprovalDocumentModel): Promis
 
         // D6: hasMargin="1", 직책 헤더(담당, 팀장, 과장)는 텍스트 높이에 맞게 여백을 100으로 줄여 20% 축소 반영
         const isApproverHeader = cell.isHeader && (cell.rowSpan ?? 1) === 1 && opts.align === 'RIGHT';
-        const cellMarginTop = isApproverHeader ? 100 : 200;
-        const cellMarginBottom = isApproverHeader ? 100 : 200;
+        const cellMarginTop = isApproverHeader ? 200 : CELL_PAD_Y;
+        const cellMarginBottom = isApproverHeader ? 200 : CELL_PAD_Y;
 
         const tcXml = `
 <hp:tc name="" header="${cell.isHeader ? 1 : 0}" hasMargin="1" protect="0" editable="0" dirty="0" borderFillIDRef="${bfId}">
@@ -293,7 +300,7 @@ export async function generateApprovalHwpx(model: ApprovalDocumentModel): Promis
   <hp:cellAddr colAddr="${currentCol}" rowAddr="${rowIdx}"/>
   <hp:cellSpan colSpan="${cSpan}" rowSpan="${rSpan}"/>
   <hp:cellSz width="${cellWidth}" height="${spanHeight}"/>
-  <hp:cellMargin left="510" right="510" top="${cellMarginTop}" bottom="${cellMarginBottom}"/>
+  <hp:cellMargin left="${CELL_PAD_X}" right="${CELL_PAD_X}" top="${cellMarginTop}" bottom="${cellMarginBottom}"/>
 </hp:tc>`;
         tcXmlList.push(tcXml);
         currentCol += cSpan;
@@ -307,13 +314,13 @@ export async function generateApprovalHwpx(model: ApprovalDocumentModel): Promis
 
     // D5: 표 전체 hp:sz height = 모든 행 높이의 합산
     return `
-<hp:p id="${pId}" paraPrIDRef="${opts.align === 'RIGHT' ? reg.paras.RIGHT : opts.align === 'CENTER' ? reg.paras.CENTER : reg.paras.LEFT}" styleIDRef="${reg.styles.NORMAL}" pageBreak="0" columnBreak="0" merged="0">
+<hp:p id="${pId}" paraPrIDRef="${opts.align === 'RIGHT' ? reg.paras.TBL_RIGHT : reg.paras.TBL_LEFT}" styleIDRef="${reg.styles.NORMAL}" pageBreak="0" columnBreak="0" merged="0">
   <hp:run charPrIDRef="${reg.roles.VALUE.charPrId}">
     <hp:tbl id="${tblId}" zOrder="0" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropCapstyle="None" pageBreak="CELL" repeatHeader="1" rowCnt="${rowCnt}" colCnt="${colCnt}" cellSpacing="0" borderFillIDRef="${reg.borders.CELL}">
       <hp:sz width="${tWidth}" height="${totalTableHeight}" widthRelTo="ABSOLUTE" heightRelTo="ABSOLUTE" protect="0"/>
       <hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="${horzRelTo}" vertAlign="TOP" horzAlign="${horzAlign}" vertOffset="0" horzOffset="0"/>
       <hp:outMargin left="0" right="0" top="0" bottom="0"/>
-      <hp:inMargin left="510" right="510" top="200" bottom="200"/>
+      <hp:inMargin left="${CELL_PAD_X}" right="${CELL_PAD_X}" top="${CELL_PAD_Y}" bottom="${CELL_PAD_Y}"/>
       ${trXmlList.join('')}
     </hp:tbl>
   </hp:run>
@@ -327,7 +334,7 @@ export async function generateApprovalHwpx(model: ApprovalDocumentModel): Promis
   const hasApprovers = approverTitles && approverTitles.length > 0;
   if (hasApprovers) {
     const stampLabelW = 3000;
-    const appColW = 6000;
+    const appColW = 6500;
     const stampTotalW = stampLabelW + appColW * approverTitles.length;
     const colWidths = [stampLabelW, ...approverTitles.map(() => appColW)];
 
@@ -345,7 +352,7 @@ export async function generateApprovalHwpx(model: ApprovalDocumentModel): Promis
     bodyXmlParts.push(
       buildTableXml({
         colWidths,
-        rowHeights: [1600, 3300], // 직책 헤더 20% 축소(2000->1600, 텍스트 높이 맞춤 여백), 하단 서명란 10% 확대 유지(3300)
+        rowHeights: [1700, 2600], // 직책 칸 / 서명 칸
         rows: [headerRow, sigRow],
         totalWidth: stampTotalW,
         align: 'RIGHT',
@@ -487,7 +494,7 @@ export async function generateApprovalHwpx(model: ApprovalDocumentModel): Promis
     ...candidateRows.map((r) => {
       const image = images.get(r.candidate.productNo);
       if (image) {
-        const scale = Math.min(8500 / image.width, 8000 / image.height);
+        const scale = Math.min(6500 / image.width, 4200 / image.height);
         return {
           imageRef: `img_${r.candidate.productNo}`,
           imageWidth: Math.round(image.width * scale),
@@ -621,7 +628,7 @@ export async function generateApprovalHwpx(model: ApprovalDocumentModel): Promis
   // 좌우 여백 15mm (4252 hwp unit) 통일
   secXml = secXml.replace(
     /<hp:margin [^>]*?\/>/,
-    '<hp:margin header="0" footer="0" gutter="0" left="4252" right="4252" top="4252" bottom="4252"/>',
+    `<hp:margin header="0" footer="0" gutter="0" left="4252" right="4252" top="${PAGE_MARGIN_Y}" bottom="${PAGE_MARGIN_Y}"/>`,
   );
 
   // D2: pageBorderFill 3개 모두 1번(NONE)을 가리키게 설정
