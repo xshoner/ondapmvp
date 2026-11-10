@@ -49,6 +49,10 @@ function wrapText(text: string, maxWidth: number, font: PDFFont, fontSize: numbe
 }
 
 export async function generateApprovalPdf(model: ApprovalDocumentModel): Promise<Uint8Array> {
+  return renderApprovalPdf(model, 0);
+}
+
+async function renderApprovalPdf(model: ApprovalDocumentModel, extra: number): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
 
@@ -81,6 +85,7 @@ export async function generateApprovalPdf(model: ApprovalDocumentModel): Promise
 
   let currentPage = doc.addPage([pageWidth, pageHeight]);
   let currentY = pageHeight - marginTop;
+  let spacingCount = 0;
 
   // 새 페이지 필요시 추가
   function checkNewPage(neededHeight: number) {
@@ -165,8 +170,9 @@ export async function generateApprovalPdf(model: ApprovalDocumentModel): Promise
 
   // 섹션 제목 (13pt) — 위 16pt, 아래 8pt 간격
   function drawSectionTitle(title: string) {
-    checkNewPage(60);
-    currentY -= 8;
+    checkNewPage(60 + extra);
+    currentY -= 8 + extra;
+    spacingCount++;
     currentPage.drawText(title, {
       x: marginX,
       y: currentY - 13,
@@ -185,7 +191,8 @@ export async function generateApprovalPdf(model: ApprovalDocumentModel): Promise
       wrapText(c.text, c.w - CELL_PX * 2, c.bold || c.label ? fontBold : fontRegular, fontSize),
     );
     const maxLines = Math.max(1, ...wrapped.map((l) => l.length));
-    const rowHeight = Math.max(minRow, maxLines * lh + CELL_PY * 2);
+    const rowHeight = Math.max(minRow, maxLines * lh + CELL_PY * 2) + extra;
+    spacingCount++;
     checkNewPage(rowHeight);
 
     let x = marginX;
@@ -431,5 +438,9 @@ export async function generateApprovalPdf(model: ApprovalDocumentModel): Promise
     });
   });
 
+  const spare = currentY - 30 - (noteLines.length - 1) * 12 - marginBottom - 3;
+  if (extra === 0 && doc.getPageCount() === 1 && spare > 1 && spacingCount > 0) {
+    return renderApprovalPdf(model, spare / spacingCount);
+  }
   return doc.save();
 }

@@ -12,7 +12,7 @@ const TOTAL_WIDTH = 51000;
 
 // 화면 미리보기와 맞춘 표 서식: 셀 안쪽 여백(상하 6pt / 좌우 7.5pt), 한 줄 높이(11pt × 줄간격 180% ≈ 20pt), 행 최소 높이
 const CELL_PAD_X = 700;
-const CELL_PAD_Y = 300;
+const CELL_PAD_Y = 400;
 const LINE_H = 1500; // 10pt × 150% 보다 약간 넉넉하게 추정
 const MIN_ROW_H = 2000;
 const PAGE_MARGIN_Y = 4252;

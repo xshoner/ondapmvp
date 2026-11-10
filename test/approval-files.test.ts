@@ -158,6 +158,23 @@ test('PDF 생성: 일반 사례(1페이지 완결) 및 긴 내용 사례가 정�
   await fs.writeFile('tmp/samples/sample_long.pdf', longPdfBytes);
 });
 
+test('내용이 적은 PDF도 한 페이지의 아래 여백까지 간격을 배분한다', async () => {
+  const { PDFDocument, PDFArray, decodePDFRawStream } = await import('pdf-lib');
+  const model = buildDocumentModel(createTestDraft());
+  model.approverTitles = [];
+  model.purposeText = '';
+  model.hasInternalLimit = false;
+  model.hasScheduleOrNote = false;
+  model.candidateRows = model.candidateRows.slice(0, 1);
+  const pdf = await PDFDocument.load(await generateApprovalPdf(model));
+  assert.equal(pdf.getPageCount(), 1);
+  const contents = pdf.getPage(0).node.Contents();
+  const streams = contents instanceof PDFArray ? contents.asArray().map((ref) => pdf.context.lookup(ref)) : [contents];
+  const text = streams.map((stream) => new TextDecoder().decode(decodePDFRawStream(stream as never).decode())).join('');
+  const baselines = [...text.matchAll(/1 0 0 1 44 ([\d.]+) Tm/g)].map((match) => Number(match[1]));
+  assert.ok(Math.min(...baselines) >= 42.5 && Math.min(...baselines) < 55, '마지막 안내문이 아래 여백 근처에 있어야 함');
+});
+
 test('HWPX 생성 및 3종 파일(HWPX/DOCX/PDF) 삭제 대상 미노출 회귀 검증', async () => {
   const normalDraft = createTestDraft(false);
   const normalModel = buildDocumentModel(normalDraft);

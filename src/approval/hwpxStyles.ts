@@ -87,7 +87,7 @@ export function createStyleRegistry() {
   const PP_LEFT = registerParaPr({ align: 'LEFT', prev: 0, next: 0, lineSpacingPercent: 150 }); // id=0 (줄간격 150%)
   const PP_CENTER = registerParaPr({ align: 'CENTER', prev: 0, next: 0, lineSpacingPercent: 150 }); // id=1
   const PP_RIGHT = registerParaPr({ align: 'RIGHT', prev: 0, next: 0, lineSpacingPercent: 150 }); // id=2
-  const PP_HEADING = registerParaPr({ align: 'LEFT', prev: 500, next: 300, lineSpacingPercent: 140 }); // id=3 (위5pt, 아래3pt)
+  const PP_HEADING = registerParaPr({ align: 'LEFT', prev: 800, next: 400, lineSpacingPercent: 140 }); // id=3 (위8pt, 아래4pt)
   const PP_TITLE = registerParaPr({ align: 'CENTER', prev: 300, next: 500, lineSpacingPercent: 140 }); // id=4 (위3pt, 아래5pt)
   const PP_META = registerParaPr({ align: 'LEFT', prev: 800, next: 100, lineSpacingPercent: 140 }); // id=5 (위8pt)
 
