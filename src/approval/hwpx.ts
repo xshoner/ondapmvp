@@ -15,7 +15,7 @@ const CELL_PAD_X = 700;
 const CELL_PAD_Y = 300;
 const LINE_H = 1500; // 10pt × 150% 보다 약간 넉넉하게 추정
 const MIN_ROW_H = 2000;
-const PAGE_MARGIN_Y = 2400;
+const PAGE_MARGIN_Y = 4252;
 
 function escapeXml(str: string): string {
   if (!str) return '';

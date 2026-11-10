@@ -64,20 +64,20 @@ export async function generateApprovalPdf(model: ApprovalDocumentModel): Promise
   const fontRegular = await doc.embedFont(regularBytes);
   const fontBold = await doc.embedFont(boldBytes);
 
-  // 좌우 약 15mm, 상하 약 14mm — 일반 사례가 A4 1페이지에 들어가면서도 답답하지 않은 선
+  // Word 문서와 같은 15mm 페이지 여백
   const pageWidth = 595.28;
   const pageHeight = 841.89;
   const marginX = 44.0;
-  const marginTop = 28.0;
-  const marginBottom = 26.0;
+  const marginTop = 42.5;
+  const marginBottom = 42.5;
   const contentWidth = pageWidth - marginX * 2; // ~499pt
 
-  // 화면과 같은 비율의 서식: 본문 10.5pt, 줄 높이 16pt(약 150%), 셀 여백 상하 4pt·좌우 8pt
+  // 본문 10.5pt, 줄 높이 16pt, 셀 여백 상하 3pt·좌우 8pt
   const BODY_SIZE = 10.5;
   const BODY_LH = 16;
   const CELL_PX = 8;
-  const CELL_PY = 4;
-  const MIN_ROW = 24;
+  const CELL_PY = 3;
+  const MIN_ROW = 22;
 
   let currentPage = doc.addPage([pageWidth, pageHeight]);
   let currentY = pageHeight - marginTop;
@@ -328,7 +328,7 @@ export async function generateApprovalPdf(model: ApprovalDocumentModel): Promise
 
   // 3-2. 사진 행
   {
-    const photoRowHeight = 58;
+    const photoRowHeight = 52;
     checkNewPage(photoRowHeight);
     drawBox(marginX, currentY, col0Width, photoRowHeight, BG_LIGHT);
     drawCellLines(['참고 상품', '사진'], marginX, currentY, photoRowHeight, col0Width, fontBold, compFontSize, compLineHeight, 'CENTER');

@@ -121,6 +121,7 @@ test('HWPX 생성: 정식 KS X 6101 OWPML 표준 패키지 구조 및 XML 무결
 
   // 4. 본문(section0.xml) XML 태그 및 내용 검증
   const sectionXml = new TextDecoder('utf-8').decode(unzipped['Contents/section0.xml']);
+  assert.match(sectionXml, /<hp:margin header="0" footer="0" gutter="0" left="4252" right="4252" top="4252" bottom="4252"\/>/, 'Word와 같은 15mm 페이지 여백');
   assert.ok(sectionXml.includes('답례품 선정 검토서'), '문서 제목이 포함되어야 함');
   assert.ok(sectionXml.includes('감사 답례 행사'), '행사명이 포함되어야 함');
   assert.ok(sectionXml.includes('나주 배 수제 양갱 세트'), '선정 상품명이 포함되어야 함');
