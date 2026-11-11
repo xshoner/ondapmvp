@@ -48,7 +48,7 @@ try {
   await b.goto(`${BASE}/admin/health`);
   await b.waitFor(`document.querySelector('h1')?.textContent==='운영 상태'`);
   check('관리자 운영 상태 화면 열림',await b.evaluate(`return document.body.textContent.includes('로컬 시험 모드')`));
-  check('예약 작업은 인증 없이 실행하지 않음',[401,503].includes((await fetch(`${BASE}/api/cron/sync-products`)).status)&&(await fetch(`${BASE}/api/cron/health`)).status===401);
+  check('예약 작업은 인증 없이 실행하지 않음',[401,503].includes((await fetch(`${BASE}/api/cron/sync-products`)).status)&&(await fetch(`${BASE}/api/cron/health`)).status===401&&(await fetch(`${BASE}/api/cron/daily`)).status===401);
   check('통계 CSV의 잘못된 날짜는 거절',(await fetch(`${BASE}/admin/stats/export?from=2026-02-30&to=2026-03-01`)).status===400);
   check('지표 수집은 잘못된 항목을 거절',(await fetch(`${BASE}/api/metrics`,{method:'POST',body:JSON.stringify({name:'secret',page:'home',value:1})})).status===400);
 } catch(e){check('통합 흐름 중단: '+e.message,false);} finally {console.log('--- 콘솔 오류:',b.logs.length?b.logs.join('\n'):'없음');await b.close();}

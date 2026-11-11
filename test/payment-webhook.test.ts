@@ -16,7 +16,9 @@ test('웹훅은 인증과 쇼핑몰·이벤트·주문번호를 확인한다', (
   assert.equal(paymentEvent({ ...event, event_no: 90023 }, 'axopenlab'), null);
   assert.equal(paymentEvent({ ...event, resource: { ...event.resource, order_id: 'bad' } }, 'axopenlab'), null);
 
-  // 90026 취소 이벤트도 지원
+  // 90026 취소 이벤트 및 90029 환불 이벤트도 지원
   const cancelEvent = { event_no: 90026, resource: { mall_id: 'axopenlab', event_shop_no: '1', order_id: '20261108-0000010' } };
   assert.deepEqual(paymentEvent(cancelEvent, 'axopenlab'), { shopNo: 1, orderNo: '20261108-0000010', eventNo: 90026 });
+  const refundEvent = { event_no: 90029, resource: { mall_id: 'dapcue', event_shop_no: '1', order_id: '20261108-0000011' } };
+  assert.deepEqual(paymentEvent(refundEvent, 'dapcue'), { shopNo: 1, orderNo: '20261108-0000011', eventNo: 90029 });
 });

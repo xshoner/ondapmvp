@@ -519,3 +519,134 @@ test('syncRecentCafe24Orders: 주문 추가정보의 디자인 코드를 추출�
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test('dapcue 상품 11(+100원)·비포장 일반 주문·부분/전체 취소 및 인쇄 보호를 검증한다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dapryeq-cancel-test-'));
+  process.env.ONDAP_TEST_DATA_DIR = dir;
+  process.env.ONDAP_DATA_SOURCE = 'local';
+  process.env.CAFE24_MALL_ID = 'dapcue';
+
+  setLocalTokenCacheForTesting({
+    mall_id: 'dapcue',
+    shop_no: 1,
+    access_token: 'valid_test_token',
+    refresh_token: 'valid_refresh_token',
+    expires_at: new Date(Date.now() + 3600000).toISOString(),
+    refresh_token_expires_at: new Date(Date.now() + 86400000).toISOString(),
+    scope: 'mall.read_product,mall.read_order',
+    updated_at: new Date().toISOString(),
+  });
+  const originalFetch = globalThis.fetch;
+
+  try {
+    const { createDesign, listDesigns, lookupDesign, updateDesign } = await import('../src/data/packaging-repository.ts');
+
+    // 1. 포장 옵션이 없는 일반 주문(신청안함, 코드 없음)은 오류가 아니라 not_applicable
+    const nonPkgOrder: Cafe24AdminOrder = {
+      order_id: '20261111-0000001',
+      shop_no: 1,
+      order_date: '2026-11-11T10:00:00+09:00',
+      paid: 'T',
+      payment_status: 'P',
+      order_status: 'N10',
+      items: [{ product_no: 11, product_name: '쿠키 답례품', quantity: 10, options: [{ name: '답례포장 서비스', value: '신청안함' }] }],
+    };
+    assert.equal((await verifyAndAcceptOrder(nonPkgOrder)).status, 'not_applicable');
+
+    // 2. 포장 옵션(신청 (+100원)) 선택 후 디자인 코드 누락 시에는 오류(no_design_code)
+    const missingCodePkgOrder: Cafe24AdminOrder = {
+      ...nonPkgOrder,
+      order_id: '20261111-0000002',
+      items: [{ product_no: 11, product_name: '쿠키 답례품', quantity: 10, options: [{ name: '답례포장 서비스', value: '신청 (+100원)' }] }],
+    };
+    assert.equal((await verifyAndAcceptOrder(missingCodePkgOrder)).status, 'no_design_code');
+
+    // 3. dapcue 상품 11(+100원) 정상 결제 확인 -> 부분 취소 시 자동 canceled 복구
+    await createDesign({
+      code: 'OD-CAKE-2345',
+      productNo: 11,
+      productName: '쿠키 답례품',
+      quantity: 10,
+      event: null,
+      styleId: 's1',
+      styleName: '송학 장생',
+      sticker: null,
+      draft: null,
+    }, null);
+
+    const paidCookieOrder: Cafe24AdminOrder = {
+      ...missingCodePkgOrder,
+      order_id: '20261111-0000003',
+      additional_order_info_list: [{ id: 1, name: '답례큐 포장 디자인 코드', value: 'OD-CAKE-2345' }],
+    };
+    assert.equal((await verifyAndAcceptOrder(paidCookieOrder)).status, 'confirmed');
+    assert.equal((await lookupDesign('OD-CAKE-2345'))?.status, 'order_confirmed');
+
+    const partialCanceledOrder: Cafe24AdminOrder = {
+      ...paidCookieOrder,
+      canceled: 'F',
+      order_status: 'N10',
+      items: [
+        { product_no: 11, product_name: '쿠키 답례품', quantity: 10, status_code: 'C40', options: [{ name: '답례포장 서비스', value: '신청 (+100원)' }] },
+        { product_no: 99, product_name: '추가 구성', quantity: 1, status_code: 'N10', options: [] },
+      ],
+    };
+    assert.equal((await verifyAndAcceptOrder(partialCanceledOrder)).status, 'canceled');
+    const [afterPartialCancel] = await listDesigns({ code: 'OD-CAKE-2345', limit: 1, includePending: true });
+    assert.equal(afterPartialCancel?.status, 'canceled');
+    assert.ok(afterPartialCancel?.memo.includes('20261111-0000003'));
+
+    // 4. syncRecentCafe24Orders도 취소/환불 주문(90026/90029)을 건너뛰지 않고 canceled로 반영
+    await createDesign({
+      code: 'OD-CAKE-3456',
+      productNo: 11,
+      productName: '쿠키 답례품',
+      quantity: 5,
+      event: null,
+      styleId: 's1',
+      styleName: '송학 장생',
+      sticker: null,
+      draft: null,
+    }, null);
+    await updateDesign('OD-CAKE-3456', { status: 'order_confirmed', orderNo: '20261111-0000004', memo: '' });
+    const fullCancelOrder: Cafe24AdminOrder = {
+      order_id: '20261111-0000004',
+      shop_no: 1,
+      order_date: '2026-11-11T10:00:00+09:00',
+      canceled: 'T',
+      order_status: 'C40',
+      items: [{ product_no: 11, product_name: '쿠키 답례품', quantity: 5 }],
+    };
+    globalThis.fetch = (async () => new Response(JSON.stringify({ orders: [fullCancelOrder] }))) as typeof fetch;
+    await syncRecentCafe24Orders(3);
+    assert.equal((await lookupDesign('OD-CAKE-3456'))?.status, 'canceled');
+
+    // 5. 이미 인쇄 완료(printed)된 주문이 취소되면 덮어쓰지 않고 conflict 알림
+    await createDesign({
+      code: 'OD-PRNT-4567',
+      productNo: 11,
+      productName: '쿠키 답례품',
+      quantity: 5,
+      event: null,
+      styleId: 's1',
+      styleName: '송학 장생',
+      sticker: null,
+      draft: null,
+    }, null);
+    await updateDesign('OD-PRNT-4567', { status: 'printed', orderNo: '20261111-0000005', memo: '' });
+    const conflictDecision = await verifyAndAcceptOrder({
+      ...fullCancelOrder,
+      order_id: '20261111-0000005',
+      order_status: 'R40',
+      additional_order_info_list: [{ id: 1, name: '답례큐 포장 디자인 코드', value: 'OD-PRNT-4567' }],
+    });
+    assert.equal(conflictDecision.status, 'conflict');
+    const [afterPrintCancel] = await listDesigns({ code: 'OD-PRNT-4567', limit: 1, includePending: true });
+    assert.equal(afterPrintCancel?.status, 'printed');
+    assert.ok(afterPrintCancel?.memo.includes('인쇄 완료 건 확인 필요'));
+  } finally {
+    globalThis.fetch = originalFetch;
+    setLocalTokenCacheForTesting(null);
+    await rm(dir, { recursive: true, force: true });
+  }
+});

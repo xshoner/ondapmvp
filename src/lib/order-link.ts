@@ -5,7 +5,8 @@ export function productOrderUrl(productUrl: string, quantity: number, code?: str
   try {
     const u = new URL(productUrl);
     if (u.protocol !== 'https:') return productUrl;
-    if (mobile && !u.pathname.startsWith('/m/')) u.pathname = `/m${u.pathname}`;
+    if (u.hostname === 'dapcue.cafe24.com' && u.pathname.startsWith('/m/')) u.pathname = u.pathname.slice(2);
+    else if (mobile && u.hostname !== 'dapcue.cafe24.com' && !u.pathname.startsWith('/m/')) u.pathname = `/m${u.pathname}`;
     u.searchParams.set('ondap_qty', String(clampQty(quantity)));
     u.searchParams.set('ondap_order', '1');
     if (code && /^OD-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/.test(code)) u.searchParams.set('ondap_code', code);

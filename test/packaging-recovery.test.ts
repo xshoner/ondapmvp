@@ -13,6 +13,12 @@ test('접수 실패 보관은 저장 가능할 때만 성공하고 같은 상품
   assert.equal(await saveRecovery(49, snap), true);
   assert.equal((loadAutosave(49) as EditorSnapshot).quantity, 3);
   assert.equal(loadAutosave(50), null);
+  assert.equal(loadAutosave(49, Date.now(), 'https://dapcue.cafe24.com/product/detail.html?product_no=49'), null);
+  const oldUrl = 'https://axopenlab.cafe24.com/product/detail.html?product_no=11';
+  const newUrl = 'https://dapcue.cafe24.com/product/detail.html?product_no=11';
+  assert.equal(await saveRecovery(11, snap, oldUrl), true);
+  assert.equal(loadAutosave(11, Date.now(), newUrl), null);
+  assert.equal((loadAutosave(11, Date.now(), oldUrl) as EditorSnapshot).quantity, 3);
   Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { setItem() { throw new Error('quota'); } } });
   assert.equal(await saveRecovery(49, snap), false);
   delete (globalThis as { localStorage?: Storage }).localStorage;

@@ -2,6 +2,7 @@ import { cronAuthorized } from '@/lib/cron-auth.ts';
 import { getOperationalHealth, recordOperation } from '@/data/operations-repository.ts';
 import { createServiceClient } from '@/lib/supabase/service.ts';
 import { dataSource } from '@/lib/supabase/env.ts';
+import { processPaymentEventQueue } from '@/cafe24/intake-worker.ts';
 
 export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
@@ -10,14 +11,16 @@ export async function GET(request: Request) {
   const startedAt = Date.now();
   try {
     if (dataSource() !== 'supabase') throw new Error('mode');
+    const queue = await processPaymentEventQueue(10, Date.now() + 15000);
     const health = await getOperationalHealth(true);
     const db = createServiceClient();
     const storage = await Promise.all(['design-files','packaging-assets'].map((bucket) => db.storage.from(bucket).list('', { limit: 1 })));
     const error = storage.some((r) => r.error);
     const stale = !health.lastSync || Date.now() - Date.parse(health.lastSync) > 36 * 3600000;
-    const ok = !error && !stale && health.productCount > 0;
-    await recordOperation('health_check', ok ? 'ok' : 'error', startedAt, ok ? 'ok' : error ? 'storage_unavailable' : 'catalog_stale');
-    return Response.json({ ok, schemaVersion: health.schemaVersion, catalogFresh: !stale, storageAvailable: !error, errors24h: health.errors24h }, { status: ok ? 200 : 503, headers });
+    const failedPayments = health.cafe24?.failedCount ?? 0;
+    const ok = !error && !stale && health.productCount > 0 && queue.errors === 0 && failedPayments === 0;
+    await recordOperation('health_check', ok ? 'ok' : 'error', startedAt, ok ? 'ok' : queue.errors || failedPayments ? 'payment_retry_failed' : error ? 'storage_unavailable' : 'catalog_stale');
+    return Response.json({ ok, schemaVersion: health.schemaVersion, catalogFresh: !stale, storageAvailable: !error, errors24h: health.errors24h, paymentRetryErrors: queue.errors, failedPayments }, { status: ok ? 200 : 503, headers });
   } catch {
     await recordOperation('health_check', 'error', startedAt, 'dependency_unavailable');
     return Response.json({ ok: false, error: 'dependency_unavailable' }, { status: 503, headers });

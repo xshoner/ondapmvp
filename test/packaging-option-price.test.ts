@@ -11,6 +11,11 @@ const item = (value: string, amount: string) => ({
 test('포장 신청 금액은 상품별로 계산하고 불확실한 값은 확정하지 않는다', () => {
   assert.equal(resolvePackagingOptionFromVariants(48, [item('신청', '150.00'), item('신청안함', '0.00')]).unitPrice, 150);
   assert.equal(calcExpectedOrderTotal(38000, 150, 13), 495950);
+  assert.equal(resolvePackagingOptionFromVariants(11, [
+    { variant_code: 'P000000L000B', options: [{ name: '답례포장 서비스', value: '신청' }], additional_amount: '100.00', display: 'T', selling: 'T' },
+    { variant_code: 'P000000L000C', options: [{ name: '답례포장 서비스', value: '신청안함' }], additional_amount: '0.00', display: 'T', selling: 'T' },
+  ]).unitPrice, 100);
+  assert.equal(calcExpectedOrderTotal(50000, 100, 10), 501000);
   assert.equal(resolvePackagingOptionFromVariants(48, [item('신청', '0.00')]).unitPrice, 0);
   for (const text of ['신청하지 않음', '불필요', '신청안함']) {
     assert.equal(resolvePackagingOptionFromVariants(48, [item(text, '150.00')]).status, 'unconfirmed');

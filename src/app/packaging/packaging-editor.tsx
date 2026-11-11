@@ -506,7 +506,7 @@ export function PackagingEditor(props: Props) {
 
     // 다시 꾸미기 복원
     const saved = props.restoreCode ? loadSavedDesigns().find((d) => d.code === props.restoreCode) : null;
-    if (saved?.snapshot) {
+    if (saved?.snapshot && saved.productNo === product.productNo && saved.productUrl === product.url) {
       void restore(saved.snapshot, `${saved.code} 디자인을 불러왔어요. 고친 뒤 저장하면 새 코드가 나와요.`, false);
       return;
     }
@@ -515,7 +515,7 @@ export function PackagingEditor(props: Props) {
     }
 
     // 자동 보관 불러오기 확인
-    const autoSnap = loadAutosave(product.productNo);
+    const autoSnap = loadAutosave(product.productNo, Date.now(), product.url);
     if (autoSnap) {
       setResume(autoSnap);
     }
@@ -659,7 +659,7 @@ export function PackagingEditor(props: Props) {
     if (resume !== null) return; // 기존 초안 복원 알림 중에는 덮어쓰지 않음
     if (!canUndo && !autosaving.current) return;
     autosaving.current = true;
-    autosaveTimer.current = setTimeout(() => autosave(product.productNo, snapshot), 800);
+    autosaveTimer.current = setTimeout(() => autosave(product.productNo, snapshot, product.url), 800);
     return () => clearTimeout(autosaveTimer.current);
   }, [resume, canUndo, styleId, withSticker, shape, sizeCm, background, layers, fields, event, quantity, purpose]);
 
@@ -812,7 +812,7 @@ export function PackagingEditor(props: Props) {
     const preserveFailedDesign = async () => {
       clearTimeout(autosaveTimer.current);
       if (resume !== null) return false;
-      return saveRecovery(product.productNo, snapshot);
+      return saveRecovery(product.productNo, snapshot, product.url);
     };
     try {
       const form = new FormData();

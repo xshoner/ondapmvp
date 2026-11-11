@@ -25,6 +25,16 @@ export async function recordOperation(operation: Operation, outcome: 'ok' | 'err
   } catch { reportOperation('health_check', 'error', startedAt, 'operation_store_unavailable'); }
 }
 
+export interface PaymentEventIssue {
+  shopNo: number;
+  orderNo: string;
+  eventNo: number;
+  status: string;
+  attempts: number;
+  lastError: string | null;
+  updatedAt: string;
+}
+
 export interface Health {
   schemaVersion: string;
   lastSync: string | null;
@@ -41,21 +51,39 @@ export interface Health {
     pendingCount: number;
     failedCount: number;
     waitingPaymentCount: number;
+    issues?: PaymentEventIssue[];
   };
 }
 export async function getOperationalHealth(service = false): Promise<Health> {
   const { getOAuthStatus } = await import('../cafe24/oauth.ts');
   const oauth = await getOAuthStatus();
 
-  let queueCounts = { pendingCount: 0, failedCount: 0, waitingPaymentCount: 0 };
+  const queueCounts = { pendingCount: 0, failedCount: 0, waitingPaymentCount: 0 };
+  const issues: PaymentEventIssue[] = [];
   if (dataSource() !== 'local' && process.env.SUPABASE_SERVICE_ROLE_KEY) {
     try {
       const sdb = createServiceClient(2000);
-      const { data: qData } = await sdb.from('cafe24_payment_events').select('status');
+      const { data: qData } = await sdb
+        .from('cafe24_payment_events')
+        .select('shop_no,order_no,event_no,status,attempts,last_error,updated_at')
+        .order('updated_at', { ascending: false });
       if (Array.isArray(qData)) {
         for (const row of qData) {
-          if (row.status === 'pending' || row.status === 'processing') queueCounts.pendingCount++;
-          else if (row.status === 'failed') queueCounts.failedCount++;
+          const exhausted = row.attempts >= 10 && ['pending', 'processing', 'waiting_payment'].includes(row.status);
+          if (exhausted || row.status === 'failed') {
+            queueCounts.failedCount++;
+            if (issues.length < 20) {
+              issues.push({
+                shopNo: Number(row.shop_no) || 1,
+                orderNo: String(row.order_no ?? ''),
+                eventNo: Number(row.event_no) || 90025,
+                status: exhausted ? `${row.status} (재시도 초과)` : String(row.status),
+                attempts: Number(row.attempts) || 0,
+                lastError: typeof row.last_error === 'string' ? row.last_error : null,
+                updatedAt: String(row.updated_at ?? ''),
+              });
+            }
+          } else if (row.status === 'pending' || row.status === 'processing') queueCounts.pendingCount++;
           else if (row.status === 'waiting_payment') queueCounts.waitingPaymentCount++;
         }
       }
@@ -72,6 +100,7 @@ export async function getOperationalHealth(service = false): Promise<Health> {
     refreshTokenExpiresAt: oauth.refreshTokenExpiresAt,
     isRefreshTokenExpired: oauth.isRefreshTokenExpired,
     ...queueCounts,
+    ...(service ? {} : { issues }),
   };
 
   if (dataSource() === 'local') {

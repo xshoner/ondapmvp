@@ -125,31 +125,31 @@ export async function fromStored(
 const AUTOSAVE_KEY = 'ondap_editor_autosave';
 const AUTOSAVE_DAYS = 7;
 
-function readAutosave(): { productNo: number; at: number; snap: unknown } | null {
+function readAutosave(): { productNo: number; at: number; snap: unknown; source?: unknown } | null {
   const v = readJson(AUTOSAVE_KEY);
-  return isObj(v) && typeof v.productNo === 'number' && typeof v.at === 'number' ? { productNo: v.productNo, at: v.at, snap: v.snap } : null;
+  return isObj(v) && typeof v.productNo === 'number' && typeof v.at === 'number' ? { productNo: v.productNo, at: v.at, snap: v.snap, source: v.source } : null;
 }
 
-export function autosave(productNo: number, snap: EditorSnapshot): void {
-  writeJson(AUTOSAVE_KEY, { productNo, at: Date.now(), snap: toStored(snap) });
+export function autosave(productNo: number, snap: EditorSnapshot, source?: string): void {
+  writeJson(AUTOSAVE_KEY, { productNo, source, at: Date.now(), snap: toStored(snap) });
 }
 
 // 접수 실패 시에는 자동 보관이 실제로 가능한지 확인하고 결과를 화면에 알려 준다.
-export async function saveRecovery(productNo: number, snap: EditorSnapshot): Promise<boolean> {
+export async function saveRecovery(productNo: number, snap: EditorSnapshot, source?: string): Promise<boolean> {
   try {
     for (const layer of snap.layers) {
       if (layer.type === 'image' && layer.uploaded && (!layer.photoId || !(await getPhoto(layer.photoId)))) return false;
     }
-    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ productNo, at: Date.now(), snap: toStored(snap) }));
+    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ productNo, source, at: Date.now(), snap: toStored(snap) }));
     return true;
   } catch {
     return false;
   }
 }
 
-export function loadAutosave(productNo: number, now = Date.now()): unknown | null {
+export function loadAutosave(productNo: number, now = Date.now(), source?: string): unknown | null {
   const v = readAutosave();
-  return v && v.productNo === productNo && now - v.at < AUTOSAVE_DAYS * 24 * 3600 * 1000 ? v.snap : null;
+  return v && v.productNo === productNo && (!source || v.source === source) && now - v.at < AUTOSAVE_DAYS * 24 * 3600 * 1000 ? v.snap : null;
 }
 
 export function clearAutosave(): void {

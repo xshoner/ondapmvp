@@ -20,6 +20,11 @@ test('상품 링크는 수량 1/여러 개와 모바일 경로를 보존하고 �
   assert.equal(url.searchParams.get('ondap_code'), null);
   assert.equal(url.searchParams.get('ondap_order'), '1');
   assert.equal(new URL(productOrderUrl(url.href, 1, 'OD-BBBB-BBBB', true)).pathname, '/m/product/detail.html');
+  const dapcue = new URL(productOrderUrl('https://dapcue.cafe24.com/product/detail.html?product_no=11', 10, 'OD-BBBB-BBBB', true));
+  assert.equal(dapcue.pathname, '/product/detail.html');
+  assert.equal(dapcue.searchParams.get('ondap_qty'), '10');
+  assert.equal(dapcue.searchParams.get('ondap_code'), 'OD-BBBB-BBBB');
+  assert.equal(new URL(productOrderUrl('https://dapcue.cafe24.com/m/product/detail.html?product_no=11', 10, null, true)).pathname, '/product/detail.html');
   assert.equal(new URL(productOrderUrl(url.href, Infinity)).searchParams.get('ondap_qty'), '1');
 });
 

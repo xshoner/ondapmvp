@@ -144,7 +144,7 @@ export interface RawVariant {
 
 export type Cafe24VariantItem = RawVariant;
 
-export const PACKAGING_OPTION_NAME_REGEX = /포장\s*디자인|포장디자인|포장\s*신청|포장\s*서비스|선물\s*포장|스티커\s*제작/i;
+export const PACKAGING_OPTION_NAME_REGEX = /포장\s*디자인|포장디자인|답례\s*포장|포장\s*신청|포장\s*서비스|선물\s*포장|스티커\s*제작/i;
 export const PACKAGING_NEGATIVE_VALUE_REGEX = /신청\s*하지\s*않|안\s*함|않\s*음|미\s*신청|없\s*음|불\s*필요|제\s*외|취\s*소|선택\s*안|선택\s*하지\s*않|미\s*선택|원치\s*않|원하지\s*않|기본\s*포장\s*없음/i;
 export const PACKAGING_POSITIVE_VALUE_REGEX = /포장\s*신청|포장디자인\s*신청|신청|추가|선물\s*포장|포장\s*포함/i;
 

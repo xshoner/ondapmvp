@@ -57,10 +57,19 @@ export function verifyOAuthState(state: string | null | undefined): boolean {
   return true;
 }
 
+function resolveRedirectUri(): string {
+  const explicit = cleanEnv(process.env.CAFE24_REDIRECT_URI);
+  if (explicit) return explicit;
+  const site = cleanEnv(process.env.NEXT_PUBLIC_SITE_URL)
+    || (cleanEnv(process.env.VERCEL_PROJECT_PRODUCTION_URL) ? `https://${cleanEnv(process.env.VERCEL_PROJECT_PRODUCTION_URL)}` : '');
+  const base = (site || 'https://dapcue.vercel.app').replace(/\/+$/, '');
+  return `${base}/api/cafe24/callback`;
+}
+
 export function getCafe24OAuthAuthorizeUrl(state: string): string {
   const mallId = cleanEnv(process.env.CAFE24_MALL_ID);
   const clientId = cleanEnv(process.env.CAFE24_CLIENT_ID);
-  const redirectUri = cleanEnv(process.env.CAFE24_REDIRECT_URI) || 'https://ondapmvp.vercel.app/api/cafe24/callback';
+  const redirectUri = resolveRedirectUri();
   if (!mallId || !clientId) throw new Error('CAFE24_MALL_ID와 CAFE24_CLIENT_ID가 설정되어야 합니다.');
   const scope = 'mall.read_product,mall.read_order';
   return `https://${mallId}.cafe24api.com/api/v2/oauth/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}`;
@@ -119,7 +128,7 @@ export async function exchangeAuthorizationCode(code: string): Promise<Cafe24Tok
   const mallId = cleanEnv(process.env.CAFE24_MALL_ID);
   const clientId = cleanEnv(process.env.CAFE24_CLIENT_ID);
   const clientSecret = cleanEnv(process.env.CAFE24_CLIENT_SECRET);
-  const redirectUri = cleanEnv(process.env.CAFE24_REDIRECT_URI) || 'https://ondapmvp.vercel.app/api/cafe24/callback';
+  const redirectUri = resolveRedirectUri();
   if (!mallId || !clientId || !clientSecret) {
     throw new Error('카페24 OAuth 연동에 필요한 환경변수(CAFE24_MALL_ID, CAFE24_CLIENT_ID, CAFE24_CLIENT_SECRET)가 누락되었습니다.');
   }
@@ -139,6 +148,7 @@ export async function exchangeAuthorizationCode(code: string): Promise<Cafe24Tok
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: params.toString(),
+    signal: AbortSignal.timeout(8000),
   });
 
   if (!res.ok) {
@@ -205,6 +215,7 @@ export async function refreshAccessToken(): Promise<Cafe24TokenRecord> {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: params.toString(),
+        signal: AbortSignal.timeout(8000),
       });
 
       if (!res.ok) {

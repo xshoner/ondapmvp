@@ -1,5 +1,6 @@
 import { getOperationalHealth } from '@/data/operations-repository.ts';
 import { kstLabel } from '@/lib/kst.ts';
+import { PaymentIssues } from './payment-issues.tsx';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,6 +72,7 @@ export default async function HealthPage({ searchParams }: { searchParams: Searc
             {c24?.connected ? '카페24 관리자 계정 재연동' : '카페24 관리자 계정 연동하기'}
           </a>
         </div>
+        <PaymentIssues issues={c24?.issues ?? []} />
       </section>
 
       <section className="panel">

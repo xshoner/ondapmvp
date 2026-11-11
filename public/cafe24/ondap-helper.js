@@ -3,7 +3,8 @@
  * 카페24 스마트디자인에 아래 한 줄을 넣는다 (PC·모바일 스킨 각각):
  *   - layout/basic/layout.html 의 </body> 바로 위 (상품 상세·로그인 화면)
  *   - order/orderform.html 맨 아래 (주문서는 다른 레이아웃을 써서 따로 넣어야 한다)
- *   <script src="https://ondapmvp.vercel.app/cafe24/ondap-helper.js" defer></script>
+ *   - order/order_result.html 맨 아래 (주문 완료 시 기억한 코드를 즉시 비운다)
+ *   <script src="https://dapcue.vercel.app/cafe24/ondap-helper.js" defer></script>
  *
  * 0) 상품 상세: 구매 버튼 아래 '포장·스티커 꾸미기' 버튼 (추천을 거치지 않은 고객도 바로 꾸밀 수 있게)
  * 1) 온답 '주문하러 가기' 주소의 ondap_code·ondap_qty를 이 브라우저에 24시간 기억
@@ -25,7 +26,7 @@
   var AFTER_FILL_TTL = 3600 * 1000;
   // 이 스크립트를 내려준 온답 주소 (운영 주소가 바뀌면 스킨의 한 줄만 바꾸면 된다)
   var APP = (function () {
-    try { return new URL(document.currentScript.src).origin; } catch (e) { return 'https://ondapmvp.vercel.app'; }
+    try { return new URL(document.currentScript.src).origin; } catch (e) { return 'https://dapcue.vercel.app'; }
   })();
 
   function loadAll() {
@@ -135,7 +136,7 @@
     return '<b style="font-family:Consolas,monospace;letter-spacing:.04em;background:rgba(255,255,255,.18);padding:1px 6px;border-radius:6px">' + code + '</b>';
   };
 
-  var PACKAGING_OPT_REGEX = /포장\s*디자인|포장디자인|포장\s*신청|포장\s*서비스|선물\s*포장|스티커\s*제작/i;
+  var PACKAGING_OPT_REGEX = /포장\s*디자인|포장디자인|답례\s*포장|포장\s*신청|포장\s*서비스|선물\s*포장|스티커\s*제작/i;
   var NEGATIVE_OPT_REGEX = /신청\s*하지\s*않|안\s*함|않\s*음|미\s*신청|없\s*음|불\s*필요|제\s*외|취\s*소|선택\s*안|선택\s*하지\s*않|미\s*선택|원치\s*않|원하지\s*않|기본\s*포장\s*없음/i;
   var POSITIVE_OPT_REGEX = /포장\s*신청|포장디자인\s*신청|신청|추가|선물\s*포장|포장\s*포함/i;
 
@@ -187,6 +188,12 @@
 
   // 카페24 상품 스크립트가 페이지 로딩 뒤 수량을 1로 다시 맞추므로, 로딩이 끝날 때까지 몇 번 더 맞춘다.
   // 옵션 품목 수량(.quantity_opt) 또는 기본 수량(#quantity)을 모두 지원하며, 고객이 수량을 직접 건드리면 그때부터는 손대지 않는다.
+  function visibleOptionQuantities() {
+    return [].slice.call(document.querySelectorAll('input.quantity_opt, input[name="quantity_opt[]"], input[id*="quantity_opt"]')).filter(function (el) {
+      return el.offsetParent !== null && !el.disabled;
+    });
+  }
+
   function keepQuantity(n) {
     var touched = false;
     var stop = function () { touched = true; };
@@ -203,7 +210,7 @@
 
     var apply = function () {
       if (touched) return;
-      var optInputs = document.querySelectorAll('input.quantity_opt, input[name="quantity_opt[]"], input[id*="quantity_opt"]');
+      var optInputs = visibleOptionQuantities();
       if (optInputs.length === 1) {
         for (var i = 0; i < optInputs.length; i++) {
           var inp = optInputs[i];
@@ -237,6 +244,13 @@
     return apply;
   }
 
+  function isTargetQuantityApplied(qty) {
+    var optInputs = visibleOptionQuantities();
+    if (optInputs.length > 0) return optInputs.length === 1 && Number(optInputs[0].value) === qty;
+    var baseQty = document.querySelector('#quantity');
+    return Boolean(baseQty && baseQty.offsetParent !== null && Number(baseQty.value) === qty);
+  }
+
   function onProductPage(state, fromLink) {
     var no = productNoHere(); // 짧은 상품 주소(/product/이름/11/)에서도 번호를 찾는다
     if (state.productNo && no && state.productNo !== no) return; // 다른 상품
@@ -245,9 +259,10 @@
     var manualPackagingChoice = false;
 
     var renderBanner = function () {
-      var optInputs = document.querySelectorAll('input.quantity_opt, input[name="quantity_opt[]"]');
+      var optInputs = visibleOptionQuantities();
       var hasOptRow = optInputs.length > 0;
-      if (autoOptSelected && hasOptRow && optInputs.length === 1 && Number(optInputs[0].value) === qty) {
+      var qtyReady = isTargetQuantityApplied(qty);
+      if (autoOptSelected && hasOptRow && qtyReady) {
         banner(
           '포장 디자인 ' + badge(state.code) + ' 저장 완료.<br>' +
           '<b>포장 디자인 옵션과 수량(' + qty + '개)을 자동으로 선택</b>하고 총 결제 금액을 맞췄어요.<br>' +
@@ -255,8 +270,7 @@
           [copyButton(state.code)]
         );
       } else {
-        var baseQtyEl = document.querySelector('#quantity');
-        var qtyInfo = baseQtyEl && baseQtyEl.offsetParent !== null && Number(baseQtyEl.value) === qty ? ' 수량은 <b>' + qty + '개</b>로 맞춰 두었어요.' : ' 옵션을 고르고 수량 <b>' + qty + '개</b>를 확인해 주세요.';
+        var qtyInfo = qtyReady ? ' 수량은 <b>' + qty + '개</b>로 맞춰 두었어요.' : ' 옵션을 고르고 수량 <b>' + qty + '개</b>를 확인해 주세요.';
         banner(
           '포장 디자인 ' + badge(state.code) + ' 저장 완료.' + qtyInfo + '<br>' +
           '포장 디자인 서비스가 자동 적용되지 않았어요. 쇼핑몰의 옵션과 추가 요금을 확인해 주세요.',
@@ -284,11 +298,29 @@
       // 다른 필수 옵션(맛/사이즈 등)을 먼저 골라야 포장 옵션이 활성화되는 복합 옵션 스킨 대응
       document.addEventListener('change', function (e) {
         if (e.target && e.target.matches('select, input[type="radio"]')) {
-          var context = (e.target.getAttribute('option_title') || '') + ' ' + (e.target.closest('tr') ? e.target.closest('tr').textContent : '');
-          if (e.isTrusted && PACKAGING_OPT_REGEX.test(context)) {
-            manualPackagingChoice = true;
-            autoOptSelected = false;
-            setTimeout(renderBanner, 100);
+          var row = e.target.closest('tr');
+          var optionTitle = (e.target.getAttribute('option_title') || '') + ' ' + (row && row.querySelector('th') ? row.querySelector('th').textContent : '');
+          var choiceText = '';
+          if (e.target.tagName === 'SELECT') {
+            var opt = e.target.options && e.target.selectedIndex >= 0 ? e.target.options[e.target.selectedIndex] : null;
+            choiceText = opt ? opt.text : '';
+          } else {
+            var lbl = e.target.closest('label') || (e.target.id ? document.querySelector('label[for="' + e.target.id + '"]') : null);
+            choiceText = (lbl ? lbl.textContent : '') + ' ' + (e.target.value || '');
+          }
+          if (e.isTrusted && PACKAGING_OPT_REGEX.test(optionTitle + ' ' + choiceText)) {
+            if (isPackagingApplicationChoice(optionTitle, choiceText)) {
+              manualPackagingChoice = false;
+              autoOptSelected = true;
+              setTimeout(function () {
+                applyQuantity();
+                renderBanner();
+              }, 120);
+            } else {
+              manualPackagingChoice = true;
+              autoOptSelected = false;
+              setTimeout(renderBanner, 100);
+            }
           }
           setTimeout(trySelect, 100);
         }
@@ -299,9 +331,16 @@
       setTimeout(renderBanner, 1500);
     } else if (fromLink) {
       keepQuantity(qty);
-      var baseQty = document.querySelector('#quantity');
-      var baseQtyText = baseQty && baseQty.offsetParent !== null && Number(baseQty.value) === qty ? ' 수량은 <b>' + qty + '개</b>로 맞춰 두었어요.' : ' 필요한 옵션을 고르고 수량 <b>' + qty + '개</b>를 확인해 주세요.';
-      banner('답례큐에서 고른 상품이에요.' + baseQtyText);
+      var renderFromLinkBanner = function () {
+        var baseQtyText = isTargetQuantityApplied(qty) ? ' 수량은 <b>' + qty + '개</b>로 맞춰 두었어요.' : ' 필요한 옵션을 고르고 수량 <b>' + qty + '개</b>를 확인해 주세요.';
+        banner('답례큐에서 고른 상품이에요.' + baseQtyText);
+      };
+      renderFromLinkBanner();
+      document.addEventListener('change', function (e) {
+        if (e.target && e.target.matches('select, input[type="radio"]') && document.getElementById('ondap-banner')) {
+          setTimeout(renderFromLinkBanner, 150);
+        }
+      });
     }
   }
 
@@ -369,8 +408,13 @@
     [300, 800, 1500, 3000].forEach(function (ms) { setTimeout(updateLabel, ms); });
 
     // 누르는 순간의 수량을 함께 넘긴다
-    var go = function () {
-      var q = document.querySelector('#quantity');
+    var go = function (e) {
+      var options = visibleOptionQuantities();
+      if (options.length > 1) {
+        if (e) { e.preventDefault(); alert('포장할 상품 옵션을 하나만 선택해 주세요.'); }
+        return;
+      }
+      var q = options[0] || document.querySelector('#quantity');
       var n = Math.min(100000, Math.max(1, parseInt(q && q.value, 10) || 1));
       link.href = APP + '/packaging?product=' + no + '&qty=' + n + '&from=cafe24';
     };

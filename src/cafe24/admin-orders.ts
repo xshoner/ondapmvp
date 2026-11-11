@@ -9,6 +9,7 @@ export interface Cafe24AdminOrderItem {
   product_name: string;
   quantity: number;
   status?: string;
+  status_code?: string;
   options?: { name: string; value: string }[];
   additional_option?: { name: string; value: string }[] | Record<string, unknown>[];
   option_value?: string;
@@ -50,10 +51,18 @@ export function isOrderPaid(order: Cafe24AdminOrder): boolean {
   return false;
 }
 
+export function isItemCanceledOrRefunded(item: Cafe24AdminOrderItem): boolean {
+  if (!item) return false;
+  return [item.status_code, item.status]
+    .filter((s): s is string => typeof s === 'string')
+    .some((s) => s.startsWith('C') || s.startsWith('R'));
+}
+
 export function isOrderCanceled(order: Cafe24AdminOrder): boolean {
   if (!order) return false;
   if (order.canceled === 'T') return true;
-  if (typeof order.order_status === 'string' && order.order_status.startsWith('C')) return true;
+  if (typeof order.order_status === 'string' && (order.order_status.startsWith('C') || order.order_status.startsWith('R'))) return true;
+  if (Array.isArray(order.items) && order.items.length > 0 && order.items.every(isItemCanceledOrRefunded)) return true;
   return false;
 }
 
@@ -140,15 +149,25 @@ export function hasPackagingOption(item: Cafe24AdminOrderItem): boolean {
   return false;
 }
 
-export async function fetchAdminOrder(orderId: string, customToken?: string): Promise<Cafe24AdminOrder> {
+export interface FetchAdminOrderOptions {
+  customToken?: string;
+  shopNo?: number;
+  timeoutMs?: number;
+}
+
+export async function fetchAdminOrder(orderId: string, tokenOrOptions?: string | FetchAdminOrderOptions): Promise<Cafe24AdminOrder> {
   const mallId = (process.env.CAFE24_MALL_ID || '').trim();
   if (!mallId) throw new Error('CAFE24_MALL_ID 환경변수가 필요합니다.');
   if (!/^20\d{6}-\d{7}$/.test(orderId)) throw new Error('주문번호 형식이 올바르지 않습니다.');
 
-  let token = customToken || (await getValidAccessToken());
+  const opts = typeof tokenOrOptions === 'string' ? { customToken: tokenOrOptions } : (tokenOrOptions ?? {});
+  const timeoutMs = Math.max(1000, Math.min(opts.timeoutMs ?? 8000, 30000));
+  const shopQuery = opts.shopNo && opts.shopNo > 1 ? `&shop_no=${opts.shopNo}` : '';
+
+  let token = opts.customToken || (await getValidAccessToken());
   const apiVersion = (process.env.CAFE24_API_VERSION || '2026-09-01').trim();
 
-  const url = `https://${mallId}.cafe24api.com/api/v2/admin/orders/${orderId}?embed=items,additional_order_info_list`;
+  const url = `https://${mallId}.cafe24api.com/api/v2/admin/orders/${orderId}?embed=items,additional_order_info_list${shopQuery}`;
   let res = await fetch(url, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -156,9 +175,10 @@ export async function fetchAdminOrder(orderId: string, customToken?: string): Pr
       'Content-Type': 'application/json',
     },
     cache: 'no-store',
+    signal: AbortSignal.timeout(timeoutMs),
   });
 
-  if (res.status === 401 && !customToken) {
+  if (res.status === 401 && !opts.customToken) {
     try {
       const { refreshAccessToken } = await import('./oauth.ts');
       const refreshed = await refreshAccessToken();
@@ -170,6 +190,7 @@ export async function fetchAdminOrder(orderId: string, customToken?: string): Pr
           'Content-Type': 'application/json',
         },
         cache: 'no-store',
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch {
       // 리프레시 실패 시 아래에서 오류 처리
@@ -184,9 +205,14 @@ export async function fetchAdminOrder(orderId: string, customToken?: string): Pr
   if (!body || !body.order) throw new Error('카페24 주문 데이터가 비어 있습니다.');
 
   const order = body.order;
+  if (opts.shopNo !== undefined && order.shop_no !== undefined && Number(order.shop_no) !== opts.shopNo) {
+    throw new Error(`카페24 주문 상점번호(${order.shop_no})가 요청(${opts.shopNo})과 다릅니다.`);
+  }
+
+  const subShopQuery = opts.shopNo && opts.shopNo > 1 ? `?shop_no=${opts.shopNo}` : '';
   // items가 embed 되지 않았거나 비어있는 경우 별도 items 엔드포인트 조회
   if (!Array.isArray(order.items) || order.items.length === 0) {
-    const itemsUrl = `https://${mallId}.cafe24api.com/api/v2/admin/orders/${orderId}/items`;
+    const itemsUrl = `https://${mallId}.cafe24api.com/api/v2/admin/orders/${orderId}/items${subShopQuery}`;
     const itemsRes = await fetch(itemsUrl, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -194,6 +220,7 @@ export async function fetchAdminOrder(orderId: string, customToken?: string): Pr
         'Content-Type': 'application/json',
       },
       cache: 'no-store',
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (itemsRes.ok) {
       const itemsBody = (await itemsRes.json()) as { items?: Cafe24AdminOrderItem[] };
@@ -206,7 +233,7 @@ export async function fetchAdminOrder(orderId: string, customToken?: string): Pr
   // additional_order_info_list가 embed 되지 않았거나 비어있는 경우 별도 엔드포인트 조회
   if (!Array.isArray(order.additional_order_info_list) || order.additional_order_info_list.length === 0) {
     try {
-      const infoUrl = `https://${mallId}.cafe24api.com/api/v2/admin/orders/${orderId}/additionalorderinfo`;
+      const infoUrl = `https://${mallId}.cafe24api.com/api/v2/admin/orders/${orderId}/additionalorderinfo${subShopQuery}`;
       const infoRes = await fetch(infoUrl, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -214,6 +241,7 @@ export async function fetchAdminOrder(orderId: string, customToken?: string): Pr
           'Content-Type': 'application/json',
         },
         cache: 'no-store',
+        signal: AbortSignal.timeout(timeoutMs),
       });
       if (infoRes.ok) {
         const infoBody = (await infoRes.json()) as { additional_order_info_list?: Cafe24AdditionalOrderInfo[] };

@@ -46,7 +46,7 @@ try {
     await b.goto(fileUrl(join(sub, 'index.html')));
     await b.sleep(1500);
     const banner = await b.evaluate(`return document.getElementById('ondap-banner')?.textContent ?? ''`);
-    check(`상품 ${no} 페이지: 접수 완료 띠 ${shown ? '보임' : '안 보임'}`, banner.includes('접수 완료') === shown, banner.slice(0, 60));
+    check(`상품 ${no} 페이지: 디자인 저장 띠 ${shown ? '보임' : '안 보임'}`, banner.includes('저장 완료') === shown, banner.slice(0, 60));
   }
   // 코드 없는 추천 링크도 수량을 전달하며 해당 상품의 과거 코드를 제거한다.
   const plain = join(dir,'product','detail.html');
@@ -58,7 +58,7 @@ try {
   check('포장 없는 상품 이동: 수량 전달·이전 코드 제거', noCode.qty==='10' && noCode.entries.every((e)=>e.productNo!=='49'||e.code===null));
 
   const mockCode = 'OD-BBBB-BBBB';
-  const mockForm = (rows, existing = '') => `<!doctype html><html><head><meta charset="utf-8"></head><body>${rows.map((no)=>`<div class="prdBox"><input name="chk_order_cancel_list_basic0" value="${no}:000A:F:4"><li title="옵션">30개</li></div>`).join('')}${[...new Set(rows)].map((no)=>`<table><tr><th>온답 포장 디자인 코드</th><td><input name="oa_content[1|${no}]" value="${existing}"></td></tr></table>`).join('')}<script>window.fetch=function(url){var code=url.split('/').pop();return Promise.resolve({ok:true,json:function(){return Promise.resolve({code:code,productNo:code==='${CODE}'?49:50,quantity:30,styleName:'확인된 포장',sticker:null,status:'received'})}})}</script>${script}</body></html>`;
+  const mockForm = (rows, existing = '') => `<!doctype html><html><head><meta charset="utf-8"></head><body>${rows.map((no)=>`<div class="prdBox"><input name="chk_order_cancel_list_basic0" value="${no}:000A:F:4"><li title="옵션"><span class="optionItem">30개</span></li></div>`).join('')}${[...new Set(rows)].map((no)=>`<table><tr><th>온답 포장 디자인 코드</th><td><input name="oa_content[1|${no}]" value="${existing}"></td></tr></table>`).join('')}<script>window.fetch=function(url){var code=url.split('/').pop();return Promise.resolve({ok:true,json:function(){return Promise.resolve({code:code,productNo:code==='${CODE}'?49:50,quantity:30,styleName:'확인된 포장',sticker:null,status:'received'})}})}</script>${script}</body></html>`;
   const rememberMany = async (entries) => b.evaluate(`localStorage.setItem('ondap_packaging',JSON.stringify({version:2,entries:${JSON.stringify(entries.map((e)=>({...e,qty:30,at:Date.now()})))}}));return true`);
   const both = [{code:CODE,productNo:'49'},{code:mockCode,productNo:'50'}];
   const orderPath = join(dir,'order','orderform.html');
@@ -70,12 +70,12 @@ try {
   ]) {
     writeFileSync(orderPath,mockForm(scenario.rows,scenario.existing));
     await b.goto(fileUrl(orderPath)); await rememberMany(scenario.entries); await b.goto(fileUrl(orderPath));
-    await b.waitFor(`document.getElementById('ondap-banner')`,10000);
+    await b.waitFor(`document.getElementById('ondap-banner') && ${scenario.filled === 2 ? `document.querySelectorAll('input[data-ondap-auto-code]').length === 2` : 'true'}`,10000);
     await b.sleep(200);
     const values=await b.evaluate(`return [...document.querySelectorAll('input[name^="oa_content"]')].map((e)=>e.value)`);
     check(scenario.name,scenario.existing?values[0]===scenario.existing:values.filter(Boolean).length===scenario.filled,JSON.stringify(values));
     if(scenario.filled===2){
-      await b.evaluate(`document.querySelector('.prdBox li').textContent='31개';return true`);
+      await b.evaluate(`document.querySelector('.prdBox .optionItem').textContent='31개';return true`);
       await b.waitFor(`document.querySelector('input[name="oa_content[1|49]"]').value === ''`);
       check('주문 수량이 바뀌면 해당 자동 코드만 회수',await b.evaluate(`return document.querySelector('input[name="oa_content[1|50]"]').value==='${mockCode}' && document.getElementById('ondap-banner').textContent.includes('주문 내용이 바뀌')`));
     }

@@ -17,8 +17,8 @@ export function paymentEvent(value: unknown, mallId: string | undefined): Valida
   const event = value as { event_no?: unknown; resource?: Record<string, unknown> };
   const resource = event.resource;
   const eventNo = Number(event.event_no);
-  // 90025: 입금/결제 완료, 90026: 주문 취소
-  if (![90025, 90026].includes(eventNo)) return null;
+  // 90025: 입금/결제 완료, 90026: 주문 취소, 90029: 환불 상태 변경
+  if (![90025, 90026, 90029].includes(eventNo)) return null;
   if (!resource || resource.mall_id !== mallId) return null;
   if (typeof resource.order_id !== 'string' || !/^20\d{6}-\d{7}$/.test(resource.order_id)) return null;
   const shopNo = Number(resource.event_shop_no);

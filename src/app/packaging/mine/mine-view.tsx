@@ -214,6 +214,7 @@ export function MineView({ initialCode }: { initialCode: string }) {
           <div className="alt-list" style={{ marginTop: 0 }}>
             {saved.map((d) => {
               const s = status[d.code];
+              const matches = Boolean(s && s.productNo === d.productNo && s.productUrl === d.productUrl && s.productName === d.productName);
               return (
                 <article key={d.code} className="alt mine-card">
                   {d.thumb ? <img src={d.thumb} alt="저장한 스티커" style={{ objectFit: 'contain', background: 'var(--paper-deep)' }} /> : <span className="ph" />}
@@ -223,14 +224,14 @@ export function MineView({ initialCode }: { initialCode: string }) {
                     <div className="small" style={{ marginTop: 4, lineHeight: 1.4 }}>{d.productName}</div>
                     <div className="small muted">{d.quantity.toLocaleString('ko-KR')}개 · {kstLabel(d.savedAt)} 저장</div>
                     <div className="alt-actions" style={{ flexWrap: 'wrap' }}>
-                      {d.productUrl && (!s || ((s.status === 'pending' || s.status === 'received') && s.canOrder)) && <a className="btn small" href={orderUrl(d.productUrl, d.code, d.quantity)}>주문하러 가기</a>}
+                      {matches && s && s.productUrl && (s.status === 'pending' || s.status === 'received') && s.canOrder && <a className="btn small" href={orderUrl(s.productUrl, d.code, d.quantity)}>주문하러 가기</a>}
                       <CopyButton code={d.code} />
                     </div>
                     <div className="mine-more small">
-                      {d.productNo && d.snapshot ? (
+                      {matches && s?.canOrder && d.productNo && d.snapshot ? (
                         <a className="link-btn" href={`/packaging?product=${d.productNo}&qty=${d.quantity}&from=mine&restore=${encodeURIComponent(d.code)}`}>다시 꾸미기</a>
                       ) : null}
-                      {s && <Reorder design={s} onDone={reordered(d.code)} link />}
+                      {matches && s && <Reorder design={s} onDone={reordered(d.code)} link />}
                       {previews.has(d.code) && (
                         <button type="button" className="link-btn" onClick={() => void shareSticker(d.code, d.productName).then((m) => m && alert(m))}>스티커 그림 받기</button>
                       )}

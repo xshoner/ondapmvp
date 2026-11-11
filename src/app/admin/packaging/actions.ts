@@ -239,13 +239,14 @@ export async function syncCafe24OrdersAction(): Promise<{ ok: boolean; message: 
   const no = await denied();
   if (no) return { ok: false, message: no.message };
   try {
-    const { syncRecentCafe24Orders } = await import('@/cafe24/intake-worker.ts');
+    const { processPaymentEventQueue, syncRecentCafe24Orders } = await import('@/cafe24/intake-worker.ts');
+    const queue = await processPaymentEventQueue();
     const result = await syncRecentCafe24Orders(3);
     revalidatePath('/admin/packaging');
     revalidatePath('/admin/health');
     return {
-      ok: true,
-      message: `카페24 주문 동기화 완료: 최근 주문 ${result.total}건 확인 (입금 완료: ${result.confirmed}건, 결제 대기: ${result.pendingOrders}건)`,
+      ok: queue.errors === 0,
+      message: `카페24 주문 동기화 완료: 최근 주문 ${result.total}건 확인 (입금 완료: ${result.confirmed}건, 결제 대기: ${result.pendingOrders}건)${queue.errors ? ' · 결제 알림 재처리 오류를 운영 상태에서 확인해 주세요.' : ''}`,
       confirmed: result.confirmed,
       total: result.total,
     };

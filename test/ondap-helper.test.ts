@@ -736,3 +736,73 @@ test('숨겨진 주문 확인 영역의 상품 복제는 실제 상품으로 세
   await runHelper({ document: doc, location: { pathname: '/order/orderform.html', search: '', href: 'https://axopenlab.cafe24.com/order/orderform.html' }, localStorage: storage });
   assert.equal(doc.querySelector('input[name="oa_content[1]"]')?.value, code);
 });
+
+test('dapcue 옵션 상품 11(#quantity 없음)·수동 선택 전환 및 주문완료 정리를 검증한다', async () => {
+  const doc = new MockDocument();
+  const tr = new MockElement('tr');
+  const th = new MockElement('th');
+  th.textContent = '답례포장 서비스';
+  const td = new MockElement('td');
+  const sel = new MockElement('select');
+  sel.id = 'product_option_id1';
+  sel.setAttribute('option_title', '답례포장 서비스');
+  const optEmpty = new MockElement('option'); optEmpty.value = '*'; optEmpty.textContent = '- [필수] 옵션을 선택해 주세요 -'; (optEmpty as unknown as { text: string }).text = optEmpty.textContent;
+  const optYes = new MockElement('option'); optYes.value = 'P000000L000B'; optYes.textContent = '신청 (+100원)'; (optYes as unknown as { text: string }).text = optYes.textContent;
+  const optNo = new MockElement('option'); optNo.value = 'P000000L000C'; optNo.textContent = '신청안함'; (optNo as unknown as { text: string }).text = optNo.textContent;
+  (sel as unknown as { options: MockElement[]; selectedIndex: number }).options = [optEmpty, optYes, optNo];
+  (sel as unknown as { selectedIndex: number }).selectedIndex = 0;
+  sel.value = '*';
+  tr.appendChild(th);
+  td.appendChild(sel);
+  tr.appendChild(td);
+  doc.body.appendChild(tr);
+
+  const qtyOpt = new MockElement('input');
+  qtyOpt.id = 'option_box1_quantity';
+  qtyOpt.className = 'quantity_opt';
+  qtyOpt.value = '1';
+  doc.body.appendChild(qtyOpt);
+
+  const storage = new MockLocalStorage();
+  const timers: { fn: () => void; ms: number }[] = [];
+  const helperCode = readFileSync(resolve(process.cwd(), 'public/cafe24/ondap-helper.js'), 'utf8');
+  const fn = new Function('window', 'document', 'location', 'localStorage', 'navigator', 'fetch', 'setTimeout', 'clearTimeout', 'Event', 'URL', 'URLSearchParams', helperCode);
+  const listeners: Record<string, (() => void)[]> = {};
+  const win = {
+    location: { pathname: '/product/detail.html', search: '?product_no=11&ondap_code=OD-A2B3-C4D5&ondap_qty=25', href: 'https://dapcue.cafe24.com/product/detail.html?product_no=11&ondap_code=OD-A2B3-C4D5&ondap_qty=25' },
+    jQuery: () => ({ trigger: () => {} }),
+    addEventListener: (e: string, cb: () => void) => { (listeners[e] ||= []).push(cb); },
+  };
+  const FakeEvent = class { type: string; constructor(t: string) { this.type = t; } };
+  fn(
+    win, doc, win.location, storage, {}, async () => ({ ok: false }),
+    (cb: () => void, ms = 0) => { timers.push({ fn: cb, ms }); return timers.length; },
+    () => {}, FakeEvent, URL, URLSearchParams,
+  );
+  for (const t of timers.slice()) t.fn();
+  assert.equal(sel.value, 'P000000L000B');
+  assert.equal(qtyOpt.value, '25');
+  assert.ok(doc.getElementById('ondap-banner')?.innerHTML.includes('수량(25개)을 자동으로 선택'));
+
+  // 고객이 수동으로 신청안함 선택 시 자동 미적용 배너 전환
+  (sel as unknown as { selectedIndex: number }).selectedIndex = 2;
+  sel.value = 'P000000L000C';
+  doc.trigger('change', { target: sel, isTrusted: true });
+  for (const t of timers.slice()) t.fn();
+  assert.ok(doc.getElementById('ondap-banner')?.innerHTML.includes('자동 적용되지 않았어요'));
+
+  // 고객이 다시 수동으로 신청 (+100원) 선택 시 긍정 배너 복원
+  (sel as unknown as { selectedIndex: number }).selectedIndex = 1;
+  sel.value = 'P000000L000B';
+  doc.trigger('change', { target: sel, isTrusted: true });
+  for (const t of timers.slice()) t.fn();
+  assert.ok(doc.getElementById('ondap-banner')?.innerHTML.includes('수량(25개)을 자동으로 선택'));
+
+  // 주문 완료(/order/order_result.html) 진입 시 localStorage 즉시 정리
+  await runHelper({
+    document: new MockDocument(),
+    location: { pathname: '/order/order_result.html', search: '', href: 'https://dapcue.cafe24.com/order/order_result.html' },
+    localStorage: storage,
+  });
+  assert.equal(storage.getItem('ondap_packaging'), null);
+});
