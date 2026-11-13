@@ -196,15 +196,18 @@
 
   function keepQuantity(n) {
     var touched = false;
-    var stop = function () { touched = true; };
+    var stop = function () {
+      touched = true;
+      if (observer) observer.disconnect();
+    };
     document.addEventListener('click', function (e) {
       if (e.target && (e.target.matches('.up, .down, [class*="QuantityUp"], [class*="QuantityDown"], [class*="quantity_opt_up"]') || e.target.closest('.up, .down, [class*="QuantityUp"], [class*="QuantityDown"]'))) {
-        touched = true;
+        stop();
       }
     }, true);
     document.addEventListener('keydown', function (e) {
       if (e.target && (e.target.matches('input.quantity_opt, #quantity, input[name="quantity_opt[]"]'))) {
-        touched = true;
+        stop();
       }
     }, true);
 
@@ -231,6 +234,9 @@
         }
       }
     };
+    // 옵션 품목은 서버 응답 뒤 늦게 생길 수 있어, 생성 시점에도 수량을 맞춘다.
+    var observer = typeof MutationObserver === 'function' ? new MutationObserver(apply) : null;
+    if (observer) observer.observe(document.querySelector('#totalProducts') || document.body, { childList: true, subtree: true });
     apply();
     // 필수 상품 옵션을 고객이 나중에 선택하면 생성된 품목에도 전달 수량을 반영한다.
     document.addEventListener('change', function (e) {

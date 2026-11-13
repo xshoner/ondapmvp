@@ -4,6 +4,7 @@ import type { RecommendationItem } from '../../recommendation/contracts.ts';
 import { SavePickButton } from '../result/client-bits.tsx';
 import { CoreScoreBreakdown } from './score-breakdown.tsx';
 import { shippingFee } from '../../lib/result-query.ts';
+import { productOrderUrl } from '../../lib/order-link.ts';
 import { formatCustomerReason, won } from './types.ts';
 
 export interface PickCardProps {
@@ -265,7 +266,7 @@ export function CoreMainPick({
 
           <a
             className="btn ghost block"
-            href={item.productUrl}
+            href={productOrderUrl(item.productUrl, quantity)}
             target="_blank"
             rel="noreferrer"
             style={{
@@ -467,7 +468,7 @@ export function CoreOtherPick({
           </a>
           <a
             className="btn ghost small"
-            href={item.productUrl}
+            href={productOrderUrl(item.productUrl, quantity)}
             target="_blank"
             rel="noreferrer"
             style={{
