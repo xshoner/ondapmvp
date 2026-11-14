@@ -737,6 +737,51 @@ test('숨겨진 주문 확인 영역의 상품 복제는 실제 상품으로 세
   assert.equal(doc.querySelector('input[name="oa_content[1]"]')?.value, code);
 });
 
+test('코드 없는 추천 수량은 늦게 생성된 옵션 품목에 적용하고 고객 수량 변경 뒤에는 멈춘다', () => {
+  const doc = new MockDocument();
+  const select = new MockElement('select');
+  select.id = 'product_option_id1';
+  select.value = '*';
+  Object.assign(select, { options: [] });
+  doc.body.appendChild(select);
+  const timers: (() => void)[] = [];
+  const observers: { callback: () => void; disconnected: boolean }[] = [];
+  class Observer {
+    disconnected = false;
+    callback: () => void;
+    constructor(callback: () => void) { this.callback = callback; observers.push(this); }
+    observe() {}
+    disconnect() { this.disconnected = true; }
+  }
+  const location = {
+    pathname: '/product/detail.html',
+    search: '?product_no=11&ondap_order=1&ondap_qty=10',
+    href: 'https://dapcue.cafe24.com/product/detail.html?product_no=11&ondap_order=1&ondap_qty=10',
+  };
+  const script = readFileSync(resolve('public/cafe24/ondap-helper.js'), 'utf8');
+  new Function('window', 'document', 'location', 'localStorage', 'navigator', 'setTimeout', 'MutationObserver', script)(
+    { location, addEventListener() {} }, doc, location, new MockLocalStorage(), {},
+    (callback: () => void) => { timers.push(callback); }, Observer,
+  );
+  // 초기 재시도 시간이 끝난 후 카페24 응답으로 품목이 생성된다. change 버블링에는 의존하지 않는다.
+  for (const callback of timers.splice(0)) callback();
+  select.value = 'P000000L000C'; // 신청안함
+  const quantity = new MockElement('input');
+  quantity.className = 'quantity_opt';
+  quantity.value = '1';
+  doc.body.appendChild(quantity);
+  assert.equal(observers.length, 1);
+  observers[0].callback();
+  assert.equal(quantity.value, '10');
+  assert.equal(select.value, 'P000000L000C');
+
+  doc.trigger('keydown', { target: quantity });
+  quantity.value = '25';
+  observers[0].callback();
+  assert.equal(quantity.value, '25');
+  assert.equal(observers[0].disconnected, true);
+});
+
 test('dapcue 옵션 상품 11(#quantity 없음)·수동 선택 전환 및 주문완료 정리를 검증한다', async () => {
   const doc = new MockDocument();
   const tr = new MockElement('tr');
