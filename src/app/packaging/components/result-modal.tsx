@@ -9,6 +9,7 @@ import { won } from '@/lib/result-query.ts';
 interface Props {
   code: string;
   preview: string | null;
+  cardPreview?: string | null;
   cutClip: string;
   product: {
     productNo?: number;
@@ -24,6 +25,7 @@ interface Props {
 export function ResultModal({
   code,
   preview,
+  cardPreview,
   cutClip,
   product,
   quantity,
@@ -162,15 +164,25 @@ export function ResultModal({
           </p>
         </div>
 
-        {preview && (
-          <div className="pkg-result-preview-wrap">
-            <img
-              src={preview}
-              alt="저장된 스티커 디자인"
-              width={140}
-              height={140}
-              style={{ clipPath: cutClip }}
-            />
+        {(preview || cardPreview) && (
+          <div className="pkg-result-preview-wrap" style={{ display: 'flex', gap: 14, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+            {preview && (
+              <img
+                src={preview}
+                alt="저장된 스티커 디자인"
+                width={130}
+                height={130}
+                style={{ clipPath: cutClip, objectFit: 'contain' }}
+              />
+            )}
+            {cardPreview && (
+              <img
+                src={cardPreview}
+                alt="저장된 카드 디자인"
+                width={150}
+                style={{ aspectRatio: '78 / 54', objectFit: 'contain', borderRadius: 4, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+              />
+            )}
           </div>
         )}
 

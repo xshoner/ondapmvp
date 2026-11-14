@@ -1,6 +1,6 @@
 -- 온답 새 Supabase 프로젝트 한 번에 만들기 (npm run db:setup-sql로 생성, 직접 고치지 말 것)
 -- 빈 프로젝트의 SQL Editor에 전체를 붙여넣고 Run. 이미 만든 프로젝트에 다시 실행하면 "already exists" 오류가 난다.
--- 포함: migrations/20261020000000_init.sql, migrations/20261021000000_packaging.sql, migrations/20261022000000_packaging_hardening.sql, migrations/20261023000000_design_lookup.sql, migrations/20261024000000_usage_count.sql, migrations/20261025000000_operations.sql, migrations/20261026000000_feedback_hardening.sql, migrations/20261027000000_integrated_improvements.sql, migrations/20261031000000_formality_v2.sql, migrations/20261102000000_approval_drafts.sql, migrations/20261108000000_admin_sync_preview.sql, migrations/20261108000000_design_payment_pending.sql, migrations/20261111000000_payment_retry.sql, seed.sql
+-- 포함: migrations/20261020000000_init.sql, migrations/20261021000000_packaging.sql, migrations/20261022000000_packaging_hardening.sql, migrations/20261023000000_design_lookup.sql, migrations/20261024000000_usage_count.sql, migrations/20261025000000_operations.sql, migrations/20261026000000_feedback_hardening.sql, migrations/20261027000000_integrated_improvements.sql, migrations/20261031000000_formality_v2.sql, migrations/20261102000000_approval_drafts.sql, migrations/20261108000000_admin_sync_preview.sql, migrations/20261108000000_design_payment_pending.sql, migrations/20261111000000_payment_retry.sql, migrations/20261114000000_add_postcard_design.sql, migrations/20261114010000_large_print_storage.sql, migrations/20261114020000_finish_print_upload.sql, seed.sql
 
 -- ==================== migrations/20261020000000_init.sql ====================
 -- 온답 추천 엔진 초기 스키마
@@ -1286,6 +1286,163 @@ end; $$;
 
 revoke all on function public.cancel_paid_designs(text, text, text) from public, anon, authenticated;
 grant execute on function public.cancel_paid_designs(text, text, text) to service_role;
+
+-- ==================== migrations/20261114000000_add_postcard_design.sql ====================
+-- 카드(엽서) 포장 디자인 지원 (74x50mm, 148x100mm)
+-- 스티커와 카드를 독립적 또는 동시 선택 가능
+
+-- 1. designs 표에 카드 관련 컬럼 추가
+alter table public.designs add column if not exists card jsonb;
+alter table public.designs add column if not exists card_draft jsonb check (card_draft is null or pg_column_size(card_draft) < 65536);
+alter table public.designs add column if not exists card_print_path text check (card_print_path is null or char_length(card_print_path) <= 100);
+
+-- 2. 카드 규격 제약: 74x50, 148x100만 허용
+alter table public.designs drop constraint if exists designs_card_spec;
+alter table public.designs add constraint designs_card_spec check (
+  card is null or (
+    jsonb_typeof(card) = 'object'
+    and card ->> 'sizeMm' in ('74x50', '148x100')
+  )
+);
+
+-- 3. 카드 인쇄 파일 이름은 반드시 '코드-card.png'
+alter table public.designs drop constraint if exists designs_card_print_path_matches_code;
+alter table public.designs add constraint designs_card_print_path_matches_code check (
+  card_print_path is null or card_print_path = code || '-card.png'
+);
+
+-- 4. 원본 연결(source_code)이 있으면 직접 인쇄 파일을 갖지 않는다
+alter table public.designs drop constraint if exists designs_one_print_file;
+alter table public.designs add constraint designs_one_print_file check (
+  (print_path is null and card_print_path is null) or source_code is null
+);
+
+-- 5. 저장소 정책: 스티커(.png) 및 카드(-card.png) 모두 업로드 허용
+drop policy if exists "누구나 인쇄 파일 올리기" on storage.objects;
+create policy "누구나 인쇄 파일 올리기" on storage.objects
+  for insert to anon, authenticated
+  with check (bucket_id = 'design-files' and name ~ '^OD-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}(-card)?\.png$');
+
+-- 6. 고객 조회: 카드 규격 포함
+drop function if exists public.lookup_design(text);
+create function public.lookup_design(p_code text)
+returns table (
+  code text,
+  created_at timestamptz,
+  product_no integer,
+  product_name text,
+  quantity integer,
+  style_name text,
+  sticker jsonb,
+  card jsonb,
+  status text,
+  status_changed_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select d.code, d.created_at, d.product_no, d.product_name, d.quantity, d.style_name, d.sticker, d.card, d.status, d.status_changed_at
+  from public.designs d
+  where d.code = upper(trim(p_code));
+$$;
+
+revoke all on function public.lookup_design(text) from public;
+grant execute on function public.lookup_design(text) to anon, authenticated;
+
+-- 7. 같은 디자인으로 다시 주문: 카드 정보 및 인쇄 파일 참조 보존
+create or replace function public.reorder_design(p_code text, p_new_code text, p_quantity integer)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  src public.designs%rowtype;
+begin
+  if p_new_code is null or p_new_code !~ '^OD-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$' then
+    raise exception '잘못된 새 코드입니다.' using errcode = '22023';
+  end if;
+  if p_quantity is null or p_quantity < 1 or p_quantity > 100000 then
+    raise exception '수량은 1개부터 100,000개까지입니다.' using errcode = '22023';
+  end if;
+  select * into src from public.designs where code = upper(trim(p_code)) and status <> 'canceled';
+  if not found then
+    raise exception '디자인을 찾을 수 없습니다.' using errcode = 'P0002';
+  end if;
+  insert into public.designs (
+    code, product_no, product_name, quantity, event, style_id, style_name,
+    sticker, draft, print_path,
+    card, card_draft, card_print_path,
+    source_code
+  )
+  values (
+    p_new_code, src.product_no, src.product_name, p_quantity, src.event, src.style_id, src.style_name,
+    src.sticker, src.draft, null,
+    src.card, src.card_draft, null,
+    case when (src.print_path is not null or src.card_print_path is not null) then src.code else src.source_code end
+  );
+  return p_new_code;
+end;
+$$;
+
+revoke all on function public.reorder_design(text, text, integer) from public;
+grant execute on function public.reorder_design(text, text, integer) to anon, authenticated;
+
+-- ==================== migrations/20261114010000_large_print_storage.sql ====================
+-- 대용량 카드 및 스티커 인쇄 파일 저장을 위한 세션 표 및 저장소 한도 확장
+-- 1. design-files 저장소 버킷 한도: 3MB -> 10MB (10485760 바이트)
+update storage.buckets
+set file_size_limit = 10485760
+where id = 'design-files';
+
+-- 2. 업로드 세션 표 (임시 업로드의 단기 권한·무결성 검증·중복 방지·응답 유실 복구)
+create table if not exists public.design_upload_sessions (
+  id text primary key,
+  code text not null unique,
+  secret_hash text not null,
+  meta jsonb not null,
+  status text not null default 'pending' check (status in ('pending', 'completed', 'failed', 'expired')),
+  files_expected jsonb not null,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null
+);
+
+create index if not exists design_upload_sessions_status_expires_idx
+  on public.design_upload_sessions (status, expires_at);
+
+-- RLS: 일반 사용자 및 외부 접근 완전 차단, 서버(service_role)만 접근 허용
+alter table public.design_upload_sessions enable row level security;
+revoke all on public.design_upload_sessions from public, anon, authenticated;
+grant select, insert, update, delete on public.design_upload_sessions to service_role;
+
+-- ==================== migrations/20261114020000_finish_print_upload.sql ====================
+-- 파일 검증 후 접수와 업로드 세션 완료를 한 트랜잭션으로 기록한다.
+alter table public.design_upload_sessions add column cleaned_at timestamptz;
+create or replace function public.finish_design_upload(p_session_id text)
+returns text language plpgsql security definer set search_path = '' as $$
+declare s public.design_upload_sessions%rowtype;
+begin
+  select * into s from public.design_upload_sessions where id = p_session_id for update;
+  if not found then raise exception '업로드 세션을 찾을 수 없습니다.'; end if;
+  if s.status = 'completed' then return s.code; end if;
+  if s.status <> 'pending' or s.expires_at <= now() then
+    raise exception '업로드 세션이 만료되었거나 완료할 수 없습니다.';
+  end if;
+  insert into public.designs (code, product_no, product_name, quantity, event, style_id, style_name, sticker, draft, print_path, card, card_draft, card_print_path)
+  values (s.code, (s.meta->>'productNo')::integer, s.meta->>'productName', (s.meta->>'quantity')::integer,
+    s.meta->>'event', nullif(s.meta->>'styleId', '')::uuid, s.meta->>'styleName',
+    nullif(s.meta->'sticker', 'null'::jsonb), nullif(s.meta->'draft', 'null'::jsonb),
+    case when s.files_expected ? 'sticker' then s.code || '.png' end,
+    nullif(s.meta->'card', 'null'::jsonb), nullif(s.meta->'cardDraft', 'null'::jsonb),
+    case when s.files_expected ? 'card' then s.code || '-card.png' end);
+  update public.design_upload_sessions set status = 'completed' where id = s.id;
+  return s.code;
+end;
+$$;
+revoke all on function public.finish_design_upload(text) from public, anon, authenticated;
+grant execute on function public.finish_design_upload(text) to service_role;
 
 -- ==================== seed.sql ====================
 -- 온답 초기 데이터 (npm run db:seed-sql로 생성). SQL Editor에서 Run

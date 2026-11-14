@@ -1,17 +1,22 @@
 // 포장 디자인 규칙: 인쇄 크기, 디자인 코드, 자리표시자, 입력 검사.
 // 고객 화면(브라우저)과 서버 액션이 함께 쓰므로 Node 전용 모듈을 쓰지 않는다.
 
-import type { DesignCategory, DesignDraft, Layer, StickerShape, StickerSizeCm, StickerSpec } from './types.ts';
+import type { CardSizeMm, CardSpec, DesignCategory, DesignDraft, Layer, StickerShape, StickerSizeCm, StickerSpec } from './types.ts';
 
 export const MAX_ACTIVE = 10; // 스타일, 분류별 추천 이미지·문구 각각 '사용' 최대 개수
 const DPI = 300;
 export const BLEED_CM = 0.2; // 재단 여백(사방 2mm). 인쇄 파일은 이만큼 크게 만든다
+export const BLEED_MM = 2;
 export const CANVAS_UNITS = 1000; // 편집기 좌표계: 재단 여백 포함 전체 = 1000
 export const MAX_LAYERS = 12;
-export const MAX_PRINT_BYTES = 3 * 1024 * 1024;
+export const MAX_STICKER_PRINT_BYTES = 4 * 1024 * 1024; // 스티커 인쇄 파일 최대 4MB
+export const MAX_CARD_PRINT_BYTES = 10 * 1024 * 1024; // 카드(엽서) 인쇄 파일 최대 10MB (148x100mm 300dpi 여유 고려)
+export const MAX_TOTAL_PRINT_BYTES = 14 * 1024 * 1024; // 동시 선택 시 합계 최대 14MB
+export const MAX_PRINT_BYTES = MAX_CARD_PRINT_BYTES; // 단일 인쇄 파일 호환용 최대 한도
 export const MIN_PRINT_DPI = 150; // 이보다 낮으면 고객에게 흐릿할 수 있다고 알린다
 
 export const STICKER_SIZES: StickerSizeCm[] = [4, 6];
+export const CARD_SIZES: CardSizeMm[] = ['74x50', '148x100'];
 
 export const FONTS = [
   { id: 'sans', label: '고딕' },
@@ -55,6 +60,42 @@ export function effectiveDpi(naturalWidth: number, widthUnits: number, sizeCm: n
   return inches > 0 ? naturalWidth / inches : Infinity;
 }
 
+// 카드(엽서) 물리 크기 (mm 단위)
+export function cardDimensionsMm(sizeMm: CardSizeMm): { widthMm: number; heightMm: number } {
+  return sizeMm === '74x50' ? { widthMm: 74, heightMm: 50 } : { widthMm: 148, heightMm: 100 };
+}
+
+// 카드 인쇄 파일 픽셀 수 (재단 여백 사방 2mm 포함, 300dpi)
+// 74×50mm: (78mm / 25.4) * 300 = 921px, (54mm / 25.4) * 300 = 638px
+// 148×100mm: (152mm / 25.4) * 300 = 1795px, (104mm / 25.4) * 300 = 1228px
+export function cardPrintPixels(sizeMm: CardSizeMm): { width: number; height: number } {
+  const { widthMm, heightMm } = cardDimensionsMm(sizeMm);
+  return {
+    width: Math.round(((widthMm + BLEED_MM * 2) / 25.4) * DPI),
+    height: Math.round(((heightMm + BLEED_MM * 2) / 25.4) * DPI),
+  };
+}
+
+// 카드 편집기 좌표계 (가로폭 1000 기준 비율 유지)
+export function cardCanvasUnits(sizeMm: CardSizeMm): { widthUnits: number; heightUnits: number; bleedX: number; bleedY: number } {
+  const { widthMm, heightMm } = cardDimensionsMm(sizeMm);
+  const totalW = widthMm + BLEED_MM * 2;
+  const totalH = heightMm + BLEED_MM * 2;
+  const widthUnits = CANVAS_UNITS;
+  const heightUnits = Math.round(widthUnits * (totalH / totalW));
+  const bleedX = (BLEED_MM / totalW) * widthUnits;
+  const bleedY = (BLEED_MM / totalH) * heightUnits;
+  return { widthUnits, heightUnits, bleedX, bleedY };
+}
+
+// 카드 위 사진 실효 해상도
+export function effectiveDpiCard(naturalWidth: number, widthUnits: number, sizeMm: CardSizeMm): number {
+  const { widthMm } = cardDimensionsMm(sizeMm);
+  const totalW = widthMm + BLEED_MM * 2;
+  const inches = ((widthUnits / CANVAS_UNITS) * (totalW / 10)) / 2.54;
+  return inches > 0 ? naturalWidth / inches : Infinity;
+}
+
 // ---------- 안전선 (자르는 선에서 재단 여백만큼 더 안쪽) ----------
 
 export interface Box { x: number; y: number; width: number; height: number } // 편집기 좌표
@@ -74,6 +115,23 @@ export function fitScale(shape: StickerShape, sizeCm: number, box: Box): number 
   const b = 2 * (dx * hw + dy * hh);
   const k = dx * dx + dy * dy - safe * safe;
   return k >= 0 ? 0 : (-b + Math.sqrt(b * b - 4 * a * k)) / (2 * a);
+}
+
+// 카드(직사각형) 안전선 맞춤: 1 이상이면 안전선 내부
+export function fitScaleCard(sizeMm: CardSizeMm, box: Box): number {
+  const { widthUnits, heightUnits, bleedX, bleedY } = cardCanvasUnits(sizeMm);
+  const safeW = widthUnits - 4 * bleedX;
+  const safeH = heightUnits - 4 * bleedY;
+  const hw = box.width / 2;
+  const hh = box.height / 2;
+  if (hw <= 0 || hh <= 0) return Infinity;
+  const midX = widthUnits / 2;
+  const midY = heightUnits / 2;
+  const dx = Math.abs(box.x + hw - midX);
+  const dy = Math.abs(box.y + hh - midY);
+  const maxHw = safeW / 2;
+  const maxHh = safeH / 2;
+  return Math.max(0, Math.min((maxHw - dx) / hw, (maxHh - dy) / hh));
 }
 
 // 두 문구 상자가 읽기 어려울 만큼 겹치는지: 겹친 넓이가 작은 상자의 20% 넘음
@@ -174,6 +232,13 @@ export function sanitizeSticker(v: unknown): StickerSpec | null {
   const shape = o.shape === 'circle' || o.shape === 'square' ? o.shape : null;
   const sizeCm = STICKER_SIZES.find((s) => s === Number(o.sizeCm));
   return shape && sizeCm ? { shape, sizeCm } : null;
+}
+
+export function sanitizeCard(v: unknown): CardSpec | null {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>;
+  const sizeMm = CARD_SIZES.find((s) => s === String(o.sizeMm));
+  return sizeMm ? { sizeMm } : null;
 }
 
 export function sanitizeDraft(v: unknown): DesignDraft {

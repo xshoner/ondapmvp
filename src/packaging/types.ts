@@ -55,6 +55,12 @@ export interface StickerSpec {
   sizeCm: StickerSizeCm;
 }
 
+export type CardSizeMm = '74x50' | '148x100';
+
+export interface CardSpec {
+  sizeMm: CardSizeMm;
+}
+
 // 편집기 레이어. 좌표는 재단 여백을 포함한 전체 캔버스를 1000으로 본 값이라 크기를 바꿔도 배치가 유지된다
 interface LayerBase {
   id: string;
@@ -105,7 +111,10 @@ export interface Design {
   styleName: string;
   sticker: StickerSpec | null;
   draft: DesignDraft | null;
+  card: CardSpec | null;
+  cardDraft: DesignDraft | null;
   hasPrintFile: boolean;
+  hasCardPrintFile?: boolean;
   // 인쇄 파일이 들어 있는 접수 코드: 보통 자기 코드, '같은 디자인으로 다시 주문'한 접수는 원본 코드
   printCode: string | null;
   sourceCode: string | null; // 다시 주문한 접수의 원본

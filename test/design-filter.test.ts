@@ -31,4 +31,7 @@ test('CSV: 엑셀용 BOM, 쉼표·따옴표 감싸기, 수식으로 읽히는 �
   assert.ok(csv.includes(`"'=HYPERLINK(""x"")"`));
   assert.ok(csv.includes('주문 확인,20261021-0000123,27'));
   assert.ok(csv.includes('원형 6cm'));
+  const cardCsv = designsCsv([{ ...d, sticker: null, hasPrintFile: false, card: { sizeMm: '74x50' }, hasCardPrintFile: true }], {}, () => '2026-10-21');
+  assert.ok(cardCsv.includes('카드(엽서),카드 인쇄 파일'));
+  assert.ok(cardCsv.includes('74x50mm,있음'));
 });

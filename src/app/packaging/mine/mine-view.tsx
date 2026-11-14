@@ -99,11 +99,11 @@ function Reorder({ design, onDone, link = false }: { design: CustomerDesign; onD
 // 스티커 그림(화면용 480px)을 휴대폰 공유 창으로 보내거나 내려받는다
 async function shareSticker(code: string, productName: string): Promise<string | null> {
   const blob = await getPreview(code);
-  if (!blob) return '이 기기에 스티커 그림이 남아 있지 않아요.';
+  if (!blob) return '이 기기에 인쇄물 그림이 남아 있지 않아요.';
   const file = new File([blob], `ondap-${code}.png`, { type: 'image/png' });
   try {
     if (navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title: `${productName} 포장 스티커` });
+      await navigator.share({ files: [file], title: `${productName} 포장 인쇄물` });
       return null;
     }
   } catch (e) {
@@ -217,7 +217,7 @@ export function MineView({ initialCode }: { initialCode: string }) {
               const matches = Boolean(s && s.productNo === d.productNo && s.productUrl === d.productUrl && s.productName === d.productName);
               return (
                 <article key={d.code} className="alt mine-card">
-                  {d.thumb ? <img src={d.thumb} alt="저장한 스티커" style={{ objectFit: 'contain', background: 'var(--paper-deep)' }} /> : <span className="ph" />}
+                  {d.thumb ? <img src={d.thumb} alt="저장한 인쇄물" style={{ objectFit: 'contain', background: 'var(--paper-deep)' }} /> : <span className="ph" />}
                   <div style={{ minWidth: 0 }}>
                     <b className="serif num mine-code">{d.code}</b>
                     {s && <div style={{ marginTop: 2 }}><Progress design={s} compact /></div>}
@@ -233,7 +233,7 @@ export function MineView({ initialCode }: { initialCode: string }) {
                       ) : null}
                       {matches && s && <Reorder design={s} onDone={reordered(d.code)} link />}
                       {previews.has(d.code) && (
-                        <button type="button" className="link-btn" onClick={() => void shareSticker(d.code, d.productName).then((m) => m && alert(m))}>스티커 그림 받기</button>
+                        <button type="button" className="link-btn" onClick={() => void shareSticker(d.code, d.productName).then((m) => m && alert(m))}>인쇄물 그림 받기</button>
                       )}
                       <button type="button" className="link-btn muted" onClick={() => { forgetDesign(d.code); refreshSaved(); }}>목록에서 빼기</button>
                     </div>

@@ -70,12 +70,12 @@ export function csvCell(v: unknown): string {
 }
 
 export function designsCsv(designs: Design[], eventNames: Record<string, string>, kst: (iso: string) => string): string {
-  const head = ['접수일시', '디자인 코드', '상태', '카페24 주문번호', '상품번호', '상품명', '수량', '행사', '포장지', '스티커', '인쇄 파일', '메모'];
+  const head = ['접수일시', '디자인 코드', '상태', '카페24 주문번호', '상품번호', '상품명', '수량', '행사', '포장지', '스티커', '인쇄 파일', '메모', '카드(엽서)', '카드 인쇄 파일'];
   const rows = designs.map((d) => [
     kst(d.createdAt), d.code, designStatusLabel(d), d.orderNo ?? '', d.productNo, d.productName, d.quantity,
     d.event ? (eventNames[d.event] ?? d.event) : '', d.styleName,
     d.sticker ? `${d.sticker.shape === 'circle' ? '원형' : '사각'} ${d.sticker.sizeCm}cm` : '없음',
-    d.hasPrintFile ? '있음' : '없음', d.memo,
+    d.hasPrintFile ? '있음' : '없음', d.memo, d.card ? `${d.card.sizeMm}mm` : '없음', d.hasCardPrintFile ? '있음' : '없음',
   ]);
   return '﻿' + [head, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
 }

@@ -1544,7 +1544,7 @@ table.data.designs-table tr.late.cursor td:first-child { box-shadow: inset 3px 0
 
 .pkg-print-choice-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 12px;
 }
 
@@ -1553,6 +1553,59 @@ table.data.designs-table tr.late.cursor td:first-child { box-shadow: inset 3px 0
     grid-template-columns: 1fr;
     gap: 8px;
   }
+}
+
+.pkg-substep-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0 16px;
+  border-bottom: 2px solid var(--line);
+  padding-bottom: 8px;
+}
+
+.pkg-substep-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pkg-substep-tab:hover {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.pkg-substep-tab.active {
+  background: var(--pine-weak);
+  border-color: var(--pine);
+  color: var(--pine);
+  box-shadow: 0 0 0 1px var(--pine);
+}
+
+.pkg-substep-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--paper-deep);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.pkg-substep-tab.active .pkg-substep-num {
+  background: var(--pine);
+  color: #fff;
 }
 
 .pkg-choice-card {

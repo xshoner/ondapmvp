@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { CARD_SHORT_MM, PX_PER_MM_RANGE, loadPxPerMm, savePxPerMm } from '../editor-store.ts';
-import { totalCm } from '@/packaging/rules.ts';
-import type { StickerShape } from '@/packaging/types.ts';
+import { BLEED_MM, cardDimensionsMm, totalCm } from '@/packaging/rules.ts';
+import type { CardSizeMm, StickerShape } from '@/packaging/types.ts';
 
 interface Props {
   png: string;
@@ -11,18 +11,37 @@ interface Props {
   shape: StickerShape;
   clip: string;
   onClose: () => void;
+  itemType?: 'sticker' | 'card';
+  cardSizeMm?: CardSizeMm;
 }
 
-export function RealSizeModal({ png, sizeCm, shape, clip, onClose }: Props) {
+export function RealSizeModal({
+  png,
+  sizeCm,
+  shape,
+  clip,
+  onClose,
+  itemType = 'sticker',
+  cardSizeMm = '74x50',
+}: Props) {
   const [pxPerMm, setPxPerMm] = useState(loadPxPerMm);
+
+  const isCard = itemType === 'card';
+  const cardDim = isCard ? cardDimensionsMm(cardSizeMm) : null;
+  const cardW = cardDim ? (cardDim.widthMm + 2 * BLEED_MM) * pxPerMm : 0;
+  const cardH = cardDim ? (cardDim.heightMm + 2 * BLEED_MM) * pxPerMm : 0;
 
   return (
     <div className="real-view" role="dialog" aria-modal="true" aria-label="실제 인쇄 크기로 보기">
       <div className="real-stage">
         <img
           src={png}
-          alt="실제 크기 스티커"
-          style={{ width: totalCm(sizeCm) * 10 * pxPerMm, clipPath: clip }}
+          alt={isCard ? '실제 크기 카드' : '실제 크기 스티커'}
+          style={
+            isCard
+              ? { width: cardW, height: cardH, clipPath: `inset(${(BLEED_MM / (cardDim!.heightMm + 2 * BLEED_MM)) * 100}% ${(BLEED_MM / (cardDim!.widthMm + 2 * BLEED_MM)) * 100}%)` }
+              : { width: totalCm(sizeCm) * 10 * pxPerMm, clipPath: clip }
+          }
         />
       </div>
 
@@ -30,7 +49,9 @@ export function RealSizeModal({ png, sizeCm, shape, clip, onClose }: Props) {
         <div className="spread">
           <div>
             <p style={{ margin: 0, fontWeight: 700, fontSize: 16 }}>
-              {shape === 'circle' ? '지름' : '한 변'} {sizeCm}cm, 실제 인쇄 크기
+              {isCard
+                ? `${cardSizeMm} mm, 카드 실제 인쇄 크기`
+                : `${shape === 'circle' ? '지름' : '한 변'} ${sizeCm}cm, 스티커 실제 인쇄 크기`}
             </p>
             <p className="small muted" style={{ margin: '2px 0 0' }}>
               이 크기에서 이름과 글자가 잘 읽히는지 확인해 보세요.

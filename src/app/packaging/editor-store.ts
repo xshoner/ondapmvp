@@ -4,7 +4,7 @@
 import { clampQty } from '../../lib/result-query.ts';
 import { isMobileUA, isObj, readJson, removeKey, writeJson } from '../../lib/device.ts';
 import { loadSavedDesigns } from '../../packaging/client.ts';
-import { sanitizeDraft, sanitizeSticker } from '../../packaging/rules.ts';
+import { sanitizeCard, sanitizeDraft, sanitizeSticker } from '../../packaging/rules.ts';
 import type { DesignDraft } from '../../packaging/types.ts';
 import type { EditorLayer, EditorSnapshot } from './editor-types.ts';
 
@@ -60,8 +60,11 @@ export async function previewCodes(): Promise<Set<string>> {
 }
 
 function photoIds(snap: unknown): string[] {
-  const layers = isObj(snap) && Array.isArray(snap.layers) ? snap.layers : [];
-  return layers.flatMap((l) => (isObj(l) && typeof l.photoId === 'string' ? [l.photoId] : []));
+  if (!isObj(snap)) return [];
+  const s = snap as Record<string, unknown>;
+  const stickerLayers = Array.isArray(s.layers) ? s.layers : [];
+  const cardLayers = Array.isArray(s.cardLayers) ? s.cardLayers : [];
+  return [...stickerLayers, ...cardLayers].flatMap((l) => (isObj(l) && typeof l.photoId === 'string' ? [l.photoId] : []));
 }
 
 // ---------- 편집 상태 ↔ 저장 모양 ----------
@@ -72,6 +75,9 @@ export function toStored(s: EditorSnapshot): unknown {
     ...s,
     version: s.version ?? 2,
     layers: s.layers.map((l) => (l.type === 'image' && l.uploaded ? { ...l, src: 'upload', uploaded: undefined } : l)),
+    ...(s.cardLayers ? {
+      cardLayers: s.cardLayers.map((l) => (l.type === 'image' && l.uploaded ? { ...l, src: 'upload', uploaded: undefined } : l)),
+    } : {}),
   };
 }
 
@@ -100,7 +106,33 @@ export async function fromStored(
     const naturalWidth = Number(meta?.naturalWidth);
     layers.push({ ...l, src: URL.createObjectURL(blob), uploaded: true, photoId, naturalWidth: naturalWidth > 0 ? naturalWidth : undefined });
   }
+
+  // 카드 레이어 복원
+  const rawCard = v.cardLayers;
+  let cardLayers: EditorLayer[] | undefined = undefined;
+  if (Array.isArray(rawCard)) {
+    const cardDraft = sanitizeDraft({ layers: rawCard, background: v.cardBackground, fields: v.cardFields });
+    const rawCardMap = new Map(rawCard.filter(isObj).map((l) => [String(l.id), l]));
+    cardLayers = [];
+    for (const l of cardDraft.layers) {
+      if (l.type !== 'image' || l.src !== 'upload') {
+        cardLayers.push(l);
+        continue;
+      }
+      const meta = rawCardMap.get(l.id);
+      const photoId = typeof meta?.photoId === 'string' ? meta.photoId : null;
+      const blob = photoId ? await getPhoto(photoId) : undefined;
+      if (!photoId || !blob) {
+        missingPhotos++;
+        continue;
+      }
+      const naturalWidth = Number(meta?.naturalWidth);
+      cardLayers.push({ ...l, src: URL.createObjectURL(blob), uploaded: true, photoId, naturalWidth: naturalWidth > 0 ? naturalWidth : undefined });
+    }
+  }
+
   const sticker = sanitizeSticker(v) ?? { shape: 'circle', sizeCm: 6 };
+  const card = sanitizeCard({ sizeMm: v.cardSizeMm });
   const rawVersion = typeof (v as Record<string, unknown>).version === 'number' ? (v as Record<string, unknown>).version as number : undefined;
   return {
     snap: {
@@ -113,6 +145,11 @@ export async function fromStored(
       background: draft.background,
       layers,
       fields: draft.fields,
+      withCard: Boolean(v.withCard),
+      cardSizeMm: card?.sizeMm ?? '74x50',
+      cardBackground: typeof v.cardBackground === 'string' ? v.cardBackground : '#ffffff',
+      cardLayers,
+      cardFields: (v.cardFields && typeof v.cardFields === 'object') ? sanitizeDraft({ fields: v.cardFields }).fields : { recipient: '', sender: '', date: '' },
       event: ctx.events.includes(String(v.event)) ? (String(v.event) as EditorSnapshot['event']) : null,
       quantity: clampQty(v.quantity),
     },
@@ -137,7 +174,8 @@ export function autosave(productNo: number, snap: EditorSnapshot, source?: strin
 // 접수 실패 시에는 자동 보관이 실제로 가능한지 확인하고 결과를 화면에 알려 준다.
 export async function saveRecovery(productNo: number, snap: EditorSnapshot, source?: string): Promise<boolean> {
   try {
-    for (const layer of snap.layers) {
+    const allLayers = [...snap.layers, ...(snap.cardLayers ?? [])];
+    for (const layer of allLayers) {
       if (layer.type === 'image' && layer.uploaded && (!layer.photoId || !(await getPhoto(layer.photoId)))) return false;
     }
     localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ productNo, source, at: Date.now(), snap: toStored(snap) }));

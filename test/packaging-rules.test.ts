@@ -1,14 +1,29 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  MAX_ACTIVE, MAX_LAYERS, bleedUnits, canActivate, cautionWords, effectiveDpi, fillPlaceholders, fitScale, freeTextY, generateDesignCode, overlaps,
-  normalizeDesignCode, pngSize, printPixels, sanitizeDraft, sanitizeSticker,
+  MAX_ACTIVE, MAX_LAYERS, bleedUnits, canActivate, cardDimensionsMm, cardPrintPixels, cautionWords, effectiveDpi, effectiveDpiCard, fillPlaceholders, fitScale, fitScaleCard, freeTextY, generateDesignCode, overlaps,
+  normalizeDesignCode, pngSize, printPixels, sanitizeCard, sanitizeDraft, sanitizeSticker,
 } from '../src/packaging/rules.ts';
 
 test('인쇄 파일은 재단 여백 2mm 포함 300dpi', () => {
   assert.equal(printPixels(4), 520); // 4.4cm
   assert.equal(printPixels(6), 756); // 6.4cm
   assert.ok(Math.abs(bleedUnits(6) - 31.25) < 1e-9);
+});
+
+test('카드(엽서) 인쇄 파일은 재단 여백 사방 2mm 포함 300dpi (74×50 -> 921×638, 148×100 -> 1795×1228)', () => {
+  assert.deepEqual(cardDimensionsMm('74x50'), { widthMm: 74, heightMm: 50 });
+  assert.deepEqual(cardDimensionsMm('148x100'), { widthMm: 148, heightMm: 100 });
+  assert.deepEqual(cardPrintPixels('74x50'), { width: 921, height: 638 });
+  assert.deepEqual(cardPrintPixels('148x100'), { width: 1795, height: 1228 });
+});
+
+test('카드 규격 검증: 74x50 및 148x100만 허용하고 임의 규격은 거절', () => {
+  assert.deepEqual(sanitizeCard({ sizeMm: '74x50' }), { sizeMm: '74x50' });
+  assert.deepEqual(sanitizeCard({ sizeMm: '148x100' }), { sizeMm: '148x100' });
+  assert.equal(sanitizeCard({ sizeMm: '100x100' }), null);
+  assert.equal(sanitizeCard({ sizeMm: 'custom' }), null);
+  assert.equal(sanitizeCard(null), null);
 });
 
 test('사진 해상도: 6cm 스티커를 꽉 채운 800px 사진은 300dpi 이상, 400px는 150dpi 미만', () => {

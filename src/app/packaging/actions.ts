@@ -12,7 +12,26 @@ import { clientIp, createRateLimiter } from '@/lib/rate-limit.ts';
 import { clampQty } from '@/lib/result-query.ts';
 import { cleanTargeting } from '@/packaging/presets.ts';
 import { recordOperation } from '@/data/operations-repository.ts';
-import { MAX_PRINT_BYTES, generateDesignCode, normalizeDesignCode, pngSize, printPixels, sanitizeDraft, sanitizeSticker } from '@/packaging/rules.ts';
+import {
+  MAX_CARD_PRINT_BYTES,
+  MAX_PRINT_BYTES,
+  MAX_STICKER_PRINT_BYTES,
+  cardPrintPixels,
+  generateDesignCode,
+  normalizeDesignCode,
+  pngSize,
+  printPixels,
+  sanitizeCard,
+  sanitizeDraft,
+  sanitizeSticker,
+} from '@/packaging/rules.ts';
+import {
+  commitUploadSession,
+  prepareUploadSession,
+  type CommitUploadResult,
+  type PrepareUploadResult,
+  type UploadSessionMeta,
+} from '@/data/upload-session-repository.ts';
 
 // 같은 접속 주소에서 10분에 20번까지 (보통 고객은 한두 번 저장한다)
 const allowSave = createRateLimiter({ limit: 20, windowMs: 10 * 60 * 1000 });
@@ -32,6 +51,7 @@ export interface CustomerDesign {
   quantity: number;
   styleName: string;
   sticker: string;
+  card?: string | null;
   status: DesignSummary['status'];
   statusChangedAt: string;
 }
@@ -41,6 +61,10 @@ export type LookupResult = { ok: true; design: CustomerDesign } | { ok: false; m
 // 상품 주소·판매 여부는 쇼핑몰 상품 목록에서 (여러 건이면 목록을 한 번만 읽어 넘긴다)
 async function toCustomer(d: DesignSummary, products?: Cafe24Product[]): Promise<CustomerDesign> {
   const product = (products ?? (await getCatalog()).products).find((p) => p.productNo === d.productNo);
+  const printItems: string[] = [];
+  if (d.sticker) printItems.push(`${d.sticker.shape === 'circle' ? '원형' : '사각'} ${d.sticker.sizeCm}cm 스티커`);
+  if (d.card) printItems.push(`카드(엽서) ${d.card.sizeMm}mm`);
+
   return {
     code: d.code,
     createdAt: d.createdAt,
@@ -50,7 +74,8 @@ async function toCustomer(d: DesignSummary, products?: Cafe24Product[]): Promise
     canOrder: Boolean(product && product.display && product.selling && !product.soldOut),
     quantity: d.quantity,
     styleName: d.styleName,
-    sticker: d.sticker ? `${d.sticker.shape === 'circle' ? '원형' : '사각'} ${d.sticker.sizeCm}cm 스티커` : '인쇄물 없음',
+    sticker: printItems.length > 0 ? printItems.join(' + ') : '인쇄물 없음',
+    card: d.card ? `카드(엽서) ${d.card.sizeMm}mm` : null,
     status: d.status,
     statusChangedAt: d.statusChangedAt,
   };
@@ -120,6 +145,80 @@ export async function reorderDesignAction(raw: string, rawQuantity: unknown): Pr
 
 export type SaveDesignResult = { ok: true; code: string } | { ok: false; message: string };
 
+// 대용량 인쇄 파일 업로드 세션 준비 (클라이언트가 서명 URL을 받아 직접 업로드)
+export async function prepareDesignUploadAction(rawMeta: unknown): Promise<PrepareUploadResult> {
+  const startedAt = Date.now();
+  if (!allowSave(clientIp(await headers()))) {
+    return { ok: false, message: '저장을 너무 자주 했어요. 잠시 후 다시 시도해 주세요.' };
+  }
+  try {
+    const metaText = typeof rawMeta === 'string' ? rawMeta : JSON.stringify(rawMeta ?? {});
+    if (metaText.length > 100_000) return { ok: false, message: '디자인 정보가 너무 큽니다.' };
+    const meta = JSON.parse(metaText) as Record<string, unknown>;
+
+    const catalog = await getCatalog();
+    const product = catalog.products.find((p) => p.productNo === Number(meta.productNo));
+    if (!product || !product.display || !product.selling || product.soldOut) {
+      return { ok: false, message: '지금 주문할 수 없는 상품입니다. 상품을 다시 골라 주세요.' };
+    }
+    const quantity = clampQty(meta.quantity);
+    const event = isEvent(catalog.config, meta.event) ? meta.event : null;
+
+    const { styles } = await getPackagingAssets();
+    const style = styles.find((s) => s.id === String(meta.styleId));
+    if (!style) return { ok: false, message: '포장 스타일을 다시 골라 주세요.' };
+    const targets = cleanTargeting(style.targeting).productNos;
+    if (targets.length && !targets.includes(product.productNo)) {
+      return { ok: false, message: '이 상품에 적용할 수 없는 포장입니다. 포장지를 다시 골라 주세요.' };
+    }
+
+    const sticker = sanitizeSticker(meta.sticker);
+    if (meta.sticker != null && !sticker) return { ok: false, message: '스티커 규격을 다시 골라 주세요.' };
+    const card = sanitizeCard(meta.card);
+    if (meta.card != null && !card) return { ok: false, message: '카드(엽서) 규격을 다시 골라 주세요.' };
+
+    const sessionMeta: UploadSessionMeta = {
+      productNo: product.productNo,
+      productName: product.name,
+      quantity,
+      event,
+      styleId: style.id,
+      styleName: style.name,
+      sticker,
+      draft: sticker ? sanitizeDraft(meta.draft) : null,
+      card,
+      cardDraft: card ? sanitizeDraft(meta.cardDraft) : null,
+    };
+
+    return await prepareUploadSession(sessionMeta);
+  } catch (e) {
+    console.error('[포장 디자인] 업로드 세션 생성 실패:', e instanceof Error ? e.message : e);
+    await recordOperation('design_save', 'error', startedAt, 'prepare_upload');
+    return { ok: false, message: '업로드 준비에 실패했습니다. 잠시 후 다시 시도해 주세요.' };
+  }
+}
+
+// 업로드 완료 후 무결성 검증 및 최종 접수 확정 (Commit)
+export async function commitDesignUploadAction(input: { sessionId: string; secret: string }): Promise<CommitUploadResult> {
+  const startedAt = Date.now();
+  if (!allowSave(clientIp(await headers()))) {
+    return { ok: false, uncertain: true, message: '요청을 너무 자주 했어요. 잠시 후 다시 시도해 주세요.' };
+  }
+  try {
+    const res = await commitUploadSession(input);
+    if (res.ok) {
+      await recordOperation('design_save', 'ok', startedAt);
+    } else {
+      await recordOperation('design_save', 'error', startedAt, 'commit_upload');
+    }
+    return res;
+  } catch (e) {
+    console.error('[포장 디자인] 접수 확정 실패:', e instanceof Error ? e.message : e);
+    await recordOperation('design_save', 'error', startedAt, 'commit_upload_exception');
+    return { ok: false, uncertain: true, message: '접수 확정 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.' };
+  }
+}
+
 export async function saveDesignAction(form: FormData): Promise<SaveDesignResult> {
   const startedAt = Date.now();
   if (!allowSave(clientIp(await headers()))) {
@@ -143,16 +242,32 @@ export async function saveDesignAction(form: FormData): Promise<SaveDesignResult
     if (targets.length && !targets.includes(product.productNo)) return { ok: false, message: '이 상품에 적용할 수 없는 포장입니다. 포장지를 다시 골라 주세요.' };
 
     const sticker = sanitizeSticker(meta.sticker);
+    if (meta.sticker != null && !sticker) return { ok: false, message: '스티커 규격을 다시 골라 주세요.' };
     let print: Uint8Array | null = null;
     if (sticker) {
       const file = form.get('print');
       if (!(file instanceof Blob)) return { ok: false, message: '스티커 이미지가 없습니다.' };
-      if (file.size > MAX_PRINT_BYTES) return { ok: false, message: '스티커 이미지가 너무 큽니다.' };
+      if (file.size > MAX_STICKER_PRINT_BYTES) return { ok: false, message: '스티커 이미지가 너무 큽니다.' };
       print = new Uint8Array(await file.arrayBuffer());
       const size = pngSize(print);
       const want = printPixels(sticker.sizeCm);
       if (!size || Math.abs(size.width - want) > 2 || Math.abs(size.height - want) > 2) {
         return { ok: false, message: '스티커 이미지 크기가 맞지 않습니다. 새로고침 후 다시 저장해 주세요.' };
+      }
+    }
+
+    const card = sanitizeCard(meta.card);
+    if (meta.card != null && !card) return { ok: false, message: '카드(엽서) 규격을 다시 골라 주세요.' };
+    let cardPrint: Uint8Array | null = null;
+    if (card) {
+      const cardFile = form.get('cardPrint');
+      if (!(cardFile instanceof Blob)) return { ok: false, message: '카드(엽서) 이미지가 없습니다.' };
+      if (cardFile.size > MAX_CARD_PRINT_BYTES) return { ok: false, message: '카드(엽서) 이미지가 너무 큽니다.' };
+      cardPrint = new Uint8Array(await cardFile.arrayBuffer());
+      const size = pngSize(cardPrint);
+      const want = cardPrintPixels(card.sizeMm);
+      if (!size || Math.abs(size.width - want.width) > 2 || Math.abs(size.height - want.height) > 2) {
+        return { ok: false, message: '카드(엽서) 이미지 크기가 맞지 않습니다. 새로고침 후 다시 저장해 주세요.' };
       }
     }
 
@@ -165,10 +280,12 @@ export async function saveDesignAction(form: FormData): Promise<SaveDesignResult
       styleName: style.name,
       sticker,
       draft: sticker ? sanitizeDraft(meta.draft) : null,
+      card,
+      cardDraft: card ? sanitizeDraft(meta.cardDraft) : null,
     };
     for (let attempt = 0; attempt < 3; attempt++) {
       const code = generateDesignCode();
-      if ((await createDesign({ ...base, code }, print)) === 'ok') {
+      if ((await createDesign({ ...base, code }, print, cardPrint)) === 'ok') {
         await recordOperation('design_save', 'ok', startedAt);
         return { ok: true, code };
       }

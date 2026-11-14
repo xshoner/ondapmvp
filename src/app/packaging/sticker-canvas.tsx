@@ -6,8 +6,8 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { Circle, Group, Image as KImage, Layer as KLayer, Line, Rect, Shape, Stage, Text as KText, Transformer } from 'react-konva';
 import type Konva from 'konva';
-import { CANVAS_UNITS, bleedUnits, type Box, type FontId } from '@/packaging/rules.ts';
-import type { StickerShape, TextLayer } from '@/packaging/types.ts';
+import { CANVAS_UNITS, bleedUnits, cardCanvasUnits, type Box, type FontId } from '@/packaging/rules.ts';
+import type { CardSizeMm, StickerShape, TextLayer } from '@/packaging/types.ts';
 import type { CanvasApi, EditorImageLayer, EditorLayer, TextRect } from './editor-types.ts';
 import { loadCanvasFonts } from '@/packaging/font-loading.ts';
 
@@ -15,6 +15,7 @@ type Props = {
   displaySize: number;
   shape: StickerShape;
   sizeCm: number;
+  cardSizeMm?: CardSizeMm;
   background: string;
   layers: EditorLayer[]; // 문구는 자리표시자를 채운 값
   fontFamilies: Record<FontId, string>;
@@ -231,8 +232,10 @@ function TextNode({
 type InlineEditorProps = {
   layer: TextLayer;
   scale: number;
-  displaySize: number;
+  displayWidth: number;
+  displayHeight: number;
   family: string;
+  isCard?: boolean;
   onChange: (patch: Partial<EditorLayer>) => void;
   onClose: () => void;
   commitRef: React.MutableRefObject<(() => void) | null>;
@@ -241,8 +244,10 @@ type InlineEditorProps = {
 function InlineTextEditor({
   layer,
   scale,
-  displaySize,
+  displayWidth,
+  displayHeight,
   family,
+  isCard,
   onChange,
   onClose,
   commitRef,
@@ -272,9 +277,9 @@ function InlineTextEditor({
   const centerX = layer.x * scale;
   const centerY = layer.y * scale;
   const estimatedCardHeight = 28 + textareaHeightPx + 40 + 26;
-  const cardWidth = Math.min(360, Math.max(240, displaySize - 16));
-  const cardLeft = Math.max(8, Math.min(centerX - cardWidth / 2, displaySize - cardWidth - 8));
-  const cardTop = Math.max(8, Math.min(centerY - estimatedCardHeight / 2, displaySize - estimatedCardHeight - 8));
+  const cardWidth = Math.min(360, Math.max(240, displayWidth - 16));
+  const cardLeft = Math.max(8, Math.min(centerX - cardWidth / 2, displayWidth - cardWidth - 8));
+  const cardTop = Math.max(8, Math.min(centerY - estimatedCardHeight / 2, displayHeight - estimatedCardHeight - 8));
 
   // 가로 스크롤 오버플로 감지 (장문 시 좌우 이동 지원)
   const checkOverflowX = useCallback(() => {
@@ -444,7 +449,7 @@ function InlineTextEditor({
       <textarea
         ref={textareaRef}
         className="pkg-inline-editor-textarea"
-        aria-label="스티커 문구 직접 편집"
+        aria-label={isCard ? '카드 문구 직접 편집' : '스티커 문구 직접 편집'}
         value={draftText}
         maxLength={120}
         rows={Math.min(4, lineCount)}
@@ -598,7 +603,7 @@ function InlineTextEditor({
 }
 
 export default function StickerCanvas(props: Props) {
-  const { displaySize, shape, sizeCm, background, layers, fontFamilies, selectedId, onSelect, onChange, apiRef, onTextRects, warnBoxes, onReady, onFontFallback } = props;
+  const { displaySize, shape, sizeCm, cardSizeMm, background, layers, fontFamilies, selectedId, onSelect, onChange, apiRef, onTextRects, warnBoxes, onReady, onFontFallback } = props;
   const stageRef = useRef<Konva.Stage>(null);
   const trRef = useRef<Konva.Transformer>(null);
   const guidesRef = useRef<Konva.Layer>(null);
@@ -607,8 +612,17 @@ export default function StickerCanvas(props: Props) {
   const [isExporting, setIsExporting] = useState(false);
   const commitActiveEditRef = useRef<(() => void) | null>(null);
 
-  const scale = displaySize / U;
-  const b = bleedUnits(sizeCm);
+  const isCard = !!cardSizeMm;
+  const cardUnits = cardSizeMm ? cardCanvasUnits(cardSizeMm) : null;
+  const widthUnits = cardUnits ? cardUnits.widthUnits : U;
+  const heightUnits = cardUnits ? cardUnits.heightUnits : U;
+  const displayWidth = displaySize;
+  const displayHeight = Math.round(displayWidth * (heightUnits / widthUnits));
+  const scale = displayWidth / widthUnits;
+  const centerX = widthUnits / 2;
+  const centerY = heightUnits / 2;
+  const bleedX = cardUnits ? cardUnits.bleedX : bleedUnits(sizeCm);
+  const bleedY = cardUnits ? cardUnits.bleedY : bleedUnits(sizeCm);
   const hair = 1.5 / scale; // 화면에서 1.5px 두께
 
   // 글꼴 파일이 늦게 도착하면 글자 폭이 달라지므로 문구 노드를 다시 만든다
@@ -658,16 +672,34 @@ export default function StickerCanvas(props: Props) {
           if (stage.find('Image').length < want) throw new Error('이미지를 아직 불러오지 못했어요. 잠시 후 다시 저장해 주세요.');
           trRef.current?.visible(false);
           guidesRef.current?.visible(false);
-          const safeRatio = (pixels + 0.001) / displaySize;
-          const blob = await stage.toBlob({
+
+          const targetW = typeof pixels === 'number' ? pixels : pixels.width;
+          const targetH = typeof pixels === 'number' ? pixels : pixels.height;
+
+          const rawCanvas = stage.toCanvas({
             x: 0,
             y: 0,
-            width: displaySize,
-            height: displaySize,
-            pixelRatio: safeRatio,
-            mimeType: 'image/png',
+            width: displayWidth,
+            height: displayHeight,
+            pixelRatio: (targetW + 0.001) / displayWidth,
           });
-          if (!blob) throw new Error('스티커 이미지를 만들지 못했어요. 다시 시도해 주세요.');
+
+          let finalCanvas: HTMLCanvasElement = rawCanvas;
+          if (rawCanvas.width !== targetW || rawCanvas.height !== targetH) {
+            const exactCanvas = document.createElement('canvas');
+            exactCanvas.width = targetW;
+            exactCanvas.height = targetH;
+            const ctx = exactCanvas.getContext('2d');
+            if (ctx) {
+              ctx.imageSmoothingEnabled = true;
+              ctx.imageSmoothingQuality = 'high';
+              ctx.drawImage(rawCanvas, 0, 0, targetW, targetH);
+              finalCanvas = exactCanvas;
+            }
+          }
+
+          const blob = await new Promise<Blob | null>((resolve) => finalCanvas.toBlob(resolve, 'image/png'));
+          if (!blob) throw new Error(`${isCard ? '카드' : '스티커'} 이미지를 만들지 못했어요. 다시 시도해 주세요.`);
           return blob;
         } finally {
           setIsExporting(false);
@@ -678,7 +710,7 @@ export default function StickerCanvas(props: Props) {
       },
     };
     onReady?.();
-  }, [apiRef, layers, fontFamilies, displaySize, onReady, onFontFallback]);
+  }, [apiRef, layers, fontFamilies, displayWidth, displayHeight, isCard, onReady, onFontFallback]);
 
   // 문구 상자 재기: 렌더가 끝날 때마다 (글꼴이 다 오기 전 폭은 틀리므로 기다린다). 바뀌었을 때만 알린다
   const lastRects = useRef('');
@@ -704,18 +736,23 @@ export default function StickerCanvas(props: Props) {
     onDragMove(e) {
       const n = e.target;
       const near = 8 / scale;
-      const v = Math.abs(n.x() - C) < near;
-      const h = Math.abs(n.y() - C) < near;
-      if (v) n.x(C);
-      if (h) n.y(C);
+      const v = Math.abs(n.x() - centerX) < near;
+      const h = Math.abs(n.y() - centerY) < near;
+      if (v) n.x(centerX);
+      if (h) n.y(centerY);
       setSnap((s) => (s.v === v && s.h === h ? s : { v, h }));
     },
     onDragEnd: () => setSnap({ v: false, h: false }),
   };
 
   const clip = (ctx: Konva.Context) => {
-    if (shape === 'circle') ctx.arc(C, C, C, 0, Math.PI * 2, false);
-    else ctx.rect(0, 0, U, U);
+    if (isCard) {
+      ctx.rect(0, 0, widthUnits, heightUnits);
+    } else if (shape === 'circle') {
+      ctx.arc(centerX, centerY, centerX, 0, Math.PI * 2, false);
+    } else {
+      ctx.rect(0, 0, widthUnits, heightUnits);
+    }
   };
 
   const deselectIfEmpty = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
@@ -735,15 +772,15 @@ export default function StickerCanvas(props: Props) {
       className="pkg-canvas-stage-wrapper"
       style={{
         position: 'relative',
-        width: displaySize,
-        height: displaySize,
+        width: displayWidth,
+        height: displayHeight,
         margin: '0 auto',
       }}
     >
       <Stage
         ref={stageRef}
-        width={displaySize}
-        height={displaySize}
+        width={displayWidth}
+        height={displayHeight}
         scaleX={scale}
         scaleY={scale}
         onMouseDown={deselectIfEmpty}
@@ -751,7 +788,7 @@ export default function StickerCanvas(props: Props) {
       >
         <KLayer>
           <Group clipFunc={clip}>
-            <Rect name="bg" x={0} y={0} width={U} height={U} fill={background} />
+            <Rect name="bg" x={0} y={0} width={widthUnits} height={heightUnits} fill={background} />
             {layers.map((l) =>
               l.type === 'image' ? (
                 <ImageNode key={l.id} layer={l} onSelect={() => { commitActiveEditRef.current?.(); onSelect(l.id); }} onChange={(p) => onChange(l.id, p)} drag={drag} />
@@ -793,35 +830,47 @@ export default function StickerCanvas(props: Props) {
           <Shape
             sceneFunc={(ctx, s) => {
               ctx.beginPath();
-              if (shape === 'circle') {
-                ctx.arc(C, C, C, 0, Math.PI * 2, false);
-                ctx.moveTo(C + C - b, C);
-                ctx.arc(C, C, C - b, 0, Math.PI * 2, true);
+              if (isCard) {
+                ctx.rect(0, 0, widthUnits, heightUnits);
+                ctx.moveTo(bleedX, bleedY);
+                ctx.lineTo(bleedX, heightUnits - bleedY);
+                ctx.lineTo(widthUnits - bleedX, heightUnits - bleedY);
+                ctx.lineTo(widthUnits - bleedX, bleedY);
+                ctx.closePath();
+              } else if (shape === 'circle') {
+                ctx.arc(centerX, centerY, centerX, 0, Math.PI * 2, false);
+                ctx.moveTo(centerX + centerX - bleedX, centerY);
+                ctx.arc(centerX, centerY, centerX - bleedX, 0, Math.PI * 2, true);
               } else {
-                ctx.rect(0, 0, U, U);
-                ctx.moveTo(b, b);
-                ctx.lineTo(b, U - b);
-                ctx.lineTo(U - b, U - b);
-                ctx.lineTo(U - b, b);
+                ctx.rect(0, 0, widthUnits, heightUnits);
+                ctx.moveTo(bleedX, bleedY);
+                ctx.lineTo(bleedX, heightUnits - bleedY);
+                ctx.lineTo(widthUnits - bleedX, heightUnits - bleedY);
+                ctx.lineTo(widthUnits - bleedX, bleedY);
                 ctx.closePath();
               }
               ctx.fillStrokeShape(s);
             }}
             fill="rgba(245,242,234,0.72)"
           />
-          {shape === 'circle' ? (
+          {isCard ? (
             <>
-              <Circle x={C} y={C} radius={C - b} stroke="#c0392b" strokeWidth={hair} dash={[10, 8]} />
-              <Circle x={C} y={C} radius={C - 2 * b} stroke="#8a948f" strokeWidth={hair} dash={[4, 8]} />
+              <Rect x={bleedX} y={bleedY} width={widthUnits - 2 * bleedX} height={heightUnits - 2 * bleedY} stroke="#c0392b" strokeWidth={hair} dash={[10, 8]} />
+              <Rect x={2 * bleedX} y={2 * bleedY} width={widthUnits - 4 * bleedX} height={heightUnits - 4 * bleedY} stroke="#8a948f" strokeWidth={hair} dash={[4, 8]} />
+            </>
+          ) : shape === 'circle' ? (
+            <>
+              <Circle x={centerX} y={centerY} radius={centerX - bleedX} stroke="#c0392b" strokeWidth={hair} dash={[10, 8]} />
+              <Circle x={centerX} y={centerY} radius={centerX - 2 * bleedX} stroke="#8a948f" strokeWidth={hair} dash={[4, 8]} />
             </>
           ) : (
             <>
-              <Rect x={b} y={b} width={U - 2 * b} height={U - 2 * b} stroke="#c0392b" strokeWidth={hair} dash={[10, 8]} />
-              <Rect x={2 * b} y={2 * b} width={U - 4 * b} height={U - 4 * b} stroke="#8a948f" strokeWidth={hair} dash={[4, 8]} />
+              <Rect x={bleedX} y={bleedY} width={widthUnits - 2 * bleedX} height={heightUnits - 2 * bleedY} stroke="#c0392b" strokeWidth={hair} dash={[10, 8]} />
+              <Rect x={2 * bleedX} y={2 * bleedY} width={widthUnits - 4 * bleedX} height={heightUnits - 4 * bleedY} stroke="#8a948f" strokeWidth={hair} dash={[4, 8]} />
             </>
           )}
-          {snap.v && <Line points={[C, 0, C, U]} stroke="#2f5a4b" strokeWidth={hair} dash={[6, 6]} />}
-          {snap.h && <Line points={[0, C, U, C]} stroke="#2f5a4b" strokeWidth={hair} dash={[6, 6]} />}
+          {snap.v && <Line points={[centerX, 0, centerX, heightUnits]} stroke="#2f5a4b" strokeWidth={hair} dash={[6, 6]} />}
+          {snap.h && <Line points={[0, centerY, widthUnits, centerY]} stroke="#2f5a4b" strokeWidth={hair} dash={[6, 6]} />}
           {warnBoxes.map((w, i) => (
             <Rect key={i} x={w.x} y={w.y} width={w.width} height={w.height} stroke="#c0392b" strokeWidth={hair * 1.4} dash={[8, 6]} cornerRadius={4 / scale} />
           ))}
@@ -833,8 +882,10 @@ export default function StickerCanvas(props: Props) {
           key={editingLayer.id}
           layer={editingLayer}
           scale={scale}
-          displaySize={displaySize}
+          displayWidth={displayWidth}
+          displayHeight={displayHeight}
           family={fontFamilies[editingLayer.font as FontId] ?? fontFamilies.sans}
+          isCard={isCard}
           onChange={(patch) => onChange(editingLayer.id, patch)}
           onClose={() => setEditingId(null)}
           commitRef={commitActiveEditRef}

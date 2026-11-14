@@ -11,7 +11,7 @@ import { fail, readPages, type DbPage } from './db.ts';
 import { cleanTargeting } from '../packaging/presets.ts';
 import type { EventType } from '../engine/types.ts';
 import { isLate, kstRange, lateSince } from '../packaging/design-filter.ts';
-import type { Design, DesignDraft, DesignImage, DesignStatus, DesignText, PackagingAssets, PackagingStyle, StickerSpec } from '../packaging/types.ts';
+import type { CardSpec, Design, DesignDraft, DesignImage, DesignStatus, DesignText, PackagingAssets, PackagingStyle, StickerSpec } from '../packaging/types.ts';
 
 export type AssetKind = 'styles' | 'images' | 'texts';
 type AssetRow = PackagingStyle | DesignImage | DesignText;
@@ -44,7 +44,7 @@ function readLocalDesigns(): Design[] {
   const all: Design[] = existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : [];
   return all.map((d) => {
     const sourceCode = d.sourceCode ?? null;
-    return { ...d, sourceCode, statusChangedAt: d.statusChangedAt ?? d.createdAt, printCode: d.hasPrintFile && !sourceCode ? d.code : sourceCode };
+    return { ...d, sourceCode, statusChangedAt: d.statusChangedAt ?? d.createdAt, printCode: (d.hasPrintFile || d.hasCardPrintFile) && !sourceCode ? d.code : sourceCode };
   });
 }
 
@@ -69,8 +69,11 @@ const designFromRow = (r: Row): Design => ({
   styleName: r.style_name,
   sticker: r.sticker,
   draft: r.draft ?? null,
-  hasPrintFile: Boolean(r.print_path || r.source_code),
-  printCode: r.print_path ? r.code : (r.source_code ?? null),
+  card: r.card ?? null,
+  cardDraft: r.card_draft ?? null,
+  hasPrintFile: Boolean(r.sticker && (r.print_path || r.source_code)),
+  hasCardPrintFile: Boolean(r.card && (r.card_print_path || r.source_code)),
+  printCode: (r.print_path || r.card_print_path) ? r.code : (r.source_code ?? null),
   sourceCode: r.source_code ?? null,
   status: r.status,
   statusChangedAt: r.status_changed_at ?? r.created_at,
@@ -171,11 +174,18 @@ export interface NewDesign {
   styleName: string;
   sticker: StickerSpec | null;
   draft: DesignDraft | null;
+  card?: CardSpec | null;
+  cardDraft?: DesignDraft | null;
 }
 
 // 인쇄 파일을 먼저 올리고 접수 행을 만든다. 코드가 겹치면 'duplicate'
-export async function createDesign(design: NewDesign, printPng: Uint8Array | null): Promise<'ok' | 'duplicate'> {
+export async function createDesign(
+  design: NewDesign,
+  printPng: Uint8Array | null,
+  cardPrintPng: Uint8Array | null = null,
+): Promise<'ok' | 'duplicate'> {
   const printPath = printPng ? `${design.code}.png` : null;
+  const cardPrintPath = cardPrintPng ? `${design.code}-card.png` : null;
   if (dataSource() === 'local') {
     const all = readLocalDesigns();
     if (all.some((d) => d.code === design.code)) return 'duplicate';
@@ -183,20 +193,46 @@ export async function createDesign(design: NewDesign, printPng: Uint8Array | nul
       mkdirSync(printDir(), { recursive: true });
       writeFileSync(join(printDir(), printPath), printPng);
     }
+    if (cardPrintPng && cardPrintPath) {
+      mkdirSync(printDir(), { recursive: true });
+      writeFileSync(join(printDir(), cardPrintPath), cardPrintPng);
+    }
     const now = new Date().toISOString();
     all.unshift({
-      ...design, createdAt: now, hasPrintFile: Boolean(printPng), printCode: printPng ? design.code : null, sourceCode: null,
-      status: 'pending', statusChangedAt: now, orderNo: null, memo: '',
+      ...design,
+      card: design.card ?? null,
+      cardDraft: design.cardDraft ?? null,
+      createdAt: now,
+      hasPrintFile: Boolean(printPng),
+      hasCardPrintFile: Boolean(cardPrintPng),
+      printCode: (printPng || cardPrintPng) ? design.code : null,
+      sourceCode: null,
+      status: 'pending',
+      statusChangedAt: now,
+      orderNo: null,
+      memo: '',
     });
     writeLocalDesigns(all);
     return 'ok';
   }
   const db = await createClient();
+  let uploadedPrint = false;
   if (printPng && printPath) {
     const up = await db.storage.from(PRINT_BUCKET).upload(printPath, printPng, { contentType: 'image/png', upsert: false });
     if (up.error) {
       if (/exists|duplicate/i.test(up.error.message)) return 'duplicate';
       fail('인쇄 파일 저장', up.error);
+    }
+    uploadedPrint = true;
+  }
+  if (cardPrintPng && cardPrintPath) {
+    const up = await db.storage.from(PRINT_BUCKET).upload(cardPrintPath, cardPrintPng, { contentType: 'image/png', upsert: false });
+    if (up.error) {
+      if (uploadedPrint && printPath) {
+        await db.storage.from(PRINT_BUCKET).remove([printPath]).catch(() => null);
+      }
+      if (/exists|duplicate/i.test(up.error.message)) return 'duplicate';
+      fail('카드 인쇄 파일 저장', up.error);
     }
   }
   const { error } = await db.from('designs').insert({
@@ -210,6 +246,9 @@ export async function createDesign(design: NewDesign, printPng: Uint8Array | nul
     sticker: design.sticker,
     draft: design.draft,
     print_path: printPath,
+    card: design.card ?? null,
+    card_draft: design.cardDraft ?? null,
+    card_print_path: cardPrintPath,
   });
   if (error?.code === '23505') return 'duplicate';
   if (error) fail('디자인 접수', error);
@@ -217,7 +256,7 @@ export async function createDesign(design: NewDesign, printPng: Uint8Array | nul
 }
 
 // 목록에는 편집 내용(draft, 건당 최대 64KB)이 필요 없으므로 빼고 읽는다 (draft는 null)
-const LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, event, style_id, style_name, sticker, print_path, source_code, status, status_changed_at, order_no, memo';
+const LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, event, style_id, style_name, sticker, card, print_path, card_print_path, source_code, status, status_changed_at, order_no, memo';
 // 20261025000000_operations.sql을 실행하기 전 DB: 새 칸(상태 시각·원본)이 없다 (42703 undefined_column)
 const OLD_LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, event, style_id, style_name, sticker, print_path, status, order_no, memo';
 
@@ -272,13 +311,30 @@ export async function updateDesign(code: string, patch: { status: DesignStatus; 
 }
 
 // 관리자 내려받기용 인쇄 파일 (호출하는 쪽에서 관리자 확인)
-export async function readPrintFile(code: string): Promise<Uint8Array | null> {
+export async function readPrintFile(code: string, item: 'sticker' | 'card' = 'sticker'): Promise<Uint8Array | null> {
+  const fileName = item === 'card' ? `${code}-card.png` : `${code}.png`;
   if (dataSource() === 'local') {
-    const path = join(printDir(), `${code}.png`);
+    let path = join(printDir(), fileName);
+    if (!existsSync(path)) {
+      const d = readLocalDesigns().find((x) => x.code === code);
+      if (d?.sourceCode) {
+        const srcFileName = item === 'card' ? `${d.sourceCode}-card.png` : `${d.sourceCode}.png`;
+        path = join(printDir(), srcFileName);
+      }
+    }
     return existsSync(path) ? new Uint8Array(readFileSync(path)) : null;
   }
   const db = await createClient();
-  const { data, error } = await db.storage.from(PRINT_BUCKET).download(`${code}.png`);
+  let { data, error } = await db.storage.from(PRINT_BUCKET).download(fileName);
+  if ((error || !data)) {
+    const { data: row } = await db.from('designs').select('source_code').eq('code', code).maybeSingle();
+    if (row?.source_code) {
+      const srcFileName = item === 'card' ? `${row.source_code}-card.png` : `${row.source_code}.png`;
+      const res = await db.storage.from(PRINT_BUCKET).download(srcFileName);
+      data = res.data;
+      error = res.error;
+    }
+  }
   if (error || !data) return null;
   return new Uint8Array(await data.arrayBuffer());
 }
@@ -293,6 +349,7 @@ export interface DesignSummary {
   quantity: number;
   styleName: string;
   sticker: StickerSpec | null;
+  card: CardSpec | null;
   status: DesignStatus;
   statusChangedAt: string;
 }
@@ -302,7 +359,7 @@ export async function lookupDesign(code: string): Promise<DesignSummary | null> 
     const d = readLocalDesigns().find((x) => x.code === code);
     return d ? {
       code: d.code, createdAt: d.createdAt, productNo: d.productNo, productName: d.productName, quantity: d.quantity,
-      styleName: d.styleName, sticker: d.sticker, status: d.status, statusChangedAt: d.statusChangedAt,
+      styleName: d.styleName, sticker: d.sticker, card: d.card ?? null, status: d.status, statusChangedAt: d.statusChangedAt,
     } : null;
   }
   const db = await createClient();
@@ -311,7 +368,7 @@ export async function lookupDesign(code: string): Promise<DesignSummary | null> 
   const r = (data as Row[] | null)?.[0];
   return r ? {
     code: r.code, createdAt: r.created_at, productNo: r.product_no, productName: r.product_name, quantity: r.quantity,
-    styleName: r.style_name, sticker: r.sticker, status: r.status, statusChangedAt: r.status_changed_at ?? r.created_at,
+    styleName: r.style_name, sticker: r.sticker, card: r.card ?? null, status: r.status, statusChangedAt: r.status_changed_at ?? r.created_at,
   } : null;
 }
 
@@ -323,10 +380,10 @@ export async function reorderDesign(code: string, newCode: string, quantity: num
     if (!src) return 'not_found';
     if (all.some((d) => d.code === newCode)) return 'duplicate';
     const now = new Date().toISOString();
-    const sourceCode = src.hasPrintFile && !src.sourceCode ? src.code : src.sourceCode;
+    const sourceCode = (src.hasPrintFile || src.hasCardPrintFile) && !src.sourceCode ? src.code : src.sourceCode;
     all.unshift({
       ...src, code: newCode, quantity, createdAt: now, status: 'pending', statusChangedAt: now, orderNo: null, memo: '',
-      sourceCode, printCode: sourceCode, hasPrintFile: Boolean(sourceCode),
+      sourceCode, printCode: sourceCode, hasPrintFile: Boolean(sourceCode && src.sticker), hasCardPrintFile: Boolean(sourceCode && src.card),
     });
     writeLocalDesigns(all);
     return 'ok';

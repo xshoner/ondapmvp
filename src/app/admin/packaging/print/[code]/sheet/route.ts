@@ -5,7 +5,7 @@
 import { listDesigns, readPrintFile } from '@/data/packaging-repository.ts';
 import { getAdminStatus } from '@/lib/admin-guard.ts';
 import { buildPrintPdf } from '@/packaging/print-pdf.ts';
-import { normalizeDesignCode, pngSize, printPixels, sanitizeSticker } from '@/packaging/rules.ts';
+import { cardPrintPixels, normalizeDesignCode, pngSize, printPixels, sanitizeCard, sanitizeSticker } from '@/packaging/rules.ts';
 import { isPaper } from '@/packaging/sheet.ts';
 import { recordOperation } from '@/data/operations-repository.ts';
 
@@ -20,23 +20,38 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
   const paper = isPaper(q.get('paper')) ? (q.get('paper') as 'A4' | 'A3') : 'A4';
 
   const [design] = await listDesigns({ code, limit: 1 });
-  // 접수는 공개 키로 들어오므로 DB 값을 그대로 믿지 않고 다시 확인한다
-  const sticker = sanitizeSticker(design?.sticker);
-  if (!design || !sticker) return new Response('스티커가 없는 접수입니다.', { status: 404 });
-  // 같은 디자인으로 다시 주문한 접수는 원본 접수의 인쇄 파일을 쓴다
-  const png = design.printCode ? await readPrintFile(design.printCode) : null;
-  const size = png && pngSize(png);
-  const want = printPixels(sticker.sizeCm);
-  if (!png || !size) return new Response('인쇄 파일이 없습니다.', { status: 404 });
-  if (Math.abs(size.width - want) > 2 || Math.abs(size.height - want) > 2) {
-    return new Response(`인쇄 파일 크기가 규격(${want}px)과 다릅니다.`, { status: 422 });
+  if (!design) return new Response('디자인을 찾을 수 없습니다.', { status: 404 });
+
+  const isCard = q.get('item') === 'card' || (!design.sticker && Boolean(design.card));
+  let png: Uint8Array | null = null;
+  let sticker = sanitizeSticker(design.sticker);
+  let card = sanitizeCard(design.card);
+
+  if (isCard) {
+    if (!card) return new Response('카드(엽서)가 없는 접수입니다.', { status: 404 });
+    png = design.printCode ? await readPrintFile(design.printCode, 'card') : null;
+    const size = png && pngSize(png);
+    const want = cardPrintPixels(card.sizeMm);
+    if (!png || !size) return new Response('카드 인쇄 파일이 없습니다.', { status: 404 });
+    if (Math.abs(size.width - want.width) > 2 || Math.abs(size.height - want.height) > 2) {
+      return new Response(`인쇄 파일 크기(${size.width}×${size.height}px)가 규격(${want.width}×${want.height}px)과 다릅니다.`, { status: 422 });
+    }
+  } else {
+    if (!sticker) return new Response('스티커가 없는 접수입니다.', { status: 404 });
+    png = design.printCode ? await readPrintFile(design.printCode, 'sticker') : null;
+    const size = png && pngSize(png);
+    const want = printPixels(sticker.sizeCm);
+    if (!png || !size) return new Response('스티커 인쇄 파일이 없습니다.', { status: 404 });
+    if (Math.abs(size.width - want) > 2 || Math.abs(size.height - want) > 2) {
+      return new Response(`인쇄 파일 크기가 규격(${want}px)과 다릅니다.`, { status: 422 });
+    }
   }
 
   const count = Math.min(100000, Math.max(1, Math.round(Number(q.get('count')) || design.quantity)));
   try {
     const { pdf } = await buildPrintPdf({
       png,
-      sticker,
+      ...(isCard ? { card: card! } : { sticker: sticker! }),
       paper,
       count,
       fill: q.get('fill') === '1',
@@ -44,10 +59,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
       qrUrl: `${new URL(request.url).origin}/s/${code}`,
     });
     await recordOperation('print_export', 'ok', startedAt);
+    const filename = isCard ? `${code}-card-${paper}.pdf` : `${code}-${paper}.pdf`;
     return new Response(pdf as BodyInit, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${code}-${paper}.pdf"`,
+        'Content-Disposition': `attachment; filename="${filename}"`,
         'Cache-Control': 'private, no-store',
       },
     });

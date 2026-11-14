@@ -4,9 +4,9 @@
 
 import { PDFDocument, StandardFonts, rgb, type PDFEmbeddedPage, type PDFPage } from 'pdf-lib';
 import qrcode from 'qrcode-generator';
-import { BLEED_CM } from './rules.ts';
+import { BLEED_CM, BLEED_MM, cardDimensionsMm } from './rules.ts';
 import { PAPERS, sheetLayout, sheetPlan, type Paper } from './sheet.ts';
-import type { StickerSpec } from './types.ts';
+import type { CardSpec, StickerSpec } from './types.ts';
 
 const PT_PER_MM = 72 / 25.4;
 const mm = (v: number) => v * PT_PER_MM;
@@ -17,7 +17,8 @@ const ascii = (v: string) => v.replace(/[^\x20-\x7E]/g, '?');
 
 interface PrintSheetInput {
   png: Uint8Array;
-  sticker: StickerSpec;
+  sticker?: StickerSpec;
+  card?: CardSpec;
   paper: Paper;
   count: number;
   fill: boolean;
@@ -30,8 +31,11 @@ const QR_TOP_MM = 4; // 프린터가 못 찍는 가장자리를 피한다
 const QR_MAX_MM = 14;
 
 export async function buildPrintPdf(input: PrintSheetInput): Promise<{ pdf: Uint8Array; sheets: number; stickers: number }> {
-  const { sticker, paper } = input;
-  const layout = sheetLayout(sticker, paper);
+  const item = input.sticker ?? input.card;
+  if (!item) throw new Error('스티커 또는 카드 규격이 필요합니다.');
+  const isCard = 'sizeMm' in item;
+  const { paper } = input;
+  const layout = sheetLayout(item, paper);
   const plan = sheetPlan(layout, input.count, input.fill);
   const doc = await PDFDocument.create();
   doc.setTitle(`ONDAP ${input.label.code} ${paper}`);
@@ -40,7 +44,6 @@ export async function buildPrintPdf(input: PrintSheetInput): Promise<{ pdf: Uint
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const { width, height } = PAPERS[paper];
   const bleed = BLEED_CM * 10;
-  const size = sticker.sizeCm * 10;
   const qr = input.qrUrl ? await embedQr(doc, input.qrUrl, input.label.code, layout.originY) : null;
 
   plan.forEach((onSheet, sheetIndex) => {
@@ -50,21 +53,27 @@ export async function buildPrintPdf(input: PrintSheetInput): Promise<{ pdf: Uint
     for (let i = 0; i < onSheet; i++) {
       const col = i % layout.cols;
       const row = Math.floor(i / layout.cols);
-      const left = layout.originX + col * layout.cellMm;
-      const top = layout.originY + row * layout.cellMm;
-      page.drawImage(image, { x: mm(left), y: y(top + layout.cellMm), width: mm(layout.cellMm), height: mm(layout.cellMm) });
-      if (sticker.shape === 'circle') {
-        page.drawEllipse({ x: mm(left + layout.cellMm / 2), y: y(top + layout.cellMm / 2), xScale: mm(size / 2), yScale: mm(size / 2), borderColor: CUT, borderWidth: 0.25 });
+      const left = layout.originX + col * layout.cellWidthMm;
+      const top = layout.originY + row * layout.cellHeightMm;
+      page.drawImage(image, { x: mm(left), y: y(top + layout.cellHeightMm), width: mm(layout.cellWidthMm), height: mm(layout.cellHeightMm) });
+      if (isCard) {
+        const { widthMm, heightMm } = cardDimensionsMm(item.sizeMm);
+        page.drawRectangle({ x: mm(left + BLEED_MM), y: y(top + BLEED_MM + heightMm), width: mm(widthMm), height: mm(heightMm), borderColor: CUT, borderWidth: 0.25 });
+      } else if (item.shape === 'circle') {
+        const size = item.sizeCm * 10;
+        page.drawEllipse({ x: mm(left + layout.cellWidthMm / 2), y: y(top + layout.cellHeightMm / 2), xScale: mm(size / 2), yScale: mm(size / 2), borderColor: CUT, borderWidth: 0.25 });
       } else {
+        const size = item.sizeCm * 10;
         page.drawRectangle({ x: mm(left + bleed), y: y(top + bleed + size), width: mm(size), height: mm(size), borderColor: CUT, borderWidth: 0.25 });
       }
     }
-    drawCropMarks(page, layout.originX, layout.originY, layout.cols * layout.cellMm, Math.ceil(onSheet / layout.cols) * layout.cellMm, height);
+    drawCropMarks(page, layout.originX, layout.originY, layout.cols * layout.cellWidthMm, Math.ceil(onSheet / layout.cols) * layout.cellHeightMm, height);
 
     if (qr) page.drawPage(qr.page, { x: mm(width - 6 - qr.sizeMm), y: mm(height - QR_TOP_MM - qr.sizeMm), width: mm(qr.sizeMm), height: mm(qr.sizeMm) });
 
     const { code, orderNo, productNo, quantity, test } = input.label;
-    const head = `${test ? 'TEST PRINT  ' : ''}ONDAP ${code}${orderNo ? `  order ${orderNo}` : ''}  product #${productNo}  qty ${quantity}  |  ${sticker.shape} ${sticker.sizeCm}cm  ${paper}  sheet ${sheetIndex + 1}/${plan.length}  (${onSheet} pcs)`;
+    const itemDesc = isCard ? `Card ${item.sizeMm}mm` : `${item.shape} ${item.sizeCm}cm`;
+    const head = `${test ? 'TEST PRINT  ' : ''}ONDAP ${code}${orderNo ? `  order ${orderNo}` : ''}  product #${productNo}  qty ${quantity}  |  ${itemDesc}  ${paper}  sheet ${sheetIndex + 1}/${plan.length}  (${onSheet} pcs)`;
     page.drawText(ascii(head), { x: mm(6), y: y(4.5), size: 7, font, color: INK });
     page.drawText('Print at 100% (actual size). Magenta line = cut line (not printed). Colors are RGB; slight shift after CMYK conversion.', {
       x: mm(6), y: mm(2.5), size: 6, font, color: INK,

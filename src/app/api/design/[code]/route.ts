@@ -28,7 +28,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
   try {
     const d = await lookupDesign(code);
     if (!d) return json({ error: 'not_found' }, 404);
-    return json({ code: d.code, productNo: d.productNo, productName: d.productName, quantity: d.quantity, styleName: d.styleName, sticker: d.sticker, status: d.status });
+    return json({ code: d.code, productNo: d.productNo, productName: d.productName, quantity: d.quantity, styleName: d.styleName, sticker: d.sticker, card: d.card, status: d.status });
   } catch {
     return json({ error: 'unavailable' }, 503);
   }

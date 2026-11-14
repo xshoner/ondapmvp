@@ -20,12 +20,14 @@ export function syncFieldsToLayers(
   layers: EditorLayer[],
   fields: { recipient: string; sender: string; date: string },
   template?: { font?: FontId; textColor?: string },
+  heightUnits = 1000,
 ): EditorLayer[] {
   const font = template?.font ?? 'serif';
   const color = template?.textColor ?? '#1f2a26';
   const recipientTrimmed = (fields.recipient ?? '').trim();
   const senderTrimmed = (fields.sender ?? '').trim();
   const dateTrimmed = (fields.date ?? '').trim();
+  const scaleY = heightUnits / 1000;
 
   const next = [...layers];
 
@@ -40,7 +42,7 @@ export function syncFieldsToLayers(
         type: 'text',
         text: recipientTrimmed,
         x: 500,
-        y: 250,
+        y: Math.round(250 * scaleY),
         rotation: 0,
         scaleX: 1,
         scaleY: 1,
@@ -66,7 +68,7 @@ export function syncFieldsToLayers(
         type: 'text',
         text: senderTrimmed,
         x: 500,
-        y: dateTrimmed ? 670 : 710,
+        y: Math.round((dateTrimmed ? 670 : 710) * scaleY),
         rotation: 0,
         scaleX: 1,
         scaleY: 1,
@@ -92,7 +94,7 @@ export function syncFieldsToLayers(
         type: 'text',
         text: dateTrimmed,
         x: 500,
-        y: 780,
+        y: Math.round(780 * scaleY),
         rotation: 0,
         scaleX: 1,
         scaleY: 1,
@@ -117,10 +119,12 @@ export function syncMainTextToLayers(
   layers: EditorLayer[],
   mainText: string,
   template?: { font?: FontId; textColor?: string },
+  heightUnits = 1000,
 ): EditorLayer[] {
   const font = template?.font ?? 'serif';
   const color = template?.textColor ?? '#1f2a26';
   const trimmed = (mainText ?? '').trim();
+  const scaleY = heightUnits / 1000;
 
   const mainIdx = layers.findIndex((l) => l.id === 'role-main');
   if (trimmed) {
@@ -132,7 +136,7 @@ export function syncMainTextToLayers(
       type: 'text' as const,
       text: mainText,
       x: 500,
-      y: 470,
+      y: Math.round(470 * scaleY),
       rotation: 0,
       scaleX: 1,
       scaleY: 1,

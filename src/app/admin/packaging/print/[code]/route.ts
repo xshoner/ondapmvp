@@ -7,13 +7,13 @@ import { getAdminStatus } from '@/lib/admin-guard.ts';
 import { normalizeDesignCode, pngSize } from '@/packaging/rules.ts';
 
 // 인쇄 파일은 저장 뒤 바뀌지 않으므로 썸네일은 브라우저에 하루 둔다(관리자 본인 브라우저만)
-// 공개 키로 올라온 파일이라 아주 큰 그림(압축 폭탄)일 수 있다 → 규격(최대 756px) 근처만 처리
+// 공개 키로 올라온 파일이라 아주 큰 그림(압축 폭탄)일 수 있다 → 규격(최대 1795×1228px) 근처만 처리
 async function thumbnail(png: Uint8Array): Promise<Response | null> {
   const size = pngSize(png);
-  if (!size || size.width > 1000 || size.height > 1000) return new Response('규격을 벗어난 인쇄 파일입니다.', { status: 422 });
+  if (!size || size.width > 2200 || size.height > 2200) return new Response('규격을 벗어난 인쇄 파일입니다.', { status: 422 });
   try {
     const sharp = (await import('sharp')).default;
-    const webp = await sharp(png, { limitInputPixels: 1000 * 1000 }).resize(160, 160, { fit: 'inside' }).webp({ quality: 75 }).toBuffer();
+    const webp = await sharp(png, { limitInputPixels: 2200 * 2200 }).resize(160, 160, { fit: 'inside' }).webp({ quality: 75 }).toBuffer();
     return new Response(new Uint8Array(webp), { headers: { 'Content-Type': 'image/webp', 'Cache-Control': 'private, max-age=86400' } });
   } catch (e) {
     console.warn('[포장 디자인] 썸네일 생성 실패, 원본으로 대신함:', e instanceof Error ? e.message : e);
@@ -27,19 +27,22 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
 
   const code = normalizeDesignCode((await params).code);
   if (!code) return new Response('잘못된 디자인 코드입니다.', { status: 400 });
-  const bytes = await readPrintFile(code);
-  if (!bytes) return new Response('인쇄 파일이 없습니다.', { status: 404 });
 
   const q = new URL(request.url).searchParams;
+  const isCard = q.get('item') === 'card';
+  const bytes = await readPrintFile(code, isCard ? 'card' : 'sticker');
+  if (!bytes) return new Response('인쇄 파일이 없습니다.', { status: 404 });
+
   if (q.get('thumb') === '1') {
     const thumb = await thumbnail(bytes);
     if (thumb) return thumb;
   }
   const inline = q.get('inline') === '1' || q.get('thumb') === '1';
+  const outName = isCard ? `${code}-card.png` : `${code}.png`;
   return new Response(bytes as BodyInit, {
     headers: {
       'Content-Type': 'image/png',
-      'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename="${code}.png"`,
+      'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename="${outName}"`,
       'Cache-Control': 'private, no-store',
     },
   });

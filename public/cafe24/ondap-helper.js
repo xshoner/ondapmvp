@@ -628,6 +628,7 @@
       if (!d || d.code !== state.code) return;
       var designQty = Number(d.quantity) || 0;
       var sticker = d.sticker ? Number(d.sticker.sizeCm) + 'cm ' + (d.sticker.shape === 'circle' ? '원형' : '사각') + ' 스티커' : '스티커 없음';
+      if (d.card) sticker += ' · 카드(엽서) ' + esc(d.card.sizeMm) + 'mm';
       var qty = orderQuantity(String(d.productNo));
       var lines = ['포장 디자인 ' + badge(state.code) + ' · ' + esc(d.styleName) + ' 포장 · ' + sticker + ' · ' + designQty + '개'];
       if (d.status === 'canceled') {
@@ -750,6 +751,7 @@
               field.style.outline = '2px solid #1f4436';
               if (!state.filledAt) save(Object.assign({}, state, { filledAt: Date.now() }));
               var sticker = d.sticker ? Number(d.sticker.sizeCm) + 'cm ' + (d.sticker.shape === 'circle' ? '원형' : '사각') + ' 스티커' : '스티커 없음';
+              if (d.card) sticker += ' · 카드(엽서) ' + esc(d.card.sizeMm) + 'mm';
               show(state, '포장 디자인 ' + badge(state.code) + ' · ' + esc(d.styleName) + ' · ' + sticker + ' · ' + qty + '개<br>주문서 ‘' + LABEL + '’ 칸에 코드를 넣었어요. 이대로 주문하시면 돼요.');
             } else {
               if (wasEmpty && field.value === state.code) { field.value = ''; fire(field); }

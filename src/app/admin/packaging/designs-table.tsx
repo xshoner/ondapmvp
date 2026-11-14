@@ -44,7 +44,7 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [autoSyncing, setAutoSyncing] = useState(false);
   const syncing = useRef(false);
-  const printableSelected = designs.filter((d) => selected.has(d.code) && d.printCode && d.sticker);
+  const printableSelected = designs.filter((d) => selected.has(d.code) && d.printCode && (d.sticker || d.card));
   const allSelected = designs.length > 0 && designs.every((d) => selected.has(d.code));
 
   useEffect(() => {
@@ -119,7 +119,16 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
       for (let i = 0; i < list.length; i++) {
         const { code, printCode } = list[i];
         setZipping(`${i + 1}/${list.length}`);
-        for (const [name, url] of [[`${code}.png`, fileUrl(printCode!)], [`${code}-${options.paper}.pdf`, sheetUrl(code, options)]]) {
+        const targets: [string, string][] = [];
+        if (list[i].sticker) {
+          targets.push([`${code}.png`, fileUrl(printCode!)]);
+          targets.push([`${code}-${options.paper}.pdf`, sheetUrl(code, options)]);
+        }
+        if (list[i].card) {
+          targets.push([`${code}-card.png`, `${fileUrl(printCode!)}?item=card`]);
+          targets.push([`${code}-card-${options.paper}.pdf`, `${sheetUrl(code, options)}&item=card`]);
+        }
+        for (const [name, url] of targets) {
           const res = await fetch(url);
           if (!res.ok) throw new Error(`${code}: ${await res.text()}`);
           files[name] = [new Uint8Array(await res.arrayBuffer()), { level: 0 }]; // PNG·PDF는 이미 압축돼 있다
@@ -290,8 +299,11 @@ function DesignRow({ design: d, eventNames, options, now, active, selected, onTo
     server.current = next;
   }, [d.status, d.orderNo, d.memo]);
   const dirty = status !== d.status || orderNo !== (d.orderNo ?? '') || memo !== d.memo;
-  const printable = Boolean(d.printCode && d.sticker);
-  const sheets = d.sticker ? sheetsNeeded(sheetLayout(d.sticker, options.paper), d.quantity) : 0;
+  const hasSticker = Boolean(d.printCode && d.sticker);
+  const hasCard = Boolean(d.printCode && d.card);
+  const printable = hasSticker || hasCard;
+  const stickerSheets = d.sticker ? sheetsNeeded(sheetLayout(d.sticker, options.paper), d.quantity) : 0;
+  const cardSheets = d.card ? sheetsNeeded(sheetLayout(d.card, options.paper), d.quantity) : 0;
   const late = isLate(d, now);
   const isAwaitingPayment = d.status === 'pending' && Boolean(d.orderNo || d.memo?.includes('카페24 주문') || d.memo?.includes('무통장 입금 대기'));
 
@@ -306,13 +318,21 @@ function DesignRow({ design: d, eventNames, options, now, active, selected, onTo
     <tr data-row={d.code} className={[active ? 'cursor' : '', late ? 'late' : ''].join(' ')} style={{ opacity: d.status === 'canceled' ? 0.55 : 1 }} onFocusCapture={onFocusRow}>
       <td><input type="checkbox" checked={selected} onChange={onToggle} aria-label={`${d.code} 선택`} /></td>
       <td>
-        {d.printCode ? (
-          <a href={`${fileUrl(d.printCode)}?inline=1`} target="_blank" rel="noreferrer" title="크게 보기">
-            <img src={`${fileUrl(d.printCode)}?thumb=1`} alt="" loading="lazy" width={72} height={72} style={{ objectFit: 'contain', background: '#eee', borderRadius: 8, display: 'block' }} />
-          </a>
-        ) : (
-          <span className="small muted">스티커 없음</span>
-        )}
+        <div style={{ display: 'flex', gap: 4, flexDirection: 'column' }}>
+          {hasSticker && (
+            <a href={`${fileUrl(d.printCode!)}?inline=1`} target="_blank" rel="noreferrer" title="스티커 크게 보기">
+              <img src={`${fileUrl(d.printCode!)}?thumb=1`} alt="스티커" loading="lazy" width={72} height={72} style={{ objectFit: 'contain', background: '#eee', borderRadius: 8, display: 'block' }} />
+            </a>
+          )}
+          {hasCard && (
+            <a href={`${fileUrl(d.printCode!)}?inline=1&item=card`} target="_blank" rel="noreferrer" title="카드 크게 보기">
+              <img src={`${fileUrl(d.printCode!)}?thumb=1&item=card`} alt="카드" loading="lazy" width={72} height={50} style={{ objectFit: 'contain', background: '#eee', borderRadius: 8, display: 'block' }} />
+            </a>
+          )}
+          {!hasSticker && !hasCard && (
+            <span className="small muted">인쇄물 없음</span>
+          )}
+        </div>
       </td>
       <td>
         <b className="mono" style={{ fontSize: 14 }}>{d.code}</b>
@@ -346,14 +366,31 @@ function DesignRow({ design: d, eventNames, options, now, active, selected, onTo
           )
         )}
         {printable && d.status !== 'pending' && (
-          <div className="row" style={{ gap: 6, marginTop: 6 }}>
-            {sheets > MAX_SHEETS ? (
-              <span className="small" style={{ color: 'var(--red)' }}>{sheets}장 필요 · 한 번에 {MAX_SHEETS}장까지</span>
-            ) : (
-              <a className="btn small" href={sheetUrl(d.code, options)} title={`${options.paper} ${sheets}장`}>인쇄 PDF {options.paper}·{sheets}장</a>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+            {hasSticker && (
+              <div className="row" style={{ gap: 6 }}>
+                <span className="small muted" style={{ minWidth: 42 }}>스티커:</span>
+                {stickerSheets > MAX_SHEETS ? (
+                  <span className="small" style={{ color: 'var(--red)' }}>{stickerSheets}장 필요</span>
+                ) : (
+                  <a className="btn small" href={sheetUrl(d.code, options)} title={`${options.paper} ${stickerSheets}장`}>PDF {options.paper}·{stickerSheets}장</a>
+                )}
+                <a className="btn ghost small" href={sheetUrl(d.code, options, true)}>시험 1장</a>
+                <a className="btn ghost small" href={fileUrl(d.printCode!)}>PNG</a>
+              </div>
             )}
-            <a className="btn ghost small" href={sheetUrl(d.code, options, true)} title="칼선·색 확인용으로 스티커 한 칸만">시험 1장</a>
-            <a className="btn ghost small" href={fileUrl(d.printCode!)}>PNG</a>
+            {hasCard && (
+              <div className="row" style={{ gap: 6 }}>
+                <span className="small muted" style={{ minWidth: 42 }}>카드:</span>
+                {cardSheets > MAX_SHEETS ? (
+                  <span className="small" style={{ color: 'var(--red)' }}>{cardSheets}장 필요</span>
+                ) : (
+                  <a className="btn small" href={`${sheetUrl(d.code, options)}&item=card`} title={`${options.paper} ${cardSheets}장`}>PDF {options.paper}·{cardSheets}장</a>
+                )}
+                <a className="btn ghost small" href={`${sheetUrl(d.code, options, true)}&item=card`}>시험 1장</a>
+                <a className="btn ghost small" href={`${fileUrl(d.printCode!)}?item=card`}>PNG</a>
+              </div>
+            )}
           </div>
         )}
       </td>
@@ -364,7 +401,12 @@ function DesignRow({ design: d, eventNames, options, now, active, selected, onTo
       <td>
         <div>{d.styleName}</div>
         <div className="small muted">
-          {d.sticker ? `${d.sticker.shape === 'circle' ? '원형' : '사각'} ${d.sticker.sizeCm}×${d.sticker.sizeCm}cm` : '인쇄물 없음'}
+          {(() => {
+            const items: string[] = [];
+            if (d.sticker) items.push(`${d.sticker.shape === 'circle' ? '원형' : '사각'} ${d.sticker.sizeCm}×${d.sticker.sizeCm}cm 스티커`);
+            if (d.card) items.push(`카드(엽서) ${d.card.sizeMm}mm`);
+            return items.length > 0 ? items.join(' + ') : '인쇄물 없음';
+          })()}
         </div>
       </td>
       <td style={{ minWidth: 300 }}>

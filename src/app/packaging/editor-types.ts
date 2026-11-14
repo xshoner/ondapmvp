@@ -1,5 +1,5 @@
 import type { Box } from '@/packaging/rules.ts';
-import type { DesignCategory, DesignDraft, ImageLayer, StickerShape, StickerSizeCm, TextLayer } from '@/packaging/types.ts';
+import type { CardSizeMm, DesignCategory, DesignDraft, ImageLayer, StickerShape, StickerSizeCm, TextLayer } from '@/packaging/types.ts';
 
 // 편집 중에만 쓰는 값: 고객이 올린 사진은 blob 주소와 원본 픽셀 폭을 들고 있다가 저장할 때 'upload'로 바꾼다.
 // photoId: 이 기기(IndexedDB)에 넣어 둔 사진 원본의 열쇠 (자동 보관·다시 꾸미기에서 다시 꺼낸다)
@@ -7,8 +7,8 @@ export type EditorImageLayer = ImageLayer & { uploaded?: boolean; naturalWidth?:
 export type EditorLayer = EditorImageLayer | TextLayer;
 
 export interface CanvasApi {
-  // 재단 여백 포함 한 변 pixels 크기의 PNG (안내선·선택 상자 제외)
-  exportPng(pixels: number): Promise<Blob>;
+  // 재단 여백 포함 pixels 크기의 PNG (안내선·선택 상자 제외). 숫자(정사각형) 또는 { width, height }
+  exportPng(pixels: number | { width: number; height: number }): Promise<Blob>;
 }
 
 // 캔버스가 잰 문구 상자 (편집기 좌표). 어떤 글자·크기로 잰 값인지 함께 보낸다
@@ -27,6 +27,16 @@ export interface EditorHistoryEntry {
   hasChosenImage: boolean;
 }
 
+export interface CardHistoryEntry {
+  layers: EditorLayer[];
+  background: string;
+  sizeMm: CardSizeMm;
+  fields: DesignDraft['fields'];
+  mainText: string;
+  autoTextEdited: boolean;
+  hasChosenImage: boolean;
+}
+
 // 편집 상태 한 벌: 자동 보관과 '내 디자인 다시 꾸미기'가 함께 쓴다
 export interface EditorSnapshot {
   version?: number; // 2: 3단계 신규 에디터 포맷
@@ -38,6 +48,11 @@ export interface EditorSnapshot {
   background: string;
   layers: EditorLayer[];
   fields: DesignDraft['fields'];
+  withCard?: boolean;
+  cardSizeMm?: CardSizeMm;
+  cardBackground?: string;
+  cardLayers?: EditorLayer[];
+  cardFields?: DesignDraft['fields'];
   event: DesignCategory | null;
   quantity: number;
 }
