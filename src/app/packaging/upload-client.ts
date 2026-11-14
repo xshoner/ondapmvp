@@ -13,11 +13,14 @@ export async function uploadPrintBlob(target: UploadTarget, blob: Blob): Promise
 
   // Supabase Storage 서명 업로드 URL인 경우: FormData 기반 전송
   if (uploadUrl.includes('/object/upload/sign/')) {
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    if (!key) throw new Error('업로드 설정을 확인하지 못했습니다.');
     const form = new FormData();
     form.append('cacheControl', '3600');
     form.append('', blob);
     const res = await fetch(uploadUrl, {
       method: 'PUT',
+      headers: { apikey: key },
       body: form,
     });
     if (!res.ok) {
