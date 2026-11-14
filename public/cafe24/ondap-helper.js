@@ -381,8 +381,7 @@
 
   function getPackagingBtnLabel(again) {
     if (again) return '포장 다시 꾸미기';
-    var priceText = findPackagingOptionPriceText();
-    return priceText ? '포장·스티커 꾸미기 (' + priceText + ')' : '포장·스티커 꾸미기(유료)';
+    return '포장·스티커 꾸미기(유료옵션)';
   }
 
   // 구매 버튼 묶음 바로 아래에 둔다. 화면 아래에 고정되는 구매 막대(#orderFixArea 등)에는 넣지 않는다
