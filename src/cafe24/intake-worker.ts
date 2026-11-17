@@ -54,18 +54,19 @@ async function handleCanceledOrderOrItem(
         d.orderNo === order.order_id ||
         (candidateCode && d.code === candidateCode && d.status === 'pending' && d.memo.includes(order.order_id)),
     );
-    const printed = linked.find((d) => d.status === 'printed');
-    if (printed) {
-      const warn = `[주의: 주문 ${order.order_id} 취소/환불 알림 — 인쇄 완료 건 확인 필요]`;
-      if (!printed.memo.includes(`${order.order_id} 취소/환불 알림`)) {
-        const nextMemo = printed.memo.trim() ? `${printed.memo.trim()}\n${warn}`.slice(0, 500) : warn;
-        await updateDesign(printed.code, { status: 'printed', orderNo: printed.orderNo, memo: nextMemo });
+    const produced = linked.find((d) => d.status === 'printed' || d.status === 'completed');
+    if (produced) {
+      const statusLabel = produced.status === 'completed' ? '포장 완료' : '인쇄 완료';
+      const warn = `[주의: 주문 ${order.order_id} 취소/환불 알림 — ${statusLabel} 건 확인 필요]`;
+      if (!produced.memo.includes(`${order.order_id} 취소/환불 알림`)) {
+        const nextMemo = produced.memo.trim() ? `${produced.memo.trim()}\n${warn}`.slice(0, 500) : warn;
+        await updateDesign(produced.code, { status: produced.status, orderNo: produced.orderNo, memo: nextMemo });
       }
       await recordOperation('design_save', 'error', startedAt, 'canceled_after_print');
       return {
         status: 'conflict',
-        code: printed.code,
-        message: `주문(${order.order_id})이 취소/환불되었으나 디자인(${printed.code})이 이미 인쇄 완료 상태입니다. 확인이 필요합니다.`,
+        code: produced.code,
+        message: `주문(${order.order_id})이 취소/환불되었으나 디자인(${produced.code})이 이미 ${statusLabel} 상태입니다. 확인이 필요합니다.`,
       };
     }
 
@@ -417,7 +418,43 @@ export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number;
       }
     }
 
-    if (!code) continue;
+    if (!code) {
+      // 디자인 코드가 없는 주문 처리:
+      // 결제 완료된 일반 상품 주문(포장 옵션 없음)인 경우 포장 작업판에 '포장 없음(no_packaging)'으로 자동 등록
+      if (isOrderPaid(fullOrder)) {
+        const hasPkg = Array.isArray(fullOrder.items) && fullOrder.items.some(hasPackagingOption);
+        if (!hasPkg && Array.isArray(fullOrder.items) && fullOrder.items.length > 0) {
+          const firstItem = fullOrder.items.find((i) => !isItemCanceledOrRefunded(i)) || fullOrder.items[0];
+          const virtualCode = `OD-NOOP-${fullOrder.order_id.replace(/[^0-9A-Za-z]/g, '').slice(-8)}`;
+          try {
+            const { listDesigns, createDesign, updateDesign } = await import('../data/packaging-repository.ts');
+            const [exist] = await listDesigns({ code: virtualCode, limit: 1, includePending: true });
+            if (!exist) {
+              await createDesign({
+                code: virtualCode,
+                productNo: firstItem.product_no,
+                productName: firstItem.product_name || '일반 상품 주문 (포장 없음)',
+                quantity: firstItem.quantity,
+                event: null,
+                styleId: '',
+                styleName: '포장 없음',
+                sticker: null,
+                draft: null,
+              }, null, null);
+              await updateDesign(virtualCode, {
+                status: 'no_packaging',
+                orderNo: fullOrder.order_id,
+                memo: `카페24 일반 주문 (${fullOrder.order_id}) · 포장 디자인 없음`,
+              });
+              confirmed++;
+            }
+          } catch (err) {
+            console.warn(`[Cafe24 Sync] 일반 주문 ${fullOrder.order_id} 자동 등록 실패:`, err);
+          }
+        }
+      }
+      continue;
+    }
 
     if (isOrderPaid(fullOrder)) {
       const decision = await verifyAndAcceptOrder(fullOrder);

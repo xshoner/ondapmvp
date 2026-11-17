@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import {
-  deleteAsset, getPackagingAssets, listDesigns, saveAsset, updateDesign, updateDesignsStatus, uploadAssetFile, type AssetKind,
+  deleteAsset, getDesign, getDesignsByCodes, getPackagingAssets, listDesigns, saveAsset, updateDesign, updateDesignsStatus, uploadAssetFile, type AssetKind,
 } from '@/data/packaging-repository.ts';
 import { MAX_ACTIVE, canActivate, isCategory, normalizeDesignCode, sanitizeIsoDate } from '@/packaging/rules.ts';
 import type { DesignImage, DesignStatus, DesignText, PackagingStyle } from '@/packaging/types.ts';
@@ -124,8 +124,11 @@ export async function updateDesignsStatusAction(rawCodes: string[], status: stri
   if (codes.length === 0) return { ok: false, message: '고른 접수가 없습니다.' };
   if (codes.length > 500) return { ok: false, message: '한 번에 500건까지 바꿀 수 있습니다.' };
 
-  // 결제 대기(pending) 또는 취소(canceled) 디자인 검증
-  const existing = await listDesigns({ limit: 500, includePending: true });
+  // 선택된 코드 전부를 빠짐없이 전수 조회하여 결제 대기(pending) 또는 취소(canceled) 여부 검증 (500개 제한 누락 방지)
+  const existing = await getDesignsByCodes(codes);
+  const foundCodes = new Set(existing.map((d) => d.code));
+  const missingCodes = codes.filter((c) => !foundCodes.has(c));
+
   const pendingSet = new Set(existing.filter((d) => d.status === 'pending').map((d) => d.code));
   const canceledSet = new Set(existing.filter((d) => d.status === 'canceled').map((d) => d.code));
 
@@ -146,7 +149,7 @@ export async function updateDesignsStatusAction(rawCodes: string[], status: stri
   try {
     const updated = await updateDesignsStatus(codes, status as DesignStatus);
     revalidatePath('/admin', 'layout');
-    return { ok: true, updated, missing: codes.filter((c) => !updated.includes(c)) };
+    return { ok: true, updated, missing: [...new Set([...missingCodes, ...codes.filter((c) => !updated.includes(c))])] };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : String(e) };
   }
@@ -280,7 +283,24 @@ export async function updateDesignAction(
   return run(() => updateDesign(c, updatePatch));
 }
 
-// 미연결 디자인 단건에 카페24 주문번호를 수동 매핑 (상태 자동 전진 없이 번호만 연결하여 확인 유도)
+// 관리자 단건 상세 조회: 고객 작성 문구(draft, cardDraft)를 온전히 읽어와 검수를 지원한다
+export async function getDesignDetailAction(code: string): Promise<{ ok: true; design: import('@/packaging/types.ts').Design } | { ok: false; message: string }> {
+  const no = await denied();
+  if (no) return no;
+  const c = normalizeDesignCode(String(code));
+  if (!c) return { ok: false, message: '잘못된 디자인 코드입니다.' };
+  try {
+    const d = await getDesign(c);
+    if (!d) return { ok: false, message: '디자인을 찾을 수 없습니다.' };
+    return { ok: true, design: d };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+// 카페24 주문 실제 검증 후 디자인 단건에 주문번호 연결
+// 5대 불변식(주문 존재, 결제 완료, 상품번호 일치, 수량 일치, 중복 연결 방지)을 엄격히 검증한다.
+// 검증할 수 없는 임의 입력은 안전을 위해 원천 차단/거절한다.
 export async function linkDesignToOrderAction(code: string, rawOrderNo: string): Promise<Result> {
   const no = await denied();
   if (no) return no;
@@ -298,7 +318,44 @@ export async function linkDesignToOrderAction(code: string, rawOrderNo: string):
     return { ok: false, message: '취소된 접수는 주문번호를 연결할 수 없습니다.' };
   }
 
-  // 자동 상태 전진을 하지 않고 주문번호만 연결
+  // 1) 중복 연결 방지 검증: 이미 다른 디자인에 매핑된 주문번호인지 확인
+  const allExisting = await listDesigns({ limit: 500, includePending: true });
+  const duplicated = allExisting.find((x) => x.orderNo === orderNo && x.code !== c);
+  if (duplicated) {
+    return { ok: false, message: `이미 다른 디자인(${duplicated.code})에 연결된 주문번호입니다.` };
+  }
+
+  // 2) 카페24 API를 통한 주문 존재·결제·상품·수량 4대 조건 실시간 검증
+  try {
+    const { fetchAdminOrder, isOrderPaid, isOrderCanceled } = await import('@/cafe24/admin-orders.ts');
+    const order = await fetchAdminOrder(orderNo);
+
+    if (isOrderCanceled(order)) {
+      return { ok: false, message: `카페24 주문(${orderNo})이 취소/환불 상태입니다.` };
+    }
+
+    if (!isOrderPaid(order)) {
+      return { ok: false, message: `카페24 주문(${orderNo})의 결제가 아직 확인되지 않았습니다 (미결제 상태).` };
+    }
+
+    const items = Array.isArray(order.items) ? order.items : [];
+    const matchingItem = items.find((item) => item.product_no === d.productNo && item.quantity === d.quantity);
+
+    if (!matchingItem) {
+      const orderProducts = items.map((i) => `#${i.product_no}(${i.quantity}개)`).join(', ') || '없음';
+      return {
+        ok: false,
+        message: `카페24 주문의 상품/수량(${orderProducts})이 디자인 사양(#${d.productNo}, ${d.quantity}개)과 일치하지 않습니다.`,
+      };
+    }
+  } catch (err) {
+    return {
+      ok: false,
+      message: `카페24 주문 검증 실패: ${err instanceof Error ? err.message : String(err)}. 상품·수량·결제가 검증되지 않은 주문번호는 기록할 수 없습니다.`,
+    };
+  }
+
+  // 5대 검증 불변식이 모두 통과한 경우에만 안전하게 기록
   return run(() => updateDesign(c, {
     orderNo,
   }));

@@ -431,7 +431,33 @@ export async function reorderDesign(code: string, newCode: string, quantity: num
   return 'ok';
 }
 
+// 관리자 단건 상세 조회: draft 및 cardDraft를 온전히 포함하여 고객 작성 문구 검수를 지원한다
+export async function getDesign(code: string): Promise<Design | null> {
+  if (dataSource() === 'local') {
+    const d = readLocalDesigns().find((x) => x.code === code);
+    return d ? { ...d } : null;
+  }
+  const db = await createClient();
+  const { data, error } = await db.from('designs').select('*').eq('code', code).maybeSingle();
+  if (error) fail('디자인 상세 조회', error);
+  return data ? designFromRow(data) : null;
+}
+
+// 지정된 여러 디자인 코드의 현재 상태와 기본 정보를 빠짐없이 전수 조회한다
+export async function getDesignsByCodes(codes: string[]): Promise<Design[]> {
+  if (codes.length === 0) return [];
+  if (dataSource() === 'local') {
+    const set = new Set(codes);
+    return readLocalDesigns().filter((x) => set.has(x.code));
+  }
+  const db = await createClient();
+  const { data, error } = await db.from('designs').select(LIST_COLUMNS).in('code', codes);
+  if (error) fail('디자인 복수 조회', error);
+  return (data ?? []).map(designFromRow);
+}
+
 // 여러 건의 상태를 한 번에. 실제로 바뀐 코드 목록을 돌려준다
+// 동시 취소 경합 방어: status가 canceled가 아닐 경우 이미 취소된 건은 덮어쓰지 않는다
 export async function updateDesignsStatus(codes: string[], status: DesignStatus): Promise<string[]> {
   if (codes.length === 0) return [];
   if (dataSource() === 'local') {
@@ -440,6 +466,8 @@ export async function updateDesignsStatus(codes: string[], status: DesignStatus)
     const done: string[] = [];
     for (const d of all) {
       if (!codes.includes(d.code)) continue;
+      // 취소된 주문은 취소가 아닌 다른 상태로 덮어쓸 수 없음 (동시 취소 경합 방어)
+      if (d.status === 'canceled' && status !== 'canceled') continue;
       if (d.status !== status) d.statusChangedAt = now;
       d.status = status;
       done.push(d.code);
@@ -448,7 +476,11 @@ export async function updateDesignsStatus(codes: string[], status: DesignStatus)
     return done;
   }
   const db = await createClient();
-  const { data, error } = await db.from('designs').update({ status, updated_at: new Date().toISOString() }).in('code', codes).select('code');
+  let query = db.from('designs').update({ status, updated_at: new Date().toISOString() }).in('code', codes);
+  if (status !== 'canceled') {
+    query = query.neq('status', 'canceled');
+  }
+  const { data, error } = await query.select('code');
   if (error) fail('상태 한꺼번에 바꾸기', error);
   return (data ?? []).map((r) => r.code as string);
 }

@@ -20,6 +20,8 @@ import {
   updateDesignsStatusAction,
   syncCafe24OrdersAction,
   dismissPackagingAction,
+  getDesignDetailAction,
+  linkDesignToOrderAction,
 } from './actions.ts';
 
 type PrintOptions = { paper: Paper; fill: boolean };
@@ -848,7 +850,28 @@ function BoardRow({
   const stickerSheets = d.sticker ? sheetsNeeded(sheetLayout(d.sticker, options.paper), d.quantity) : 0;
   const cardSheets = d.card ? sheetsNeeded(sheetLayout(d.card, options.paper), d.quantity) : 0;
 
-  const msgDetails = useMemo(() => getMessageDetails(d), [d]);
+  // 관리자 단건 상세(고객 작성 문구) 온디맨드 로딩 상태
+  const [detailDesign, setDetailDesign] = useState<Design | null>(() => (d.draft || d.cardDraft ? d : null));
+  const [loadingDetail, setLoadingDetail] = useState(false);
+
+  useEffect(() => {
+    if (expanded && !detailDesign && !loadingDetail) {
+      let active = true;
+      setLoadingDetail(true);
+      void getDesignDetailAction(d.code).then((res) => {
+        if (active) {
+          setLoadingDetail(false);
+          if (res.ok) setDetailDesign(res.design);
+        }
+      });
+      return () => {
+        active = false;
+      };
+    }
+  }, [expanded, d.code, detailDesign, loadingDetail]);
+
+  const activeDesign = detailDesign ?? d;
+  const msgDetails = useMemo(() => getMessageDetails(activeDesign), [activeDesign]);
 
   // 상태 변경 (오직 status만 업데이트하여 memo, orderNo, 일정 유실 차단)
   const handleStatusChange = (nextStatus: DesignStatus) =>
@@ -864,13 +887,24 @@ function BoardRow({
       }
     });
 
-  // 주문번호 저장 (상태 자동 전진 없이 오직 orderNo만 저장)
+  // 주문번호 연결 (카페24 결제·상품·수량·중복 5대 불변식 실시간 검증 후 연결)
   const handleSaveOrderNo = () =>
     start(async () => {
       setMessage(null);
-      const res = await updateDesignAction(d.code, { orderNo: orderNoInput.trim() || null });
+      const target = orderNoInput.trim();
+      if (!target) {
+        const res = await updateDesignAction(d.code, { orderNo: null });
+        if (res.ok) {
+          setMessage('주문번호 연결을 해제했습니다.');
+          router.refresh();
+        } else {
+          setMessage(res.message);
+        }
+        return;
+      }
+      const res = await linkDesignToOrderAction(d.code, target);
       if (res.ok) {
-        setMessage('주문번호를 저장했습니다.');
+        setMessage('카페24 주문 검증 완료: 정상 연결되었습니다.');
         router.refresh();
       } else {
         setMessage(res.message);
@@ -1109,27 +1143,33 @@ function BoardRow({
 
                 {/* 고객 입력 문구 원문 박스 */}
                 <div className="customer-msg-box">
-                  {msgDetails.recipient && <div><b>[받는 분]</b> {msgDetails.recipient}</div>}
-                  {msgDetails.stickerTexts.length > 0 && (
-                    <div style={{ marginTop: 4 }}>
-                      <b>[스티커 문구]</b>
-                      <br />
-                      {msgDetails.stickerTexts.join('\n')}
-                    </div>
+                  {loadingDetail ? (
+                    <div className="small muted">고객 작성 문구 불러오는 중...</div>
+                  ) : (
+                    <>
+                      {msgDetails.recipient && <div><b>[받는 분]</b> {msgDetails.recipient}</div>}
+                      {msgDetails.stickerTexts.length > 0 && (
+                        <div style={{ marginTop: 4 }}>
+                          <b>[스티커 문구]</b>
+                          <br />
+                          {msgDetails.stickerTexts.join('\n')}
+                        </div>
+                      )}
+                      {msgDetails.cardTexts.length > 0 && (
+                        <div style={{ marginTop: 4 }}>
+                          <b>[카드 문구]</b>
+                          <br />
+                          {msgDetails.cardTexts.join('\n')}
+                        </div>
+                      )}
+                      {msgDetails.sender && <div style={{ marginTop: 4 }}><b>[보내는 분]</b> {msgDetails.sender}</div>}
+                      {msgDetails.printDate && <div style={{ marginTop: 4 }}><b>[인쇄 일자]</b> {msgDetails.printDate}</div>}
+                      {!msgDetails.recipient &&
+                        !msgDetails.sender &&
+                        msgDetails.stickerTexts.length === 0 &&
+                        msgDetails.cardTexts.length === 0 && <span className="muted">작성된 문구가 없습니다.</span>}
+                    </>
                   )}
-                  {msgDetails.cardTexts.length > 0 && (
-                    <div style={{ marginTop: 4 }}>
-                      <b>[카드 문구]</b>
-                      <br />
-                      {msgDetails.cardTexts.join('\n')}
-                    </div>
-                  )}
-                  {msgDetails.sender && <div style={{ marginTop: 4 }}><b>[보내는 분]</b> {msgDetails.sender}</div>}
-                  {msgDetails.printDate && <div style={{ marginTop: 4 }}><b>[인쇄 일자]</b> {msgDetails.printDate}</div>}
-                  {!msgDetails.recipient &&
-                    !msgDetails.sender &&
-                    msgDetails.stickerTexts.length === 0 &&
-                    msgDetails.cardTexts.length === 0 && <span className="muted">작성된 문구가 없습니다.</span>}
                 </div>
 
                 {/* 검수 완료 원클릭 버튼 */}
@@ -1180,9 +1220,9 @@ function BoardRow({
                   </div>
                 </div>
 
-                {/* 주문번호 수동 입력 (자동 상태 전진 없이 기록만 수행) */}
+                {/* 주문번호 연결 (카페24 결제·상품·수량 5대 불변식 검증 후 연결) */}
                 <div style={{ background: '#fff', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1', display: 'grid', gap: 4 }}>
-                  <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>카페24 주문번호 기록:</span>
+                  <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>카페24 주문번호 연결 (결제·상품·수량 실시간 검증):</span>
                   <div className="row" style={{ gap: 6 }}>
                     <input
                       type="text"
@@ -1191,8 +1231,8 @@ function BoardRow({
                       placeholder="예: 20261117-0000123"
                       style={{ flex: 1, fontSize: 12 }}
                     />
-                    <button type="button" className="btn small" disabled={pending} onClick={handleSaveOrderNo}>
-                      주문번호 저장
+                    <button type="button" className="btn small" disabled={pending} onClick={handleSaveOrderNo} style={{ fontWeight: 600 }}>
+                      검증 후 연결
                     </button>
                   </div>
                   {!d.orderNo && !hasSticker && !hasCard && !d.hasPrintFile && !isPending && !isCanceled && (

@@ -8,7 +8,7 @@ import {
 } from '../src/packaging/schedule.ts';
 import { sanitizeIsoDate } from '../src/packaging/rules.ts';
 import { designsCsv } from '../src/packaging/design-filter.ts';
-import type { Design } from '../src/packaging/types.ts';
+import type { Design, DesignDraft } from '../src/packaging/types.ts';
 
 test('1. toKstDateString & diffDays & formatMmDd KST 날짜 변환 검증', () => {
   // UTC 2026-11-17T01:00:00Z -> KST 2026-11-17 (10:00)
@@ -321,6 +321,8 @@ import { join } from 'node:path';
 import sharp from 'sharp';
 import {
   createDesign,
+  getDesign,
+  getDesignsByCodes,
   listDesigns,
   updateDesign,
   reorderDesign,
@@ -642,4 +644,165 @@ test('15. 인쇄(PDF/PNG) 라우트 가드: 결제대기(pending) 및 취소(can
   assert.deepEqual(canGeneratePrint('order_confirmed'), { allowed: true });
   assert.deepEqual(canGeneratePrint('printed'), { allowed: true });
   assert.deepEqual(canGeneratePrint('completed'), { allowed: true });
+});
+
+test('16. getDesign: 단건 상세 조회 시 draft 및 cardDraft 고객 문구 보존 검증', async () => {
+  const testDir = mkdtempSync(join(tmpdir(), 'ondap-schd-detail-'));
+  process.env.ONDAP_TEST_DATA_DIR = testDir;
+
+  try {
+    const draftData: DesignDraft = {
+      background: 'bg-1',
+      fields: { recipient: '신랑 김철수 & 신부 이영희', sender: '혼주 일동', date: '2026-12-25' },
+      layers: [
+        { id: 't1', type: 'text', text: '신랑 김철수 & 신부 이영희', font: 'Pretendard', fontSize: 16, color: '#000', stroke: null, shadow: false, x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 },
+        { id: 't2', type: 'text', text: '귀한 발걸음 감사드립니다.', font: 'Pretendard', fontSize: 14, color: '#000', stroke: null, shadow: false, x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 },
+      ],
+    };
+    const cardDraftData: DesignDraft = {
+      background: 'card-bg-1',
+      fields: { recipient: '', sender: '', date: '' },
+      layers: [
+        { id: 'c1', type: 'text', text: '마음을 담아 드립니다.', font: 'Pretendard', fontSize: 16, color: '#000', stroke: null, shadow: false, x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 },
+      ],
+    };
+
+    await createDesign({
+      code: 'OD-DTL-0001',
+      productNo: 301,
+      productName: '수제 도라지정과',
+      quantity: 50,
+      event: 'wedding',
+      styleId: 's1',
+      styleName: '전통 자개',
+      sticker: { shape: 'circle', sizeCm: 6 },
+      draft: draftData,
+      card: { sizeMm: '148x100' },
+      cardDraft: cardDraftData,
+    }, null, null);
+
+    // 1) listDesigns는 목록 경량화를 위해 draft가 null이어야 함
+    const [listItem] = await listDesigns({ code: 'OD-DTL-0001', limit: 1, includePending: true });
+    assert.ok(listItem);
+    assert.equal(listItem.draft, null, '목록 조회 시 draft는 null로 경량화되어야 함');
+
+    // 2) getDesign은 고객 문구 검수를 위해 draft 및 cardDraft를 온전히 반환해야 함
+    const detail = await getDesign('OD-DTL-0001');
+    assert.ok(detail);
+    assert.ok(detail.draft);
+    assert.ok(detail.cardDraft);
+    assert.equal(detail.draft.layers.length, 2);
+    assert.equal((detail.draft.layers[0] as { text: string }).text, '신랑 김철수 & 신부 이영희');
+    assert.equal((detail.cardDraft.layers[0] as { text: string }).text, '마음을 담아 드립니다.');
+  } finally {
+    delete process.env.ONDAP_TEST_DATA_DIR;
+    rmSync(testDir, { recursive: true, force: true });
+  }
+});
+
+test('17. getDesignsByCodes 전수 조회 및 updateDesignsStatus 동시 취소 경합 방어 검증', async () => {
+  const testDir = mkdtempSync(join(tmpdir(), 'ondap-schd-batch2-'));
+  process.env.ONDAP_TEST_DATA_DIR = testDir;
+
+  try {
+    await createDesign({
+      code: 'OD-BATCH-01', productNo: 302, productName: '다과 1', quantity: 10,
+      event: null, styleId: '', styleName: '', sticker: null, draft: null,
+    }, null, null);
+    await createDesign({
+      code: 'OD-BATCH-02', productNo: 303, productName: '다과 2', quantity: 20,
+      event: null, styleId: '', styleName: '', sticker: null, draft: null,
+    }, null, null);
+    await createDesign({
+      code: 'OD-BATCH-03', productNo: 304, productName: '다과 3', quantity: 30,
+      event: null, styleId: '', styleName: '', sticker: null, draft: null,
+    }, null, null);
+
+    // 01은 received, 02는 canceled 상태
+    await updateDesign('OD-BATCH-01', { status: 'received' });
+    await updateDesign('OD-BATCH-02', { status: 'canceled' });
+    // 03은 pending 상태 유지
+
+    // 1) getDesignsByCodes 전수 조회 검증
+    const found = await getDesignsByCodes(['OD-BATCH-01', 'OD-BATCH-02', 'OD-BATCH-03', 'OD-BATCH-NONE']);
+    assert.equal(found.length, 3);
+    const codeMap = new Map(found.map((x) => [x.code, x.status]));
+    assert.equal(codeMap.get('OD-BATCH-01'), 'received');
+    assert.equal(codeMap.get('OD-BATCH-02'), 'canceled');
+    assert.equal(codeMap.get('OD-BATCH-03'), 'pending');
+
+    // 2) updateDesignsStatus 동시 취소 경합 방어 검증:
+    // 01, 02에 대해 일괄 'order_confirmed' 변경 시도 시 이미 canceled인 02는 절대 덮어써지지 않아야 함
+    const updated = await updateDesignsStatus(['OD-BATCH-01', 'OD-BATCH-02'], 'order_confirmed');
+    assert.ok(updated.includes('OD-BATCH-01'));
+    assert.ok(!updated.includes('OD-BATCH-02'), 'canceled 상태인 디자인은 덮어쓰기에서 제외되어야 함');
+
+    const [after02] = await listDesigns({ code: 'OD-BATCH-02', limit: 1, includePending: true });
+    assert.equal(after02.status, 'canceled', 'OD-BATCH-02는 취소 불변식이 유지되어야 함');
+  } finally {
+    delete process.env.ONDAP_TEST_DATA_DIR;
+    rmSync(testDir, { recursive: true, force: true });
+  }
+});
+
+test('18. 카페24 취소 시 completed(포장 완료) 건 오출고 방지 보호 및 경고 검증', async () => {
+  const testDir = mkdtempSync(join(tmpdir(), 'ondap-schd-cancel-'));
+  process.env.ONDAP_TEST_DATA_DIR = testDir;
+
+  try {
+    await createDesign({
+      code: 'OD-CMPL-0001',
+      productNo: 305,
+      productName: '프리미엄 흑삼 세트',
+      quantity: 25,
+      event: 'wedding',
+      styleId: 's1',
+      styleName: '자개',
+      sticker: { shape: 'circle', sizeCm: 6 },
+      draft: null,
+    }, null, null);
+
+    // 포장 완료(completed) 및 주문번호 연결 상태 설정
+    await updateDesign('OD-CMPL-0001', {
+      status: 'completed',
+      orderNo: '20261117-0099887',
+      memo: '포장 완료 및 박스 봉인',
+    });
+
+    const { verifyAndAcceptOrder } = await import('../src/cafe24/intake-worker.ts');
+
+    // 카페24에서 취소된 주문 수신 시뮬레이션
+    const canceledOrder: import('../src/cafe24/admin-orders.ts').Cafe24AdminOrder = {
+      order_id: '20261117-0099887',
+      shop_no: 1,
+      order_date: '2026-11-17',
+      canceled: 'T',
+      order_status: 'C00',
+      items: [
+        {
+          product_no: 305,
+          product_name: '프리미엄 흑삼 세트',
+          quantity: 25,
+          status: 'C00',
+        },
+      ],
+      additional_order_info_list: [
+        { name: '포장 디자인 코드', value: 'OD-CMPL-0001' },
+      ],
+    };
+
+    const decision = await verifyAndAcceptOrder(canceledOrder);
+
+    // conflict 반환 및 경고 메시지 확인
+    assert.equal(decision.status, 'conflict');
+    assert.ok(decision.message.includes('포장 완료'));
+
+    // DB에 주의 메모가 기록되고 상태가 completed로 안전하게 유지되었는지 검증 (오출고 방지 경고)
+    const [d] = await listDesigns({ code: 'OD-CMPL-0001', limit: 1, includePending: true });
+    assert.equal(d.status, 'completed', '제작/완료된 건은 임의로 지워지지 않고 완료 상태를 유지해야 함');
+    assert.ok(d.memo.includes('취소/환불 알림 — 포장 완료 건 확인 필요'));
+  } finally {
+    delete process.env.ONDAP_TEST_DATA_DIR;
+    rmSync(testDir, { recursive: true, force: true });
+  }
 });
