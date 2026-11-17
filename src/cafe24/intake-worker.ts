@@ -419,40 +419,6 @@ export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number;
     }
 
     if (!code) {
-      // 디자인 코드가 없는 주문 처리:
-      // 결제 완료된 일반 상품 주문(포장 옵션 없음)인 경우 포장 작업판에 '포장 없음(no_packaging)'으로 자동 등록
-      if (isOrderPaid(fullOrder)) {
-        const hasPkg = Array.isArray(fullOrder.items) && fullOrder.items.some(hasPackagingOption);
-        if (!hasPkg && Array.isArray(fullOrder.items) && fullOrder.items.length > 0) {
-          const firstItem = fullOrder.items.find((i) => !isItemCanceledOrRefunded(i)) || fullOrder.items[0];
-          const virtualCode = `OD-NOOP-${fullOrder.order_id.replace(/[^0-9A-Za-z]/g, '').slice(-8)}`;
-          try {
-            const { listDesigns, createDesign, updateDesign } = await import('../data/packaging-repository.ts');
-            const [exist] = await listDesigns({ code: virtualCode, limit: 1, includePending: true });
-            if (!exist) {
-              await createDesign({
-                code: virtualCode,
-                productNo: firstItem.product_no,
-                productName: firstItem.product_name || '일반 상품 주문 (포장 없음)',
-                quantity: firstItem.quantity,
-                event: null,
-                styleId: '',
-                styleName: '포장 없음',
-                sticker: null,
-                draft: null,
-              }, null, null);
-              await updateDesign(virtualCode, {
-                status: 'no_packaging',
-                orderNo: fullOrder.order_id,
-                memo: `카페24 일반 주문 (${fullOrder.order_id}) · 포장 디자인 없음`,
-              });
-              confirmed++;
-            }
-          } catch (err) {
-            console.warn(`[Cafe24 Sync] 일반 주문 ${fullOrder.order_id} 자동 등록 실패:`, err);
-          }
-        }
-      }
       continue;
     }
 
