@@ -845,10 +845,10 @@
       if (b.imageUrl) {
         var cleanImg = b.imageUrl.replace(/[()"\s]/g, '');
         var fullImgUrl = cleanImg.indexOf('http') === 0 ? cleanImg : (APP + cleanImg);
-        cta.style.setProperty('background-image', 'linear-gradient(rgba(18, 38, 30, 0.65), rgba(18, 38, 30, 0.78)), url("' + fullImgUrl + '")', 'important');
-        cta.style.backgroundPosition = 'center center';
-        cta.style.backgroundSize = 'cover';
-        cta.style.backgroundRepeat = 'no-repeat';
+        cta.style.setProperty('background-image', 'linear-gradient(rgba(18, 38, 30, 0.45), rgba(18, 38, 30, 0.55)), url("' + fullImgUrl + '")', 'important');
+        cta.style.setProperty('background-position', 'right center', 'important');
+        cta.style.setProperty('background-size', 'cover', 'important');
+        cta.style.setProperty('background-repeat', 'no-repeat', 'important');
       } else {
         // 기본형 텍스트 배너
         cta.style.setProperty('background-image', 'none', 'important');
