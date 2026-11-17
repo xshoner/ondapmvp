@@ -1,0 +1,47 @@
+[
+  {
+    "id": "banner-default",
+    "title": "기본형 배너 (AI 격식지수 추천)",
+    "imageUrl": "",
+    "linkUrl": "https://dapcue.vercel.app/",
+    "altText": "답례큐 AI 추천 큐레이션 메인 배너",
+    "isActive": true,
+    "seasonType": "default",
+    "badgeText": "답례큐 AI 추천 큐레이션",
+    "headline": "자리에 맞는 답례, 답례큐가 추천드려요.",
+    "subText": "행사와 받는 분, 예산만 알려주시면 답례큐 특허 AI 격식지수로 비교해 세 가지를 추천합니다.",
+    "buttonText": "답례품 추천받기",
+    "createdAt": "2026-11-17T00:00:00.000Z",
+    "updatedAt": "2026-11-17T00:00:00.000Z"
+  },
+  {
+    "id": "banner-chuseok",
+    "title": "추석 명절 시즌 배너",
+    "imageUrl": "/banners/chuseok.webp",
+    "linkUrl": "https://dapcue.vercel.app/",
+    "altText": "답례큐 한가위 추석 선물 큐레이션 메인 배너",
+    "isActive": false,
+    "seasonType": "chuseok",
+    "badgeText": "답례큐 추석 특별 큐레이션",
+    "headline": "마음을 전하는 한가위 답례, 답례큐가 추천드려요.",
+    "subText": "행사와 받는 분, 예산만 알려주시면 답례큐 특허 AI 격식지수로 비교해 세 가지를 추천합니다.",
+    "buttonText": "추석 답례품 추천받기",
+    "createdAt": "2026-11-17T00:00:00.000Z",
+    "updatedAt": "2026-11-17T00:00:00.000Z"
+  },
+  {
+    "id": "banner-christmas",
+    "title": "크리스마스 연말 시즌 배너",
+    "imageUrl": "/banners/christmas.webp",
+    "linkUrl": "https://dapcue.vercel.app/",
+    "altText": "답례큐 크리스마스 연말 선물 큐레이션 메인 배너",
+    "isActive": false,
+    "seasonType": "christmas",
+    "badgeText": "답례큐 연말·성탄 특별 큐레이션",
+    "headline": "따뜻한 마음을 담은 연말 답례, 답례큐가 추천드려요.",
+    "subText": "행사와 받는 분, 예산만 알려주시면 답례큐 특허 AI 격식지수로 비교해 세 가지를 추천합니다.",
+    "buttonText": "연말 답례품 추천받기",
+    "createdAt": "2026-11-17T00:00:00.000Z",
+    "updatedAt": "2026-11-17T00:00:00.000Z"
+  }
+]

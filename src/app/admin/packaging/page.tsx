@@ -1,10 +1,12 @@
 import { getCatalog } from '@/data/repository.ts';
 import { getPackagingAssets, listDesigns } from '@/data/packaging-repository.ts';
+import { listBanners, type MainBanner } from '@/data/banner-repository.ts';
 import { CATEGORY_ORDER, categoryName } from '@/packaging/rules.ts';
 import { parseDesignFilter } from '@/packaging/design-filter.ts';
 import type { Design, PackagingAssets } from '@/packaging/types.ts';
 import { AssetManager } from './asset-manager.tsx';
 import { DesignsTable } from './designs-table.tsx';
+import { BannerManager } from './banner-manager.tsx';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +15,7 @@ const TABS = [
   { id: 'styles', label: '포장 스타일' },
   { id: 'images', label: '추천 이미지' },
   { id: 'texts', label: '추천 문구' },
+  { id: 'banners', label: '메인 배너' },
 ] as const;
 type Tab = (typeof TABS)[number]['id'];
 
@@ -29,11 +32,16 @@ export default async function PackagingAdminPage({ searchParams }: { searchParam
 
   let assets: PackagingAssets | null = null;
   let designs: Design[] = [];
+  let banners: MainBanner[] = [];
   let error: string | null = null;
   try {
     if (tab === 'designs') {
       if (!filter.codeInvalid) designs = await listDesigns({ ...filter, includePending: true, intakeOnly: true });
-    } else assets = await getPackagingAssets({ includeInactive: true });
+    } else if (tab === 'banners') {
+      banners = await listBanners();
+    } else {
+      assets = await getPackagingAssets({ includeInactive: true });
+    }
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
@@ -52,11 +60,13 @@ export default async function PackagingAdminPage({ searchParams }: { searchParam
 
       {error ? (
         <div className="notice">
-          포장 디자인 데이터를 읽지 못했습니다: {error}
-          <br />Supabase를 쓴다면 SQL Editor에서 <code>supabase/migrations/20261021000000_packaging.sql</code>을 실행했는지 확인하세요.
+          데이터를 읽지 못했습니다: {error}
+          <br />Supabase를 쓴다면 SQL Editor에서 최신 마이그레이션이 실행되었는지 확인하세요.
         </div>
       ) : tab === 'designs' ? (
         <DesignsTable designs={designs} eventNames={eventNames} filter={filter} now={Date.now()} />
+      ) : tab === 'banners' ? (
+        <BannerManager banners={banners} />
       ) : assets ? (
         <AssetManager key={tab} kind={tab as 'styles' | 'images' | 'texts'} assets={assets} categoryNames={categoryNames} />
       ) : null}

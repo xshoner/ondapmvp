@@ -17,6 +17,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko" className={`${sans.variable} ${serif.variable}`}>
+      <head><script dangerouslySetInnerHTML={{ __html: "window.addEventListener('beforeinstallprompt', function (event) { event.preventDefault(); });" }} /></head>
       <body>{children}<WebVitals /></body>
     </html>
   );

@@ -1,6 +1,6 @@
 -- 온답 새 Supabase 프로젝트 한 번에 만들기 (npm run db:setup-sql로 생성, 직접 고치지 말 것)
 -- 빈 프로젝트의 SQL Editor에 전체를 붙여넣고 Run. 이미 만든 프로젝트에 다시 실행하면 "already exists" 오류가 난다.
--- 포함: migrations/20261020000000_init.sql, migrations/20261021000000_packaging.sql, migrations/20261022000000_packaging_hardening.sql, migrations/20261023000000_design_lookup.sql, migrations/20261024000000_usage_count.sql, migrations/20261025000000_operations.sql, migrations/20261026000000_feedback_hardening.sql, migrations/20261027000000_integrated_improvements.sql, migrations/20261031000000_formality_v2.sql, migrations/20261102000000_approval_drafts.sql, migrations/20261108000000_admin_sync_preview.sql, migrations/20261108000000_design_payment_pending.sql, migrations/20261111000000_payment_retry.sql, migrations/20261114000000_add_postcard_design.sql, migrations/20261114010000_large_print_storage.sql, migrations/20261114020000_finish_print_upload.sql, migrations/20261117010000_order_schedule.sql, seed.sql
+-- 포함: migrations/20261020000000_init.sql, migrations/20261021000000_packaging.sql, migrations/20261022000000_packaging_hardening.sql, migrations/20261023000000_design_lookup.sql, migrations/20261024000000_usage_count.sql, migrations/20261025000000_operations.sql, migrations/20261026000000_feedback_hardening.sql, migrations/20261027000000_integrated_improvements.sql, migrations/20261031000000_formality_v2.sql, migrations/20261102000000_approval_drafts.sql, migrations/20261108000000_admin_sync_preview.sql, migrations/20261108000000_design_payment_pending.sql, migrations/20261111000000_payment_retry.sql, migrations/20261114000000_add_postcard_design.sql, migrations/20261114010000_large_print_storage.sql, migrations/20261114020000_finish_print_upload.sql, migrations/20261117000000_main_banners.sql, migrations/20261117010000_order_schedule.sql, seed.sql
 
 -- ==================== migrations/20261020000000_init.sql ====================
 -- 온답 추천 엔진 초기 스키마
@@ -1444,13 +1444,143 @@ $$;
 revoke all on function public.finish_design_upload(text) from public, anon, authenticated;
 grant execute on function public.finish_design_upload(text) to service_role;
 
+-- ==================== migrations/20261117000000_main_banners.sql ====================
+-- 메인 배너 관리 기능
+-- 카페24 PC·모바일 메인의 .ondap-cta 영역에 노출되는 배너를 관리자가 선택·적용한다.
+-- 단일 트랜잭션 RPC와 동시성 제약으로 배너 활성 상태의 정합성(언제나 정확히 1개 활성)을 보장한다.
+-- 보안: banner-assets 전용 버킷으로 엄격 격리하며 기존 packaging-assets 정책 및 데이터는 일체 변경하지 않는다.
+
+create table if not exists public.main_banners (
+  id text primary key,
+  title text not null check (char_length(title) between 1 and 60),
+  image_url text not null default '' check (char_length(image_url) <= 500),
+  link_url text not null default 'https://dapcue.vercel.app/' check (char_length(link_url) <= 500),
+  alt_text text not null default '' check (char_length(alt_text) <= 200),
+  is_active boolean not null default false,
+  season_type text not null default 'default' check (season_type in ('default', 'chuseok', 'christmas', 'custom')),
+  badge_text text not null default '답례큐 AI 추천 큐레이션' check (char_length(badge_text) <= 50),
+  headline text not null default '자리에 맞는 답례, 답례큐가 추천드려요.' check (char_length(headline) <= 100),
+  sub_text text not null default '행사와 받는 분, 예산만 알려주시면 답례큐 특허 AI 격식지수로 비교해 세 가지를 추천합니다.' check (char_length(sub_text) <= 200),
+  button_text text not null default '답례품 추천받기' check (char_length(button_text) <= 50),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- 동시성 제약: 활성(is_active = true) 배너는 시스템 전체에서 오직 하나만 존재 가능 (유니크 인덱스)
+create unique index if not exists main_banners_one_active
+  on public.main_banners (is_active)
+  where (is_active = true);
+
+alter table public.main_banners enable row level security;
+
+-- 테이블 RLS 권한
+drop policy if exists "누구나 활성 배너 읽기" on public.main_banners;
+create policy "누구나 활성 배너 읽기" on public.main_banners
+  for select to anon, authenticated using (is_active = true or (select private.is_admin()));
+
+drop policy if exists "관리자 메인 배너 추가" on public.main_banners;
+create policy "관리자 메인 배너 추가" on public.main_banners
+  for insert to authenticated with check ((select private.is_admin()));
+
+drop policy if exists "관리자 메인 배너 수정" on public.main_banners;
+create policy "관리자 메인 배너 수정" on public.main_banners
+  for update to authenticated using ((select private.is_admin())) with check ((select private.is_admin()));
+
+drop policy if exists "관리자 메인 배너 삭제" on public.main_banners;
+create policy "관리자 메인 배너 삭제" on public.main_banners
+  for delete to authenticated using ((select private.is_admin()));
+
+grant select on public.main_banners to anon;
+grant select, insert, update, delete on public.main_banners to authenticated;
+
+-- ---------- 단일 트랜잭션 RPC: 활성 배너 원자적 전환 ----------
+-- 관리자 권한을 직접 검증하며, 없는 ID인 경우 예외를 발생시켜 기존 상태를 100% 보존한다.
+create or replace function public.set_active_main_banner(p_banner_id text)
+returns public.main_banners
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_banner public.main_banners;
+  v_exists boolean;
+begin
+  -- 1. 관리자 권한 엄격 검증
+  if not (select private.is_admin()) then
+    raise exception '관리자 권한이 없습니다.';
+  end if;
+
+  perform pg_catalog.pg_advisory_xact_lock(20261117, 1);
+
+  -- 2. 대상 배너 존재 여부 확인 (없으면 기존 상태 보존하고 에러)
+  select exists(select 1 from public.main_banners where id = p_banner_id) into v_exists;
+  if not v_exists then
+    raise exception '존재하지 않는 배너 ID입니다: %', p_banner_id;
+  end if;
+
+  -- 3. 원자적 단일 트랜잭션으로 기존 활성 배너 끄고 대상 활성화
+  update public.main_banners
+  set is_active = false, updated_at = now()
+  where is_active = true;
+
+  update public.main_banners
+  set is_active = true, updated_at = now()
+  where id = p_banner_id
+  returning * into v_banner;
+
+  return v_banner;
+end;
+$$;
+
+revoke all on function public.set_active_main_banner(text) from public, anon;
+grant execute on function public.set_active_main_banner(text) to authenticated;
+
+-- ---------- 공개 배너 전용 스토리지 버킷 (banner-assets) 격리 ----------
+-- packaging-assets 등 기존 고객 버킷은 일체 손대지 않으며 오직 banner-assets만 관리한다.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values
+  ('banner-assets', 'banner-assets', true, 5242880, array['image/png', 'image/jpeg', 'image/webp'])
+on conflict (id) do update set public = true;
+
+-- 누구나 공개 배너 이미지 읽기 허용 (오직 banner-assets 버킷만 허용)
+drop policy if exists "누구나 배너 자산 읽기" on storage.objects;
+create policy "누구나 배너 자산 읽기" on storage.objects
+  for select to anon, authenticated using (bucket_id = 'banner-assets');
+
+-- 관리자만 banner-assets 업로드/수정/삭제 허용
+drop policy if exists "관리자 배너 자산 올리기" on storage.objects;
+create policy "관리자 배너 자산 올리기" on storage.objects
+  for insert to authenticated with check (bucket_id = 'banner-assets' and (select private.is_admin()));
+
+drop policy if exists "관리자 배너 자산 수정" on storage.objects;
+create policy "관리자 배너 자산 수정" on storage.objects
+  for update to authenticated using (bucket_id = 'banner-assets' and (select private.is_admin()))
+  with check (bucket_id = 'banner-assets' and (select private.is_admin()));
+
+drop policy if exists "관리자 배너 자산 삭제" on storage.objects;
+create policy "관리자 배너 자산 삭제" on storage.objects
+  for delete to authenticated using (bucket_id = 'banner-assets' and (select private.is_admin()));
+
+-- ---------- 초기 기본 배너 3종 (기본형, 추석, 크리스마스) 시드 ----------
+insert into public.main_banners (id, title, image_url, link_url, alt_text, is_active, season_type, badge_text, headline, sub_text, button_text)
+values
+  ('banner-default', '기본형 배너 (AI 격식지수 추천)', '', 'https://dapcue.vercel.app/', '답례큐 AI 추천 큐레이션 메인 배너', true, 'default', '답례큐 AI 추천 큐레이션', '자리에 맞는 답례, 답례큐가 추천드려요.', '행사와 받는 분, 예산만 알려주시면 답례큐 특허 AI 격식지수로 비교해 세 가지를 추천합니다.', '답례품 추천받기'),
+  ('banner-chuseok', '추석 명절 시즌 배너', '/banners/chuseok.webp', 'https://dapcue.vercel.app/', '답례큐 한가위 추석 선물 큐레이션 메인 배너', false, 'chuseok', '답례큐 추석 특별 큐레이션', '마음을 전하는 한가위 답례, 답례큐가 추천드려요.', '행사와 받는 분, 예산만 알려주시면 답례큐 특허 AI 격식지수로 비교해 세 가지를 추천합니다.', '추석 답례품 추천받기'),
+  ('banner-christmas', '크리스마스 연말 시즌 배너', '/banners/christmas.webp', 'https://dapcue.vercel.app/', '답례큐 크리스마스 연말 선물 큐레이션 메인 배너', false, 'christmas', '답례큐 연말·성탄 특별 큐레이션', '따뜻한 마음을 담은 연말 답례, 답례큐가 추천드려요.', '행사와 받는 분, 예산만 알려주시면 답례큐 특허 AI 격식지수로 비교해 세 가지를 추천합니다.', '연말 답례품 추천받기')
+on conflict (id) do nothing;
+
 -- ==================== migrations/20261117010000_order_schedule.sql ====================
--- 행사일(event_date) 및 희망 수령일(desired_delivery_date) 컬럼 추가 및 업로드 세션 완료 RPC 갱신
+-- 행사일(event_date) 및 희망 수령일(desired_delivery_date) 컬럼 추가
 alter table public.designs add column if not exists event_date text;
 alter table public.designs add column if not exists desired_delivery_date text;
 
 -- 희망 수령일 기준 빠른 조회를 위한 부분 인덱스
 create index if not exists designs_desired_delivery_date_idx on public.designs (desired_delivery_date) where desired_delivery_date is not null;
+
+-- 제작 상태 체크 제약조건 갱신: completed(포장 완료), no_packaging(포장 없음) 정식 추가
+alter table public.designs drop constraint if exists designs_status_check;
+alter table public.designs add constraint designs_status_check
+  check (status in ('pending', 'received', 'order_confirmed', 'printed', 'completed', 'no_packaging', 'canceled'));
 
 -- 업로드 세션 완료 RPC 갱신: eventDate와 desiredDeliveryDate 반영
 create or replace function public.finish_design_upload(p_session_id text)
@@ -1484,6 +1614,74 @@ end;
 $$;
 revoke all on function public.finish_design_upload(text) from public, anon, authenticated;
 grant execute on function public.finish_design_upload(text) to service_role;
+
+-- 다시 주문 RPC 갱신: 원본 디자인의 event_date, desired_delivery_date 보존
+create or replace function public.reorder_design(p_code text, p_new_code text, p_quantity integer)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  src public.designs%rowtype;
+begin
+  if p_new_code is null or p_new_code !~ '^OD-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$' then
+    raise exception '잘못된 새 코드입니다.' using errcode = '22023';
+  end if;
+  if p_quantity is null or p_quantity < 1 or p_quantity > 100000 then
+    raise exception '수량은 1개부터 100,000개까지입니다.' using errcode = '22023';
+  end if;
+  select * into src from public.designs where code = upper(trim(p_code)) and status <> 'canceled';
+  if not found then
+    raise exception '디자인을 찾을 수 없습니다.' using errcode = 'P0002';
+  end if;
+  insert into public.designs (
+    code, product_no, product_name, quantity, event, style_id, style_name,
+    sticker, draft, print_path,
+    card, card_draft, card_print_path,
+    source_code,
+    event_date, desired_delivery_date
+  )
+  values (
+    p_new_code, src.product_no, src.product_name, p_quantity, src.event, src.style_id, src.style_name,
+    src.sticker, src.draft, null,
+    src.card, src.card_draft, null,
+    case when (src.print_path is not null or src.card_print_path is not null) then src.code else src.source_code end,
+    src.event_date, src.desired_delivery_date
+  );
+  return p_new_code;
+end;
+$$;
+revoke all on function public.reorder_design(text, text, integer) from public;
+grant execute on function public.reorder_design(text, text, integer) to anon, authenticated;
+
+-- 결제 승인 RPC 갱신: 이미 confirmed/printed/completed/no_packaging인 건에 대해 일관되게 already_confirmed 처리
+create or replace function public.accept_paid_design(p_code text, p_order_no text, p_product_no integer, p_quantity integer)
+returns text language plpgsql security definer set search_path = '' as $$
+declare d public.designs%rowtype;
+begin
+  if p_code is null or p_code !~ '^OD-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$'
+     or p_order_no is null or p_order_no !~ '^20[0-9]{6}-[0-9]{7}$'
+     or p_product_no is null or p_product_no < 1 or p_quantity is null or p_quantity < 1 then
+    raise exception '결제 확인 정보가 올바르지 않습니다.' using errcode = '22023';
+  end if;
+  select * into d from public.designs where code = p_code for update;
+  if not found or d.product_no <> p_product_no or d.quantity <> p_quantity then
+    return 'mismatch';
+  end if;
+  if d.status in ('order_confirmed', 'printed', 'completed', 'no_packaging') and d.order_no = p_order_no then
+    return 'already_confirmed';
+  end if;
+  if d.status not in ('pending', 'received') or d.order_no is not null then
+    return 'conflict';
+  end if;
+  update public.designs set status = 'order_confirmed', order_no = p_order_no, updated_at = now()
+  where code = p_code;
+  return 'confirmed';
+end;
+$$;
+revoke all on function public.accept_paid_design(text,text,integer,integer) from public, anon, authenticated;
+grant execute on function public.accept_paid_design(text,text,integer,integer) to service_role;
 
 -- ==================== seed.sql ====================
 -- 온답 초기 데이터 (npm run db:seed-sql로 생성). SQL Editor에서 Run
