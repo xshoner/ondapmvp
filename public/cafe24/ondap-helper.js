@@ -820,11 +820,39 @@
     }, 7000);
   }
 
+  // Hahmlet 전체 한글(KR) 웹폰트 로드를 보장한다.
+  // 기존 카페24 스킨에 특정 글자만 제한된 서브셋(&text=...)이 있거나 폰트 태그가 누락된 경우,
+  // 전체 한글 11,172자가 지원되는 Google Fonts woff2 링크를 동적으로 주입하여 글꼴 깨짐을 방지한다.
+  function ensureHahmletFont() {
+    try {
+      var links = document.querySelectorAll('link[rel="stylesheet"]');
+      var hasFullFont = false;
+      for (var i = 0; i < links.length; i++) {
+        var href = links[i].getAttribute('href') || '';
+        if (href.indexOf('family=Hahmlet') !== -1) {
+          if (href.indexOf('&text=') === -1 && href.indexOf('?text=') === -1) {
+            hasFullFont = true;
+            break;
+          }
+        }
+      }
+      if (!hasFullFont) {
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;600&display=swap';
+        document.head.appendChild(link);
+      }
+    } catch (_) {}
+  }
+
   // 카페24 쇼핑몰 메인의 .ondap-cta 배너에 관리자가 선택한 메인 배너 정보를 동적 반영한다
   // 서버 오류나 미응답 시 기존 정적 HTML 배너로 유지(fail-safe)된다
   function applyMainBanner() {
     var cta = document.querySelector('.ondap-cta');
     if (!cta || !window.fetch) return;
+
+    // 전체 한글 글꼴 로드 보장
+    ensureHahmletFont();
 
     fetch(APP + '/api/banner/active').then(function (r) {
       return r.ok ? r.json() : null;
@@ -855,10 +883,14 @@
         cta.style.backgroundColor = '#1f4436';
       }
 
-      // 기존 카페24 스킨의 세로 여백을 줄여 배너 높이를 약 10% 줄인다.
+      // 기존 카페24 구형 스킨(패딩 32px 이상)의 세로 여백을 줄여 배너 높이를 약 10% 줄인다.
+      // 이미 26px로 최적화된 신규 스킨에서는 과도한 축소를 방지한다.
       var spacing = window.getComputedStyle(cta);
-      cta.style.paddingTop = Math.max(8, parseFloat(spacing.paddingTop) - 9) + 'px';
-      cta.style.paddingBottom = Math.max(8, parseFloat(spacing.paddingBottom) - 9) + 'px';
+      var currentPadTop = parseFloat(spacing.paddingTop) || 0;
+      if (currentPadTop >= 32) {
+        cta.style.paddingTop = Math.max(8, currentPadTop - 9) + 'px';
+        cta.style.paddingBottom = Math.max(8, parseFloat(spacing.paddingBottom) - 9) + 'px';
+      }
 
       // 4. 배너 내부 텍스트 반영
       var brandEl = cta.querySelector('.ondap-cta-brand');

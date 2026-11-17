@@ -279,3 +279,71 @@ test('10. 긴급 보안 검증: banner-assets 전용 격리 & packaging-assets �
     'banner-repository에 packaging-assets 폴백이 없어야 한다'
   );
 });
+
+test('11. 글꼴 일관성 및 깨짐 방지: Hahmlet &text= 제한 제거 및 전체 한글 글리프 로딩 검증', () => {
+  const ctaHtml = readFileSync(join(process.cwd(), 'cafe24', 'ondap-cta.html'), 'utf8');
+  const mobileHtml = readFileSync(join(process.cwd(), 'cafe24', 'mobile-index.html'), 'utf8');
+
+  for (const html of [ctaHtml, mobileHtml]) {
+    // 1) &text= 쿼리 파라미터가 없어야 함 (특정 글자만 제한하는 서브셋 누락 방지)
+    assert.ok(
+      !html.includes('&text='),
+      'Google Fonts Hahmlet URL에 &text= 서브셋 제한이 없어야 한다'
+    );
+
+    // 2) 전체 한글 unicode-range를 지원하는 정식 Hahmlet 웹폰트 링크 존재 확인
+    assert.ok(
+      html.includes('https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;600&display=swap'),
+      '전체 한글을 지원하는 정식 Hahmlet 500/600 폰트 링크가 포함되어야 한다'
+    );
+
+    // 3) 폴백 글꼴 체계 확인
+    assert.ok(
+      html.includes("'Hahmlet','Nanum Myeongjo','AppleMyungjo','Batang',serif"),
+      'Hahmlet 로딩 지연 또는 실패 시의 명조 계열 폴백 글꼴이 지정되어야 한다'
+    );
+  }
+});
+
+test('12. ondap-helper.js의 동적 폰트 보장(ensureHahmletFont) 및 패딩 안전 가드 검증', () => {
+  const helperSrc = readFileSync(join(process.cwd(), 'public', 'cafe24', 'ondap-helper.js'), 'utf8');
+
+  // 동적 글꼴 주입 함수 존재 및 호출 확인
+  assert.ok(helperSrc.includes('function ensureHahmletFont()'), 'ensureHahmletFont 함수 구현 확인');
+  assert.ok(helperSrc.includes('ensureHahmletFont()'), 'applyMainBanner 시작 시 ensureHahmletFont 호출 확인');
+
+  // 전체 한글 Hahmlet 주입 확인
+  assert.ok(
+    helperSrc.includes('https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;600&display=swap'),
+    '글리프 누락 스킨 대응 전체 Hahmlet 동적 주입 확인'
+  );
+
+  // 패딩 축소 안전 가드 (32px 이상일 때만 축소)
+  assert.ok(
+    helperSrc.includes('currentPadTop >= 32'),
+    '이미 축소된 26px 스킨의 과도한 축소 방지 가드 확인'
+  );
+});
+
+test('13. 관리자 미리보기 글꼴 및 모바일 반응형 뷰 지원 검증', () => {
+  const managerSrc = readFileSync(
+    join(process.cwd(), 'src', 'app', 'admin', 'packaging', 'banner-manager.tsx'),
+    'utf8'
+  );
+
+  // 관리자 미리보기에 Hahmlet 명조 지정 확인
+  assert.ok(
+    managerSrc.includes("fontFamily: \"var(--font-serif), 'Hahmlet', 'Nanum Myeongjo', 'AppleMyungjo', 'Batang', serif\""),
+    '관리자 미리보기 헤드라인에 Hahmlet 명조 폰트 패밀리 지정 확인'
+  );
+
+  // 굵기 600, 행간 1.35, 자간 -0.025em 일치 확인
+  assert.ok(managerSrc.includes('fontWeight: 600'), '헤드라인 굵기 600 일치');
+  assert.ok(managerSrc.includes("lineHeight: 1.35"), '헤드라인 행간 1.35 일치');
+  assert.ok(managerSrc.includes("letterSpacing: '-0.025em'"), '헤드라인 자간 -0.025em 일치');
+
+  // PC/모바일 뷰 전환 지원 확인
+  assert.ok(managerSrc.includes("previewDevice"), '미리보기 디바이스 상태 확인');
+  assert.ok(managerSrc.includes("setPreviewDevice('pc')"), 'PC 뷰 버튼 확인');
+  assert.ok(managerSrc.includes("setPreviewDevice('mobile')"), '모바일 뷰 버튼 확인');
+});

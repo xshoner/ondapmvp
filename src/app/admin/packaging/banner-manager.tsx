@@ -22,10 +22,129 @@ const SEASON_LABELS: Record<string, string> = {
   custom: '직접 등록',
 };
 
+// 카페24 실제 메인 배너(.ondap-cta)와 100% 동일한 글꼴·굵기·비례를 렌더링하는 미리보기 컴포넌트
+function BannerCardPreview({
+  banner,
+  device = 'pc',
+}: {
+  banner: {
+    imageUrl?: string | null;
+    badgeText?: string | null;
+    headline?: string | null;
+    subText?: string | null;
+    buttonText?: string | null;
+  };
+  device: 'pc' | 'mobile';
+}) {
+  const isMobile = device === 'mobile';
+  const headlineText = banner.headline || '자리에 맞는 답례, 답례큐가 추천드려요.';
+
+  // 모바일 줄바꿈 (<br class="ondap-br">) 지원
+  const formattedHeadline = isMobile && headlineText.includes(',')
+    ? headlineText.split(',').map((part, idx, arr) => (
+        <span key={idx}>
+          {part}{idx < arr.length - 1 ? ',' : ''}
+          {idx < arr.length - 1 && <br />}
+        </span>
+      ))
+    : headlineText;
+
+  return (
+    <div
+      style={{
+        maxWidth: isMobile ? 380 : undefined,
+        margin: isMobile ? '0 auto' : undefined,
+        position: 'relative',
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
+        alignItems: isMobile ? 'stretch' : 'center',
+        justifyContent: 'space-between',
+        gap: isMobile ? 14 : 16,
+        padding: isMobile ? '18px 16px 16px' : '18px 24px',
+        borderRadius: 10,
+        background: banner.imageUrl
+          ? `linear-gradient(rgba(18, 38, 30, 0.45), rgba(18, 38, 30, 0.55)), url('${banner.imageUrl}') center center / cover no-repeat`
+          : '#1f4436',
+        color: '#ffffff',
+        boxShadow: '0 4px 12px rgba(22,51,40,0.3)',
+        overflow: 'hidden',
+        fontFamily: "'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
+        wordBreak: 'keep-all',
+        transition: 'all 0.2s ease',
+      }}
+    >
+      {/* 놋쇠 테두리 선 */}
+      <div
+        style={{
+          content: "''",
+          position: 'absolute',
+          inset: 5,
+          border: '1px solid rgba(214,190,140,0.45)',
+          borderRadius: 7,
+          pointerEvents: 'none',
+        }}
+      />
+
+      <div style={{ position: 'relative', minWidth: 0, zIndex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, letterSpacing: '0.01em', opacity: 0.85 }}>
+          <i style={{ display: 'inline-block', width: 7, height: 7, background: '#c4493b', transform: 'rotate(45deg)', borderRadius: 1 }} />
+          {banner.badgeText || '답례큐 AI 추천 큐레이션'}
+        </div>
+        <div
+          style={{
+            fontFamily: "var(--font-serif), 'Hahmlet', 'Nanum Myeongjo', 'AppleMyungjo', 'Batang', serif",
+            fontSize: isMobile ? 16 : 18,
+            fontWeight: 600,
+            lineHeight: 1.35,
+            letterSpacing: '-0.025em',
+            marginTop: 5,
+          }}
+        >
+          {formattedHeadline}
+        </div>
+        <div
+          style={{
+            fontFamily: "'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
+            fontSize: 12,
+            lineHeight: 1.55,
+            marginTop: 4,
+            opacity: 0.85,
+          }}
+        >
+          {banner.subText || '행사와 받는 분, 예산만 알려주시면 답례큐 특허 AI 격식지수로 비교해 세 가지를 추천합니다.'}
+        </div>
+      </div>
+
+      <div
+        style={{
+          position: 'relative',
+          flexShrink: 0,
+          zIndex: 1,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: isMobile ? 38 : 34,
+          padding: isMobile ? '0 16px' : '0 18px',
+          borderRadius: 8,
+          fontSize: 13,
+          fontWeight: 700,
+          background: '#ffffff',
+          color: '#1f4436',
+          width: isMobile ? '100%' : 'auto',
+          textAlign: 'center',
+        }}
+      >
+        {banner.buttonText || '답례품 추천받기'}
+      </div>
+    </div>
+  );
+}
+
 export function BannerManager({ banners }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
+  const [previewDevice, setPreviewDevice] = useState<'pc' | 'mobile'>('pc');
 
   // 등록 폼 상태
   const [title, setTitle] = useState('');
@@ -329,7 +448,24 @@ export function BannerManager({ banners }: Props) {
             </div>
           )}
 
-          <div>
+          {/* 작성 중 실시간 미리보기 */}
+          <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#4b5563' }}>
+              작성 중인 배너 실시간 미리보기 (글꼴: Hahmlet 600, 서브: Noto Sans):
+            </span>
+            <BannerCardPreview
+              banner={{
+                imageUrl: previewUrl,
+                badgeText,
+                headline,
+                subText,
+                buttonText,
+              }}
+              device={previewDevice}
+            />
+          </div>
+
+          <div style={{ marginTop: 8 }}>
             <button
               type="submit"
               disabled={pending}
@@ -353,13 +489,53 @@ export function BannerManager({ banners }: Props) {
 
       {/* 3. 배너 목록 및 선택 적용 */}
       <section style={{ display: 'grid', gap: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: '#1f4436' }}>
-            📋 등록된 배너 목록 ({banners.length}개)
-          </h2>
-          <span style={{ fontSize: 12, color: '#6b7280' }}>
-            * <b>[선택 및 적용]</b>을 누르면 쇼핑몰에 단 1개의 활성 배너로 즉시 적용됩니다.
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: '#1f4436' }}>
+              📋 등록된 배너 목록 ({banners.length}개)
+            </h2>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: '#6b7280' }}>
+              * <b>[선택 및 적용]</b>을 누르면 쇼핑몰에 단 1개의 활성 배너로 즉시 적용됩니다.
+            </p>
+          </div>
+
+          {/* PC / 모바일 화면 뷰 토글 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f3f4f6', padding: 4, borderRadius: 8 }}>
+            <button
+              type="button"
+              onClick={() => setPreviewDevice('pc')}
+              style={{
+                padding: '5px 12px',
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 600,
+                border: 'none',
+                background: previewDevice === 'pc' ? '#1f4436' : 'transparent',
+                color: previewDevice === 'pc' ? '#ffffff' : '#4b5563',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              🖥️ PC 뷰
+            </button>
+            <button
+              type="button"
+              onClick={() => setPreviewDevice('mobile')}
+              style={{
+                padding: '5px 12px',
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 600,
+                border: 'none',
+                background: previewDevice === 'mobile' ? '#1f4436' : 'transparent',
+                color: previewDevice === 'mobile' ? '#ffffff' : '#4b5563',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              📱 모바일 뷰
+            </button>
+          </div>
         </div>
 
         <div style={{ display: 'grid', gap: 20 }}>
@@ -451,58 +627,8 @@ export function BannerManager({ banners }: Props) {
                   </div>
                 </div>
 
-                {/* 배너 실제 형태 미리보기 (카페24 .ondap-cta 축소 렌더링) */}
-                <div style={{
-                  position: 'relative',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 16,
-                  padding: '18px 24px',
-                  borderRadius: 10,
-                  background: banner.imageUrl
-                    ? `linear-gradient(rgba(18, 38, 30, 0.65), rgba(18, 38, 30, 0.78)), url('${banner.imageUrl}') center center / cover no-repeat`
-                    : '#1f4436',
-                  color: '#ffffff',
-                  boxShadow: '0 4px 12px rgba(22,51,40,0.3)',
-                  overflow: 'hidden',
-                }}>
-                  <div style={{
-                    content: "''",
-                    position: 'absolute',
-                    inset: 5,
-                    border: '1px solid rgba(214,190,140,0.45)',
-                    borderRadius: 7,
-                    pointerEvents: 'none',
-                  }} />
-
-                  <div style={{ position: 'relative', minWidth: 0, zIndex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, opacity: 0.85 }}>
-                      <i style={{ display: 'inline-block', width: 7, height: 7, background: '#c4493b', transform: 'rotate(45deg)', borderRadius: 1 }} />
-                      {banner.badgeText || '답례큐 AI 추천 큐레이션'}
-                    </div>
-                    <div style={{ fontSize: 18, fontWeight: 600, marginTop: 4, letterSpacing: '-0.02em' }}>
-                      {banner.headline || '자리에 맞는 답례, 답례큐가 추천드려요.'}
-                    </div>
-                    <div style={{ fontSize: 12, marginTop: 4, opacity: 0.85 }}>
-                      {banner.subText || '행사와 받는 분, 예산만 알려주시면 답례큐 특허 AI 격식지수로 비교해 세 가지를 추천합니다.'}
-                    </div>
-                  </div>
-
-                  <div style={{
-                    position: 'relative',
-                    flexShrink: 0,
-                    zIndex: 1,
-                    padding: '8px 18px',
-                    borderRadius: 8,
-                    fontSize: 13,
-                    fontWeight: 700,
-                    background: '#ffffff',
-                    color: '#1f4436',
-                  }}>
-                    {banner.buttonText || '답례품 추천받기'}
-                  </div>
-                </div>
+                {/* 배너 실제 형태 미리보기 (카페24 .ondap-cta 동일 글꼴·스타일 렌더링) */}
+                <BannerCardPreview banner={banner} device={previewDevice} />
 
                 {/* 링크 및 상세 정보 */}
                 <div style={{ fontSize: 12, color: '#6b7280', display: 'flex', flexWrap: 'wrap', gap: 16 }}>
