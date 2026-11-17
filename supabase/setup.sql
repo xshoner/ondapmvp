@@ -1738,38 +1738,20 @@ begin
   end if;
 
   if p_code is not null then
-    select * into row_rec from public.designs where code = p_code for update;
+    update public.designs
+    set memo = left(replace(memo, '(무통장 입금 대기)', '(주문 취소)'), 500),
+        updated_at = now()
+    where code = p_code
+      and status = 'pending'
+      and order_no is null
+      and strpos(coalesce(memo, ''), p_order_no) > 0
+      and strpos(coalesce(memo, ''), '(무통장 입금 대기)') > 0;
     if found then
-      if row_rec.status in ('printed', 'completed') then
-        if note_text is not null and strpos(coalesce(row_rec.memo, ''), p_order_no || ' 취소/환불 알림') = 0 then
-          update public.designs
-          set memo = left(concat_ws(E'\n', nullif(trim(memo), ''), '[주의: 주문 ' || p_order_no || ' 취소/환불 알림 — 제작/완료 건 확인 필요]'), 500),
-              updated_at = now()
-          where code = row_rec.code;
-        end if;
-        return 'printed_conflict';
-      elsif row_rec.status = 'pending' and strpos(coalesce(row_rec.memo, ''), p_order_no) > 0 then
-        update public.designs
-        set memo = left(replace(coalesce(row_rec.memo, ''), '(무통장 입금 대기)', '(주문 취소)'), 500),
-            updated_at = now()
-        where code = row_rec.code;
-        return 'canceled';
-      elsif row_rec.status in ('order_confirmed', 'received') then
-        update public.designs
-        set status = 'canceled',
-            memo = case
-              when note_text is not null and strpos(coalesce(row_rec.memo, ''), note_text) = 0
-                then left(concat_ws(E'\n', nullif(trim(memo), ''), note_text), 500)
-              else row_rec.memo
-            end,
-            updated_at = now()
-        where code = row_rec.code;
-        return 'canceled';
-      end if;
+      return 'pending_updated';
     end if;
   end if;
 
-  return 'not_found';
+  return 'noop';
 end;
 $$;
 revoke all on function public.cancel_paid_designs(text, text, text) from public, anon, authenticated;

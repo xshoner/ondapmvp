@@ -721,7 +721,7 @@ test('17. getDesignsByCodes 전수 조회 및 updateDesignsStatus 동시 취소 
     }, null, null);
 
     // 01은 received, 02는 canceled 상태
-    await updateDesign('OD-BATCH-01', { status: 'received' });
+    await updateDesign('OD-BATCH-01', { status: 'received', orderNo: '20261117-0000001' });
     await updateDesign('OD-BATCH-02', { status: 'canceled' });
     // 03은 pending 상태 유지
 
@@ -735,9 +735,16 @@ test('17. getDesignsByCodes 전수 조회 및 updateDesignsStatus 동시 취소 
 
     // 2) updateDesignsStatus 동시 취소 경합 방어 검증:
     // 01, 02에 대해 일괄 'order_confirmed' 변경 시도 시 이미 canceled인 02는 절대 덮어써지지 않아야 함
-    const updated = await updateDesignsStatus(['OD-BATCH-01', 'OD-BATCH-02'], 'order_confirmed');
+    const updated = await updateDesignsStatus(['OD-BATCH-01', 'OD-BATCH-02', 'OD-BATCH-03'], 'order_confirmed');
     assert.ok(updated.includes('OD-BATCH-01'));
     assert.ok(!updated.includes('OD-BATCH-02'), 'canceled 상태인 디자인은 덮어쓰기에서 제외되어야 함');
+    assert.ok(!updated.includes('OD-BATCH-03'), '결제 대기 디자인은 상태 변경에서 제외되어야 함');
+
+    await assert.rejects(
+      () => updateDesign('OD-BATCH-02', { status: 'printed' }, { status: 'received', orderNo: null }),
+      /상태가 변경/,
+      '다른 작업에서 취소된 접수는 이전 상태를 기준으로 덮어쓸 수 없어야 함',
+    );
 
     const [after02] = await listDesigns({ code: 'OD-BATCH-02', limit: 1, includePending: true });
     assert.equal(after02.status, 'canceled', 'OD-BATCH-02는 취소 불변식이 유지되어야 함');

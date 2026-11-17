@@ -313,11 +313,12 @@ export async function updateDesign(code: string, patch: {
   memo?: string;
   eventDate?: string | null;
   desiredDeliveryDate?: string | null;
-}): Promise<void> {
+}, expected?: { status: DesignStatus; orderNo: string | null }): Promise<void> {
   if (dataSource() === 'local') {
     const all = readLocalDesigns();
     const d = all.find((x) => x.code === code);
     if (!d) throw new Error('디자인을 찾을 수 없습니다.');
+    if (expected && (d.status !== expected.status || d.orderNo !== expected.orderNo)) throw new Error('접수 상태가 변경되었습니다. 새로고침 후 다시 확인해 주세요.');
     if (patch.status !== undefined && d.status !== patch.status) {
       d.status = patch.status;
       d.statusChangedAt = new Date().toISOString();
@@ -337,12 +338,17 @@ export async function updateDesign(code: string, patch: {
   if (patch.memo !== undefined) updatePayload.memo = patch.memo;
   if (patch.eventDate !== undefined) updatePayload.event_date = patch.eventDate;
   if (patch.desiredDeliveryDate !== undefined) updatePayload.desired_delivery_date = patch.desiredDeliveryDate;
-  const { error, count } = await db
+  let query = db
     .from('designs')
     .update(updatePayload, { count: 'exact' })
     .eq('code', code);
+  if (expected) {
+    query = query.eq('status', expected.status);
+    query = expected.orderNo === null ? query.is('order_no', null) : query.eq('order_no', expected.orderNo);
+  }
+  const { error, count } = await query;
   if (error) fail('디자인 수정', error);
-  if (count === 0) fail('디자인 수정', { message: '권한이 없거나 디자인이 없습니다.' });
+  if (count === 0) fail('디자인 수정', { message: '접수 상태가 변경됐거나 권한이 없습니다. 새로고침 후 확인해 주세요.' });
 }
 
 // 관리자 내려받기용 인쇄 파일 (호출하는 쪽에서 관리자 확인)
@@ -484,7 +490,9 @@ export async function updateDesignsStatus(codes: string[], status: DesignStatus)
     for (const d of all) {
       if (!codes.includes(d.code)) continue;
       // 취소된 주문은 취소가 아닌 다른 상태로 덮어쓸 수 없음 (동시 취소 경합 방어)
-      if (d.status === 'canceled' && status !== 'canceled') continue;
+      if ((d.status === 'canceled' || d.status === 'pending') && status !== 'canceled') continue;
+      if (['order_confirmed', 'printed', 'completed'].includes(status) && !d.orderNo) continue;
+      if (status === 'no_packaging' && (d.sticker || d.card || d.hasPrintFile || d.hasCardPrintFile)) continue;
       if (d.status !== status) d.statusChangedAt = now;
       d.status = status;
       done.push(d.code);
@@ -495,8 +503,10 @@ export async function updateDesignsStatus(codes: string[], status: DesignStatus)
   const db = await createClient();
   let query = db.from('designs').update({ status, updated_at: new Date().toISOString() }).in('code', codes);
   if (status !== 'canceled') {
-    query = query.neq('status', 'canceled');
+    query = query.neq('status', 'canceled').neq('status', 'pending');
   }
+  if (['order_confirmed', 'printed', 'completed'].includes(status)) query = query.not('order_no', 'is', null);
+  if (status === 'no_packaging') query = query.is('sticker', null).is('card', null);
   const { data, error } = await query.select('code');
   if (error) fail('상태 한꺼번에 바꾸기', error);
   return (data ?? []).map((r) => r.code as string);

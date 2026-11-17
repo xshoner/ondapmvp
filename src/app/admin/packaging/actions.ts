@@ -132,7 +132,7 @@ export async function updateDesignsStatusAction(rawCodes: string[], status: stri
   const pendingSet = new Set(existing.filter((d) => d.status === 'pending').map((d) => d.code));
   const canceledSet = new Set(existing.filter((d) => d.status === 'canceled').map((d) => d.code));
 
-  if (['order_confirmed', 'printed', 'completed', 'no_packaging'].includes(status)) {
+  if (status !== 'canceled') {
     const invalidPending = codes.filter((c) => pendingSet.has(c));
     if (invalidPending.length > 0) {
       return { ok: false, message: `결제 대기 중인 디자인(${invalidPending.slice(0, 3).join(', ')} 등 ${invalidPending.length}건)은 결제 확인 전 변경할 수 없습니다.` };
@@ -144,6 +144,12 @@ export async function updateDesignsStatusAction(rawCodes: string[], status: stri
     if (invalidCanceled.length > 0) {
       return { ok: false, message: `취소된 디자인(${invalidCanceled.slice(0, 3).join(', ')} 등 ${invalidCanceled.length}건)은 상태를 변경할 수 없습니다.` };
     }
+  }
+  if (['order_confirmed', 'printed', 'completed'].includes(status) && existing.some((d) => !d.orderNo)) {
+    return { ok: false, message: '주문번호가 연결되지 않은 접수가 있습니다. 주문을 확인해 주세요.' };
+  }
+  if (status === 'no_packaging' && existing.some((d) => d.sticker || d.card || d.hasPrintFile || d.hasCardPrintFile)) {
+    return { ok: false, message: '인쇄물이 포함된 접수는 포장 없음으로 변경할 수 없습니다.' };
   }
 
   try {
@@ -215,7 +221,7 @@ export async function markPrintedAction(raw: string): Promise<
     if (d.status === 'canceled') return { ok: false, message: `${code}는 취소된 접수라 바꾸지 않았습니다.` };
     const base = { ok: true as const, code, previous: d.status, productName: d.productName, quantity: d.quantity };
     if (d.status === 'printed') return { ...base, already: true };
-    await updateDesign(code, { status: 'printed', orderNo: d.orderNo, memo: d.memo });
+    await updateDesign(code, { status: 'printed' }, { status: d.status, orderNo: d.orderNo });
     revalidatePath('/admin', 'layout');
     return { ...base, already: false };
   } catch (e) {
@@ -247,8 +253,14 @@ export async function updateDesignAction(
   }
 
   // 결제 대기 건은 임의로 확인/인쇄/완료/포장없음으로 변경 불가 (카페24 결제 확인 필요)
-  if (d.status === 'pending' && patch.status !== undefined && ['order_confirmed', 'printed', 'completed', 'no_packaging'].includes(patch.status)) {
+  if (d.status === 'pending' && patch.status !== undefined && patch.status !== 'canceled') {
     return { ok: false, message: '결제 대기 중인 디자인은 카페24 결제가 확인되어야 변경할 수 있습니다.' };
+  }
+  if (patch.status === 'no_packaging' && (d.sticker || d.card || d.hasPrintFile || d.hasCardPrintFile)) {
+    return { ok: false, message: '인쇄물이 포함된 접수는 포장 없음으로 변경할 수 없습니다.' };
+  }
+  if (patch.status && ['order_confirmed', 'printed', 'completed'].includes(patch.status) && !d.orderNo) {
+    return { ok: false, message: '카페24 주문 연결을 확인한 뒤 처리해 주세요.' };
   }
 
   const updatePatch: Parameters<typeof updateDesign>[1] = {};
@@ -265,6 +277,7 @@ export async function updateDesignAction(
     if (raw && !ORDER_NO.test(raw)) {
       return { ok: false, message: '주문번호는 숫자·영문·하이픈만 적어 주세요. 예: 20261021-0000123' };
     }
+    if (raw && raw !== d.orderNo) return { ok: false, message: '주문번호 연결은 카페24 주문 검증을 통해 진행해 주세요.' };
     updatePatch.orderNo = raw || null;
   }
 
@@ -280,7 +293,7 @@ export async function updateDesignAction(
     updatePatch.desiredDeliveryDate = sanitizeIsoDate(patch.desiredDeliveryDate);
   }
 
-  return run(() => updateDesign(c, updatePatch));
+  return run(() => updateDesign(c, updatePatch, { status: d.status, orderNo: d.orderNo }));
 }
 
 // 관리자 단건 상세 조회: 고객 작성 문구(draft, cardDraft)를 온전히 읽어와 검수를 지원한다
@@ -317,13 +330,20 @@ export async function linkDesignToOrderAction(code: string, rawOrderNo: string):
   if (d.status === 'canceled') {
     return { ok: false, message: '취소된 접수는 주문번호를 연결할 수 없습니다.' };
   }
+  if (d.orderNo && d.orderNo !== orderNo) {
+    return { ok: false, message: '이미 다른 주문에 연결된 디자인입니다.' };
+  }
 
   // 1) 카페24 API를 통한 주문 존재·결제·취소 실시간 검증
   let order: import('@/cafe24/admin-orders.ts').Cafe24AdminOrder;
   let validItems: import('@/cafe24/admin-orders.ts').Cafe24AdminOrderItem[];
   try {
-    const { fetchAdminOrder, isOrderPaid, isOrderCanceled, isItemCanceledOrRefunded } = await import('@/cafe24/admin-orders.ts');
+    const { fetchAdminOrder, extractDesignCode, isOrderPaid, isOrderCanceled, isItemCanceledOrRefunded } = await import('@/cafe24/admin-orders.ts');
     order = await fetchAdminOrder(orderNo);
+
+    if (extractDesignCode(order) !== c) {
+      return { ok: false, message: '카페24 주문에 이 디자인 코드가 확인되지 않습니다. 주문서의 코드를 확인해 주세요.' };
+    }
 
     if (isOrderCanceled(order)) {
       return { ok: false, message: `카페24 주문(${orderNo})이 취소/환불 상태입니다.` };
@@ -387,7 +407,7 @@ export async function linkDesignToOrderAction(code: string, rawOrderNo: string):
   // 5대 검증 불변식이 모두 통과한 경우에만 안전하게 기록
   return run(() => updateDesign(c, {
     orderNo,
-  }));
+  }, { status: d.status, orderNo: d.orderNo }));
 }
 
 // 포장이나 인쇄물이 없는 일반 단품 주문에 대해 '포장 없음' 상태로 확정
@@ -413,7 +433,7 @@ export async function dismissPackagingAction(code: string): Promise<Result> {
 
   return run(() => updateDesign(c, {
     status: 'no_packaging',
-  }));
+  }, { status: d.status, orderNo: d.orderNo }));
 }
 
 export async function syncCafe24OrdersAction(): Promise<{ ok: boolean; message: string; confirmed?: number; total?: number }> {
