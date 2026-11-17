@@ -285,3 +285,17 @@ export function sanitizeDraft(v: unknown): DesignDraft {
 export function canActivate(items: { id: string; active: boolean }[], id: string): boolean {
   return items.filter((x) => x.active && x.id !== id).length < MAX_ACTIVE;
 }
+
+const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+// YYYY-MM-DD 날짜 문자열 검증 및 정리
+export function sanitizeIsoDate(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const s = v.trim();
+  if (!ISO_DATE_REGEX.test(s)) return null;
+  const [y, m, d] = s.split('-').map(Number);
+  if (y < 2020 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return null;
+  const date = new Date(Date.parse(`${s}T00:00:00Z`));
+  if (isNaN(date.getTime())) return null;
+  return s;
+}

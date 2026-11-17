@@ -55,4 +55,6 @@ export interface EditorSnapshot {
   cardFields?: DesignDraft['fields'];
   event: DesignCategory | null;
   quantity: number;
+  eventDate?: string | null;
+  desiredDeliveryDate?: string | null;
 }

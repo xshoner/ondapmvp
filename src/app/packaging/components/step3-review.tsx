@@ -34,6 +34,10 @@ interface Props {
   saving: boolean;
   error: string | null;
   packagingOption?: PackagingOptionInfo | null;
+  eventDate?: string;
+  setEventDate?: (v: string) => void;
+  desiredDeliveryDate?: string;
+  setDesiredDeliveryDate?: (v: string) => void;
   onGoStep: (step: 1 | 2 | 3, target?: 'sticker' | 'card') => void;
   onSave: () => void;
   onOpenRealSize: (target?: 'sticker' | 'card') => void;
@@ -62,6 +66,10 @@ export function Step3Review(props: Props) {
     saving,
     error,
     packagingOption,
+    eventDate = '',
+    setEventDate,
+    desiredDeliveryDate = '',
+    setDesiredDeliveryDate,
     onGoStep,
     onSave,
     onOpenRealSize,
@@ -242,6 +250,62 @@ export function Step3Review(props: Props) {
             ※ 쇼핑몰에서 포장 옵션과 수량 자동 선택을 시도합니다. 할인 혜택이나 배송비는 포함되어 있지 않은 예상 금액입니다.
           </p>
         </div>
+      </div>
+
+      {/* 배송 희망 및 행사 일정 (선택 입력) */}
+      <div className="pkg-schedule-section card" style={{ marginTop: 14 }}>
+        <div className="pkg-section-header" style={{ marginBottom: 10 }}>
+          <span className="pkg-section-title" style={{ fontSize: 14, fontWeight: 700 }}>
+            📅 배송 희망 및 행사 일정 (선택)
+          </span>
+          <span className="small muted">일정에 맞춰 안전하게 준비해 드립니다</span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
+          <div>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 5 }}>
+              희망 수령일 <span className="small muted" style={{ fontWeight: 400 }}>(권장: 행사 2~3일 전)</span>
+            </label>
+            <input
+              type="date"
+              value={desiredDeliveryDate}
+              onChange={(e) => setDesiredDeliveryDate?.(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '9px 12px',
+                borderRadius: 8,
+                border: '1px solid var(--line-strong)',
+                fontSize: 14,
+                background: '#ffffff',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 5 }}>
+              행사일 <span className="small muted" style={{ fontWeight: 400 }}>(답례품 전달일)</span>
+            </label>
+            <input
+              type="date"
+              value={eventDate}
+              onChange={(e) => setEventDate?.(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '9px 12px',
+                borderRadius: 8,
+                border: '1px solid var(--line-strong)',
+                fontSize: 14,
+                background: '#ffffff',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+        </div>
+
+        <p className="small muted" style={{ margin: '10px 0 0', lineHeight: 1.5, fontSize: 12 }}>
+          ℹ️ 희망 수령일은 제작 및 출고 일정을 조율하기 위한 참고용이며, 택배사 사정에 따라 도착일은 차이가 발생할 수 있습니다 (배송 완료가 확정 약속되는 것은 아닙니다).
+        </p>
       </div>
 
       {/* 품질 및 확인 체크리스트 */}

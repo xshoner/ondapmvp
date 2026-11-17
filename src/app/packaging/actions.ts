@@ -23,6 +23,7 @@ import {
   printPixels,
   sanitizeCard,
   sanitizeDraft,
+  sanitizeIsoDate,
   sanitizeSticker,
 } from '@/packaging/rules.ts';
 import {
@@ -188,6 +189,8 @@ export async function prepareDesignUploadAction(rawMeta: unknown): Promise<Prepa
       draft: sticker ? sanitizeDraft(meta.draft) : null,
       card,
       cardDraft: card ? sanitizeDraft(meta.cardDraft) : null,
+      eventDate: sanitizeIsoDate(meta.eventDate),
+      desiredDeliveryDate: sanitizeIsoDate(meta.desiredDeliveryDate),
     };
 
     return await prepareUploadSession(sessionMeta);
@@ -282,6 +285,8 @@ export async function saveDesignAction(form: FormData): Promise<SaveDesignResult
       draft: sticker ? sanitizeDraft(meta.draft) : null,
       card,
       cardDraft: card ? sanitizeDraft(meta.cardDraft) : null,
+      eventDate: sanitizeIsoDate(meta.eventDate),
+      desiredDeliveryDate: sanitizeIsoDate(meta.desiredDeliveryDate),
     };
     for (let attempt = 0; attempt < 3; attempt++) {
       const code = generateDesignCode();

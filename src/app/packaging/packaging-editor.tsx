@@ -196,6 +196,8 @@ export function PackagingEditor(props: Props) {
   const [purpose, setPurpose] = useState<GiftPurpose>('return');
   const [quantity, setQuantity] = useState(props.quantity);
   const [event, setEvent] = useState<DesignCategory | null>(props.event);
+  const [eventDate, setEventDate] = useState<string>('');
+  const [desiredDeliveryDate, setDesiredDeliveryDate] = useState<string>('');
   const [packagingOption, setPackagingOption] = useState<PackagingOptionInfo | null>(
     props.initialPackagingOption ?? null,
   );
@@ -682,6 +684,8 @@ export function PackagingEditor(props: Props) {
 
     setEvent(keepSaving && props.event ? props.event : d.event);
     setQuantity(keepSaving && props.quantity > 1 ? props.quantity : d.quantity);
+    if (d.eventDate) setEventDate(d.eventDate);
+    if (d.desiredDeliveryDate) setDesiredDeliveryDate(d.desiredDeliveryDate);
     setSelectedId(null);
     setCardSelectedId(null);
     setConsent(false);
@@ -785,6 +789,8 @@ export function PackagingEditor(props: Props) {
     cardFields,
     event,
     quantity,
+    eventDate: eventDate || null,
+    desiredDeliveryDate: desiredDeliveryDate || null,
   };
 
   useEffect(() => {
@@ -811,6 +817,8 @@ export function PackagingEditor(props: Props) {
     event,
     quantity,
     purpose,
+    eventDate,
+    desiredDeliveryDate,
   ]);
 
   // 자리표시자 바인딩
@@ -1208,6 +1216,8 @@ export function PackagingEditor(props: Props) {
         draft,
         card: withCard ? { sizeMm: cardSizeMm } : null,
         cardDraft,
+        eventDate: eventDate || null,
+        desiredDeliveryDate: desiredDeliveryDate || null,
       };
 
       // 1단계: 업로드 세션 준비
@@ -1475,6 +1485,10 @@ export function PackagingEditor(props: Props) {
               saving={saving}
               error={error}
               packagingOption={packagingOption}
+              eventDate={eventDate}
+              setEventDate={setEventDate}
+              desiredDeliveryDate={desiredDeliveryDate}
+              setDesiredDeliveryDate={setDesiredDeliveryDate}
               onGoStep={handleGoStep}
               onSave={save}
               onOpenRealSize={(target) => setRealSizeModal({ open: true, target: target ?? subStep })}

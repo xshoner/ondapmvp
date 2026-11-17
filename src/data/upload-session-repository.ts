@@ -36,6 +36,8 @@ export interface UploadSessionMeta {
   draft: DesignDraft | null;
   card: CardSpec | null;
   cardDraft: DesignDraft | null;
+  eventDate?: string | null;
+  desiredDeliveryDate?: string | null;
 }
 
 export interface ExpectedFileSpec {
@@ -159,6 +161,8 @@ export async function prepareUploadSession(meta: UploadSessionMeta): Promise<Pre
           draft: null,
           card: null,
           cardDraft: null,
+          eventDate: meta.eventDate ?? null,
+          desiredDeliveryDate: meta.desiredDeliveryDate ?? null,
         },
         null,
         null,
@@ -441,6 +445,8 @@ export async function commitUploadSession(input: {
       draft: session.meta.draft,
       card: session.meta.card,
       cardDraft: session.meta.cardDraft,
+      eventDate: session.meta.eventDate ?? null,
+      desiredDeliveryDate: session.meta.desiredDeliveryDate ?? null,
       hasPrintFile: hasPrint,
       hasCardPrintFile: hasCardPrint,
       printCode: (hasPrint || hasCardPrint) ? session.code : null,

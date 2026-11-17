@@ -7,8 +7,30 @@ export const STATUS_LABEL: Record<DesignStatus, string> = {
   received: '접수',
   order_confirmed: '주문 확인',
   printed: '인쇄 완료',
+  completed: '포장 완료',
+  no_packaging: '포장 없음',
   canceled: '취소',
 };
+
+export const WORK_STATUS_LABEL: Record<DesignStatus, string> = {
+  received: '검수 대기',
+  order_confirmed: '인쇄 대기',
+  printed: '인쇄 완료',
+  completed: '포장 완료',
+  no_packaging: '포장 없음',
+  pending: '결제 대기',
+  canceled: '취소',
+};
+
+export const WORK_STATUS_OPTIONS: { value: DesignStatus; label: string }[] = [
+  { value: 'received', label: '검수 대기' },
+  { value: 'order_confirmed', label: '인쇄 대기' },
+  { value: 'printed', label: '인쇄 완료' },
+  { value: 'completed', label: '포장 완료' },
+  { value: 'no_packaging', label: '포장 없음' },
+  { value: 'pending', label: '결제 대기' },
+  { value: 'canceled', label: '취소' },
+];
 
 export function designStatusLabel(design: Pick<Design, 'status'> & { orderNo?: string | null; memo?: string | null }): string {
   if (design.status === 'pending') {
@@ -70,12 +92,13 @@ export function csvCell(v: unknown): string {
 }
 
 export function designsCsv(designs: Design[], eventNames: Record<string, string>, kst: (iso: string) => string): string {
-  const head = ['접수일시', '디자인 코드', '상태', '카페24 주문번호', '상품번호', '상품명', '수량', '행사', '포장지', '스티커', '인쇄 파일', '메모', '카드(엽서)', '카드 인쇄 파일'];
+  const head = ['접수일시', '디자인 코드', '상태', '카페24 주문번호', '상품번호', '상품명', '수량', '행사', '포장지', '스티커', '인쇄 파일', '메모', '카드(엽서)', '카드 인쇄 파일', '희망 수령일', '행사일'];
   const rows = designs.map((d) => [
     kst(d.createdAt), d.code, designStatusLabel(d), d.orderNo ?? '', d.productNo, d.productName, d.quantity,
     d.event ? (eventNames[d.event] ?? d.event) : '', d.styleName,
     d.sticker ? `${d.sticker.shape === 'circle' ? '원형' : '사각'} ${d.sticker.sizeCm}cm` : '없음',
     d.hasPrintFile ? '있음' : '없음', d.memo, d.card ? `${d.card.sizeMm}mm` : '없음', d.hasCardPrintFile ? '있음' : '없음',
+    d.desiredDeliveryDate ?? '', d.eventDate ?? '',
   ]);
   return '﻿' + [head, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
 }

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import {
   deleteAsset, getPackagingAssets, listDesigns, saveAsset, updateDesign, updateDesignsStatus, uploadAssetFile, type AssetKind,
 } from '@/data/packaging-repository.ts';
-import { MAX_ACTIVE, canActivate, isCategory, normalizeDesignCode } from '@/packaging/rules.ts';
+import { MAX_ACTIVE, canActivate, isCategory, normalizeDesignCode, sanitizeIsoDate } from '@/packaging/rules.ts';
 import type { DesignImage, DesignStatus, DesignText, PackagingStyle } from '@/packaging/types.ts';
 import { requireAdmin } from '@/lib/admin-guard.ts';
 import { cleanTargeting } from '@/packaging/presets.ts';
@@ -14,7 +14,7 @@ import { cleanTargeting } from '@/packaging/presets.ts';
 
 type Result = { ok: true } | { ok: false; message: string };
 const KINDS: AssetKind[] = ['styles', 'images', 'texts'];
-const STATUSES: DesignStatus[] = ['received', 'order_confirmed', 'printed', 'canceled'];
+const STATUSES: DesignStatus[] = ['received', 'order_confirmed', 'printed', 'completed', 'no_packaging', 'canceled'];
 const MAX_ASSET_BYTES = 2 * 1024 * 1024; // 브라우저에서 줄여서 올리므로 넉넉하다
 
 async function denied(): Promise<{ ok: false; message: string } | null> {
@@ -211,7 +211,16 @@ export async function markPrintedAction(raw: string): Promise<
   }
 }
 
-export async function updateDesignAction(code: string, patch: { status: string; orderNo: string; memo: string }): Promise<Result> {
+export async function updateDesignAction(
+  code: string,
+  patch: {
+    status: string;
+    orderNo?: string;
+    memo?: string;
+    eventDate?: string | null;
+    desiredDeliveryDate?: string | null;
+  },
+): Promise<Result> {
   const no = await denied();
   if (no) return no;
   const c = normalizeDesignCode(String(code));
@@ -219,12 +228,12 @@ export async function updateDesignAction(code: string, patch: { status: string; 
   if (!STATUSES.includes(patch.status as DesignStatus)) return { ok: false, message: '잘못된 상태입니다.' };
   // 카페24 주문번호는 숫자·영문·하이픈 (인쇄 PDF 머리글에도 찍힌다)
   const orderNo = String(patch.orderNo ?? '').trim();
-  if (!ORDER_NO.test(orderNo)) return { ok: false, message: '주문번호는 숫자·영문·하이픈만 적어 주세요. 예: 20261021-0000123' };
+  if (orderNo && !ORDER_NO.test(orderNo)) return { ok: false, message: '주문번호는 숫자·영문·하이픈만 적어 주세요. 예: 20261021-0000123' };
 
-  if (['order_confirmed', 'printed'].includes(patch.status)) {
+  if (['order_confirmed', 'printed', 'completed'].includes(patch.status)) {
     const [d] = await listDesigns({ code: c, limit: 1, includePending: true });
     if (d?.status === 'pending') {
-      return { ok: false, message: '결제 대기 중인 디자인은 카페24 결제가 확인되어야 주문 확인으로 변경할 수 있습니다.' };
+      return { ok: false, message: '결제 대기 중인 디자인은 카페24 결제가 확인되어야 변경할 수 있습니다.' };
     }
   }
 
@@ -232,6 +241,48 @@ export async function updateDesignAction(code: string, patch: { status: string; 
     status: patch.status as DesignStatus,
     orderNo: orderNo || null,
     memo: String(patch.memo ?? '').trim().slice(0, 500),
+    eventDate: patch.eventDate !== undefined ? sanitizeIsoDate(patch.eventDate) : undefined,
+    desiredDeliveryDate: patch.desiredDeliveryDate !== undefined ? sanitizeIsoDate(patch.desiredDeliveryDate) : undefined,
+  }));
+}
+
+// 미연결 디자인 단건에 카페24 주문번호를 수동 매핑
+export async function linkDesignToOrderAction(code: string, rawOrderNo: string): Promise<Result> {
+  const no = await denied();
+  if (no) return no;
+  const c = normalizeDesignCode(String(code));
+  if (!c) return { ok: false, message: '잘못된 디자인 코드입니다.' };
+  const orderNo = String(rawOrderNo ?? '').trim();
+  if (!orderNo || !ORDER_NO.test(orderNo)) return { ok: false, message: '주문번호는 숫자·영문·하이픈만 입력해 주세요.' };
+
+  const [d] = await listDesigns({ code: c, limit: 1, includePending: true });
+  if (!d) return { ok: false, message: '접수를 찾을 수 없습니다.' };
+  if (d.status === 'pending') {
+    return { ok: false, message: '결제 대기 건은 카페24 결제 확인이 선행되어야 합니다.' };
+  }
+
+  const nextStatus = d.status === 'received' ? 'order_confirmed' : d.status;
+  return run(() => updateDesign(c, {
+    status: nextStatus,
+    orderNo,
+    memo: d.memo,
+  }));
+}
+
+// 포장이나 인쇄물이 없는 일반 단품 주문에 대해 '포장 없음' 상태로 확정
+export async function dismissPackagingAction(code: string): Promise<Result> {
+  const no = await denied();
+  if (no) return no;
+  const c = normalizeDesignCode(String(code));
+  if (!c) return { ok: false, message: '잘못된 디자인 코드입니다.' };
+
+  const [d] = await listDesigns({ code: c, limit: 1, includePending: true });
+  if (!d) return { ok: false, message: '접수를 찾을 수 없습니다.' };
+
+  return run(() => updateDesign(c, {
+    status: 'no_packaging',
+    orderNo: d.orderNo,
+    memo: d.memo,
   }));
 }
 

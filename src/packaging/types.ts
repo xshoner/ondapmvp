@@ -98,7 +98,7 @@ export interface DesignDraft {
   fields: { recipient: string; sender: string; date: string };
 }
 
-export type DesignStatus = 'pending' | 'received' | 'order_confirmed' | 'printed' | 'canceled';
+export type DesignStatus = 'pending' | 'received' | 'order_confirmed' | 'printed' | 'completed' | 'no_packaging' | 'canceled';
 
 export interface Design {
   code: string;
@@ -122,4 +122,6 @@ export interface Design {
   statusChangedAt: string;
   orderNo: string | null;
   memo: string;
+  eventDate?: string | null;          // 행사일 (YYYY-MM-DD, 선택 입력)
+  desiredDeliveryDate?: string | null; // 희망 수령일 (YYYY-MM-DD, 선택 입력)
 }

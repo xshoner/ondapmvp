@@ -44,7 +44,14 @@ function readLocalDesigns(): Design[] {
   const all: Design[] = existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : [];
   return all.map((d) => {
     const sourceCode = d.sourceCode ?? null;
-    return { ...d, sourceCode, statusChangedAt: d.statusChangedAt ?? d.createdAt, printCode: (d.hasPrintFile || d.hasCardPrintFile) && !sourceCode ? d.code : sourceCode };
+    return {
+      ...d,
+      sourceCode,
+      statusChangedAt: d.statusChangedAt ?? d.createdAt,
+      printCode: (d.hasPrintFile || d.hasCardPrintFile) && !sourceCode ? d.code : sourceCode,
+      eventDate: d.eventDate ?? null,
+      desiredDeliveryDate: d.desiredDeliveryDate ?? null,
+    };
   });
 }
 
@@ -79,6 +86,8 @@ const designFromRow = (r: Row): Design => ({
   statusChangedAt: r.status_changed_at ?? r.created_at,
   orderNo: r.order_no,
   memo: r.memo,
+  eventDate: r.event_date ?? null,
+  desiredDeliveryDate: r.desired_delivery_date ?? null,
 });
 
 function assetToRow(kind: AssetKind, a: AssetRow): Record<string, unknown> {
@@ -176,6 +185,8 @@ export interface NewDesign {
   draft: DesignDraft | null;
   card?: CardSpec | null;
   cardDraft?: DesignDraft | null;
+  eventDate?: string | null;
+  desiredDeliveryDate?: string | null;
 }
 
 // 인쇄 파일을 먼저 올리고 접수 행을 만든다. 코드가 겹치면 'duplicate'
@@ -211,6 +222,8 @@ export async function createDesign(
       statusChangedAt: now,
       orderNo: null,
       memo: '',
+      eventDate: design.eventDate ?? null,
+      desiredDeliveryDate: design.desiredDeliveryDate ?? null,
     });
     writeLocalDesigns(all);
     return 'ok';
@@ -249,6 +262,8 @@ export async function createDesign(
     card: design.card ?? null,
     card_draft: design.cardDraft ?? null,
     card_print_path: cardPrintPath,
+    event_date: design.eventDate ?? null,
+    desired_delivery_date: design.desiredDeliveryDate ?? null,
   });
   if (error?.code === '23505') return 'duplicate';
   if (error) fail('디자인 접수', error);
@@ -256,7 +271,7 @@ export async function createDesign(
 }
 
 // 목록에는 편집 내용(draft, 건당 최대 64KB)이 필요 없으므로 빼고 읽는다 (draft는 null)
-const LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, event, style_id, style_name, sticker, card, print_path, card_print_path, source_code, status, status_changed_at, order_no, memo';
+const LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, event, style_id, style_name, sticker, card, print_path, card_print_path, source_code, status, status_changed_at, order_no, memo, event_date, desired_delivery_date';
 // 20261025000000_operations.sql을 실행하기 전 DB: 새 칸(상태 시각·원본)이 없다 (42703 undefined_column)
 const OLD_LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, event, style_id, style_name, sticker, print_path, status, order_no, memo';
 
@@ -292,19 +307,37 @@ export async function listDesigns(opts: { limit?: number; code?: string | null; 
   return rows.map(designFromRow);
 }
 
-export async function updateDesign(code: string, patch: { status: DesignStatus; orderNo: string | null; memo: string }): Promise<void> {
+export async function updateDesign(code: string, patch: {
+  status: DesignStatus;
+  orderNo: string | null;
+  memo: string;
+  eventDate?: string | null;
+  desiredDeliveryDate?: string | null;
+}): Promise<void> {
   if (dataSource() === 'local') {
     const all = readLocalDesigns();
     const d = all.find((x) => x.code === code);
     if (!d) throw new Error('디자인을 찾을 수 없습니다.');
     if (d.status !== patch.status) d.statusChangedAt = new Date().toISOString();
-    Object.assign(d, patch);
+    if (patch.eventDate !== undefined) d.eventDate = patch.eventDate;
+    if (patch.desiredDeliveryDate !== undefined) d.desiredDeliveryDate = patch.desiredDeliveryDate;
+    d.status = patch.status;
+    d.orderNo = patch.orderNo;
+    d.memo = patch.memo;
     return writeLocalDesigns(all);
   }
   const db = await createClient();
+  const updatePayload: Record<string, unknown> = {
+    status: patch.status,
+    order_no: patch.orderNo,
+    memo: patch.memo,
+    updated_at: new Date().toISOString(),
+  };
+  if (patch.eventDate !== undefined) updatePayload.event_date = patch.eventDate;
+  if (patch.desiredDeliveryDate !== undefined) updatePayload.desired_delivery_date = patch.desiredDeliveryDate;
   const { error, count } = await db
     .from('designs')
-    .update({ status: patch.status, order_no: patch.orderNo, memo: patch.memo, updated_at: new Date().toISOString() }, { count: 'exact' })
+    .update(updatePayload, { count: 'exact' })
     .eq('code', code);
   if (error) fail('디자인 수정', error);
   if (count === 0) fail('디자인 수정', { message: '권한이 없거나 디자인이 없습니다.' });

@@ -152,6 +152,8 @@ export async function fromStored(
       cardFields: (v.cardFields && typeof v.cardFields === 'object') ? sanitizeDraft({ fields: v.cardFields }).fields : { recipient: '', sender: '', date: '' },
       event: ctx.events.includes(String(v.event)) ? (String(v.event) as EditorSnapshot['event']) : null,
       quantity: clampQty(v.quantity),
+      eventDate: typeof v.eventDate === 'string' ? v.eventDate : null,
+      desiredDeliveryDate: typeof v.desiredDeliveryDate === 'string' ? v.desiredDeliveryDate : null,
     },
     missingPhotos,
   };
