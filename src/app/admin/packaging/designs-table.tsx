@@ -862,22 +862,30 @@ function BoardRow({
   // 스티커와 카드 각각 필요한 인쇄물의 문구가 모두 온전히 채워져 있을 때만 이미 로드된 것으로 판단한다.
   const [detailDesign, setDetailDesign] = useState<Design | null>(() => (hasAllRequiredDrafts(d, d) ? d : null));
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (expanded && !hasAllRequiredDrafts(d, detailDesign) && !loadingDetail) {
+    if (expanded && !detailDesign) {
       let active = true;
       setLoadingDetail(true);
+      setDetailError(null);
       void getDesignDetailAction(d.code).then((res) => {
         if (active) {
           setLoadingDetail(false);
           if (res.ok) setDetailDesign(res.design);
+          else setDetailError(res.message);
+        }
+      }).catch(() => {
+        if (active) {
+          setLoadingDetail(false);
+          setDetailError('고객 문구를 불러오지 못했습니다. 상세를 다시 열어 주세요.');
         }
       });
       return () => {
         active = false;
       };
     }
-  }, [expanded, d.code, d.sticker, d.card, detailDesign, loadingDetail]);
+  }, [expanded, d.code, detailDesign]);
 
   const activeDesign = detailDesign ?? d;
   const msgDetails = useMemo(() => getMessageDetails(activeDesign), [activeDesign]);
@@ -1154,6 +1162,8 @@ function BoardRow({
                 <div className="customer-msg-box">
                   {loadingDetail ? (
                     <div className="small muted">고객 작성 문구 불러오는 중...</div>
+                  ) : detailError ? (
+                    <div role="alert">{detailError}</div>
                   ) : (
                     <>
                       {msgDetails.recipient && <div><b>[받는 분]</b> {msgDetails.recipient}</div>}
