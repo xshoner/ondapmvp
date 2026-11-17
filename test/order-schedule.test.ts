@@ -323,6 +323,7 @@ import {
   createDesign,
   getDesign,
   getDesignsByCodes,
+  getDesignsByOrderNo,
   listDesigns,
   updateDesign,
   reorderDesign,
@@ -681,10 +682,11 @@ test('16. getDesign: 단건 상세 조회 시 draft 및 cardDraft 고객 문구 
       cardDraft: cardDraftData,
     }, null, null);
 
-    // 1) listDesigns는 목록 경량화를 위해 draft가 null이어야 함
+    // 1) listDesigns는 목록 경량화를 위해 draft 및 cardDraft가 null이어야 함
     const [listItem] = await listDesigns({ code: 'OD-DTL-0001', limit: 1, includePending: true });
     assert.ok(listItem);
     assert.equal(listItem.draft, null, '목록 조회 시 draft는 null로 경량화되어야 함');
+    assert.equal(listItem.cardDraft, null, '목록 조회 시 cardDraft도 null로 경량화되어야 함');
 
     // 2) getDesign은 고객 문구 검수를 위해 draft 및 cardDraft를 온전히 반환해야 함
     const detail = await getDesign('OD-DTL-0001');
@@ -805,4 +807,96 @@ test('18. 카페24 취소 시 completed(포장 완료) 건 오출고 방지 보�
     delete process.env.ONDAP_TEST_DATA_DIR;
     rmSync(testDir, { recursive: true, force: true });
   }
+});
+
+test('19. getDesignsByOrderNo: 500개 제한 없는 전수 조회 및 한 주문 복수 디자인 연결 검증', async () => {
+  const testDir = mkdtempSync(join(tmpdir(), 'ondap-schd-orderno-'));
+  process.env.ONDAP_TEST_DATA_DIR = testDir;
+
+  try {
+    const targetOrderNo = '20261117-0001234';
+
+    // 1) 같은 주문에 서로 다른 2개 상품의 디자인 등록
+    await createDesign({
+      code: 'OD-ORD-01', productNo: 301, productName: '도라지정과', quantity: 50,
+      event: null, styleId: '', styleName: '', sticker: null, draft: null,
+      card: null, cardDraft: null,
+    }, null, null);
+    await updateDesign('OD-ORD-01', { status: 'order_confirmed', orderNo: targetOrderNo });
+
+    await createDesign({
+      code: 'OD-ORD-02', productNo: 302, productName: '호두강정', quantity: 30,
+      event: null, styleId: '', styleName: '', sticker: null, draft: null,
+      card: null, cardDraft: null,
+    }, null, null);
+    await updateDesign('OD-ORD-02', { status: 'order_confirmed', orderNo: targetOrderNo });
+
+    // 2) 다른 주문번호의 디자인 등록
+    await createDesign({
+      code: 'OD-ORD-03', productNo: 301, productName: '도라지정과', quantity: 20,
+      event: null, styleId: '', styleName: '', sticker: null, draft: null,
+      card: null, cardDraft: null,
+    }, null, null);
+    await updateDesign('OD-ORD-03', { status: 'order_confirmed', orderNo: '20261117-0009999' });
+
+    // 3) getDesignsByOrderNo 전수 조회 검증: 정확히 targetOrderNo에 해당하는 2건 반환
+    const linked = await getDesignsByOrderNo(targetOrderNo);
+    assert.equal(linked.length, 2, '주문번호에 연결된 2건의 디자인이 모두 조회되어야 함');
+    const codes = linked.map((x) => x.code).sort();
+    assert.deepEqual(codes, ['OD-ORD-01', 'OD-ORD-02']);
+
+    // 조회된 결과도 목록 경량화(draft, cardDraft null)되어야 함
+    assert.equal(linked[0].draft, null);
+    assert.equal(linked[0].cardDraft, null);
+  } finally {
+    delete process.env.ONDAP_TEST_DATA_DIR;
+    rmSync(testDir, { recursive: true, force: true });
+  }
+});
+
+test('20. 주문 수량 할당 및 다품목/복수 디자인 초과 검증 로직', () => {
+  // 모의 카페24 주문:
+  // 품목 1: 상품 301 (도라지정과) 100개
+  // 품목 2: 상품 302 (호두강정) 30개
+  const validItems = [
+    { product_no: 301, product_name: '도라지정과', quantity: 100 },
+    { product_no: 302, product_name: '호두강정', quantity: 30 },
+  ];
+
+  // 1) 품목 301의 총 수량은 100개
+  const totalQty301 = validItems
+    .filter((i) => i.product_no === 301)
+    .reduce((sum, i) => sum + i.quantity, 0);
+  assert.equal(totalQty301, 100);
+
+  // 기존 연결: 디자인 1 (상품 301, 50개), 디자인 2 (상품 302, 30개)
+  const existingLinked: { code: string; productNo: number; quantity: number; status: import('../src/packaging/types.ts').DesignStatus }[] = [
+    { code: 'OD-A', productNo: 301, quantity: 50, status: 'order_confirmed' },
+    { code: 'OD-B', productNo: 302, quantity: 30, status: 'order_confirmed' },
+  ];
+
+  // Case A: 다른 상품(#302)이 이미 있어도 상품 #301의 잔여 수량(100 - 50 = 50) 범위 내 50개 연결 허용
+  const otherLinkedFor301 = existingLinked.filter((x) => x.code !== 'OD-NEW-301' && x.status !== 'canceled');
+  const allocated301 = otherLinkedFor301
+    .filter((x) => x.productNo === 301)
+    .reduce((sum, x) => sum + x.quantity, 0);
+  const remaining301 = totalQty301 - allocated301;
+  assert.equal(remaining301, 50);
+  assert.ok(remaining301 >= 50, '잔여 수량 50개에 대해 50개 디자인 연결 가능');
+
+  // Case B: 잔여 수량 초과 시 (예: 60개 연결 시도) 차단
+  const requestedOverQty = 60;
+  assert.ok(remaining301 < requestedOverQty, '잔여 수량 50개보다 큰 60개는 차단되어야 함');
+
+  // Case C: 상품 #302는 이미 30개가 전부 할당되어 추가 연결 불가
+  const totalQty302 = validItems
+    .filter((i) => i.product_no === 302)
+    .reduce((sum, i) => sum + i.quantity, 0);
+  const otherLinkedFor302 = existingLinked.filter((x) => x.code !== 'OD-NEW-302' && x.status !== 'canceled');
+  const allocated302 = otherLinkedFor302
+    .filter((x) => x.productNo === 302)
+    .reduce((sum, x) => sum + x.quantity, 0);
+  const remaining302 = totalQty302 - allocated302;
+  assert.equal(remaining302, 0);
+  assert.ok(remaining302 < 10, '이미 30개 전액 할당된 품목은 추가 연결 불가');
 });

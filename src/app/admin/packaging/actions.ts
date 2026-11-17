@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import {
-  deleteAsset, getDesign, getDesignsByCodes, getPackagingAssets, listDesigns, saveAsset, updateDesign, updateDesignsStatus, uploadAssetFile, type AssetKind,
+  deleteAsset, getDesign, getDesignsByCodes, getDesignsByOrderNo, getPackagingAssets, listDesigns, saveAsset, updateDesign, updateDesignsStatus, uploadAssetFile, type AssetKind,
 } from '@/data/packaging-repository.ts';
 import { MAX_ACTIVE, canActivate, isCategory, normalizeDesignCode, sanitizeIsoDate } from '@/packaging/rules.ts';
 import type { DesignImage, DesignStatus, DesignText, PackagingStyle } from '@/packaging/types.ts';
@@ -318,17 +318,12 @@ export async function linkDesignToOrderAction(code: string, rawOrderNo: string):
     return { ok: false, message: '취소된 접수는 주문번호를 연결할 수 없습니다.' };
   }
 
-  // 1) 중복 연결 방지 검증: 이미 다른 디자인에 매핑된 주문번호인지 확인
-  const allExisting = await listDesigns({ limit: 500, includePending: true });
-  const duplicated = allExisting.find((x) => x.orderNo === orderNo && x.code !== c);
-  if (duplicated) {
-    return { ok: false, message: `이미 다른 디자인(${duplicated.code})에 연결된 주문번호입니다.` };
-  }
-
-  // 2) 카페24 API를 통한 주문 존재·결제·상품·수량 4대 조건 실시간 검증
+  // 1) 카페24 API를 통한 주문 존재·결제·취소 실시간 검증
+  let order: import('@/cafe24/admin-orders.ts').Cafe24AdminOrder;
+  let validItems: import('@/cafe24/admin-orders.ts').Cafe24AdminOrderItem[];
   try {
-    const { fetchAdminOrder, isOrderPaid, isOrderCanceled } = await import('@/cafe24/admin-orders.ts');
-    const order = await fetchAdminOrder(orderNo);
+    const { fetchAdminOrder, isOrderPaid, isOrderCanceled, isItemCanceledOrRefunded } = await import('@/cafe24/admin-orders.ts');
+    order = await fetchAdminOrder(orderNo);
 
     if (isOrderCanceled(order)) {
       return { ok: false, message: `카페24 주문(${orderNo})이 취소/환불 상태입니다.` };
@@ -339,19 +334,53 @@ export async function linkDesignToOrderAction(code: string, rawOrderNo: string):
     }
 
     const items = Array.isArray(order.items) ? order.items : [];
-    const matchingItem = items.find((item) => item.product_no === d.productNo && item.quantity === d.quantity);
-
-    if (!matchingItem) {
-      const orderProducts = items.map((i) => `#${i.product_no}(${i.quantity}개)`).join(', ') || '없음';
-      return {
-        ok: false,
-        message: `카페24 주문의 상품/수량(${orderProducts})이 디자인 사양(#${d.productNo}, ${d.quantity}개)과 일치하지 않습니다.`,
-      };
-    }
+    validItems = items.filter((item) => !isItemCanceledOrRefunded(item));
   } catch (err) {
     return {
       ok: false,
       message: `카페24 주문 검증 실패: ${err instanceof Error ? err.message : String(err)}. 상품·수량·결제가 검증되지 않은 주문번호는 기록할 수 없습니다.`,
+    };
+  }
+
+  // 2) 주문 내 해당 상품의 총 유효 주문 수량 계산
+  const totalOrderedQty = validItems
+    .filter((item) => item.product_no === d.productNo)
+    .reduce((sum, item) => sum + (item.quantity || 0), 0);
+
+  if (totalOrderedQty === 0) {
+    const orderProducts = validItems.map((i) => `#${i.product_no}(${i.quantity}개)`).join(', ') || '없음';
+    return {
+      ok: false,
+      message: `카페24 주문의 상품 목록(${orderProducts})에 디자인 상품(#${d.productNo})이 포함되어 있지 않습니다.`,
+    };
+  }
+
+  // 3) 주문번호에 연결된 기존 디자인 전수 조회 (최근 500개 제한 없는 전체 조회)
+  // 한 주문에 여러 디자인이 연결될 수 있으므로(다품목 주문 또는 동일 품목 분할), 다른 디자인에 기할당된 수량을 집계하여 초과 연결을 차단한다.
+  const existingForOrder = await getDesignsByOrderNo(orderNo);
+  const otherLinked = existingForOrder.filter((x) => x.code !== c && x.status !== 'canceled');
+
+  const alreadyAllocatedQty = otherLinked
+    .filter((x) => x.productNo === d.productNo)
+    .reduce((sum, x) => sum + x.quantity, 0);
+
+  const remainingQty = totalOrderedQty - alreadyAllocatedQty;
+
+  if (remainingQty < d.quantity) {
+    const conflictingCodes = otherLinked
+      .filter((x) => x.productNo === d.productNo)
+      .map((x) => x.code)
+      .join(', ');
+
+    if (alreadyAllocatedQty >= totalOrderedQty) {
+      return {
+        ok: false,
+        message: `카페24 주문(${orderNo})의 상품(#${d.productNo}) 주문 수량(${totalOrderedQty}개)이 이미 다른 디자인(${conflictingCodes})에 전체 연결되어 있습니다.`,
+      };
+    }
+    return {
+      ok: false,
+      message: `카페24 주문(${orderNo})의 상품(#${d.productNo}) 남은 수량(${remainingQty}개)이 디자인 접수 수량(${d.quantity}개)보다 부족합니다. (기존 연결: ${conflictingCodes} - ${alreadyAllocatedQty}개)`,
     };
   }
 

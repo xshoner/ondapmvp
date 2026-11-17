@@ -797,6 +797,14 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
   );
 }
 
+// 디자인에 필요한 인쇄물(스티커·카드) 문구가 모두 로드되어 있는지 검증
+function hasAllRequiredDrafts(design: Design, target: Design | null): boolean {
+  if (!target) return false;
+  if (design.sticker && !target.draft) return false;
+  if (design.card && !target.cardDraft) return false;
+  return true;
+}
+
 // 각 주문·디자인 행 컴포넌트
 function BoardRow({
   design: d,
@@ -851,11 +859,12 @@ function BoardRow({
   const cardSheets = d.card ? sheetsNeeded(sheetLayout(d.card, options.paper), d.quantity) : 0;
 
   // 관리자 단건 상세(고객 작성 문구) 온디맨드 로딩 상태
-  const [detailDesign, setDetailDesign] = useState<Design | null>(() => (d.draft || d.cardDraft ? d : null));
+  // 스티커와 카드 각각 필요한 인쇄물의 문구가 모두 온전히 채워져 있을 때만 이미 로드된 것으로 판단한다.
+  const [detailDesign, setDetailDesign] = useState<Design | null>(() => (hasAllRequiredDrafts(d, d) ? d : null));
   const [loadingDetail, setLoadingDetail] = useState(false);
 
   useEffect(() => {
-    if (expanded && !detailDesign && !loadingDetail) {
+    if (expanded && !hasAllRequiredDrafts(d, detailDesign) && !loadingDetail) {
       let active = true;
       setLoadingDetail(true);
       void getDesignDetailAction(d.code).then((res) => {
@@ -868,7 +877,7 @@ function BoardRow({
         active = false;
       };
     }
-  }, [expanded, d.code, detailDesign, loadingDetail]);
+  }, [expanded, d.code, d.sticker, d.card, detailDesign, loadingDetail]);
 
   const activeDesign = detailDesign ?? d;
   const msgDetails = useMemo(() => getMessageDetails(activeDesign), [activeDesign]);

@@ -270,7 +270,7 @@ export async function createDesign(
   return 'ok';
 }
 
-// 목록에는 편집 내용(draft, 건당 최대 64KB)이 필요 없으므로 빼고 읽는다 (draft는 null)
+// 목록에는 편집 내용(draft·cardDraft, 건당 최대 64KB)이 필요 없으므로 빼고 읽는다 (draft·cardDraft는 null)
 const LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, event, style_id, style_name, sticker, card, print_path, card_print_path, source_code, status, status_changed_at, order_no, memo, event_date, desired_delivery_date';
 // 20261025000000_operations.sql을 실행하기 전 DB: 새 칸(상태 시각·원본)이 없다 (42703 undefined_column)
 const OLD_LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, event, style_id, style_name, sticker, print_path, status, order_no, memo';
@@ -283,7 +283,7 @@ export async function listDesigns(opts: { limit?: number; code?: string | null; 
     return readLocalDesigns()
       .filter((d) => (opts.includePending || opts.status === 'pending' || d.status !== 'pending') && (!opts.intakeOnly || d.status !== 'pending' || d.orderNo != null || (d.memo || '').includes('카페24 주문: 20')) && (!opts.code || d.code === opts.code) && (!opts.status || d.status === opts.status)
         && (!gte || d.createdAt >= gte) && (!lt || d.createdAt < lt) && (!opts.late || isLate(d, now)))
-      .slice(0, limit).map((d) => ({ ...d, draft: null }));
+      .slice(0, limit).map((d) => ({ ...d, draft: null, cardDraft: null }));
   }
   const db = await createClient();
   const query = (columns: string, late: boolean) => {
@@ -448,11 +448,28 @@ export async function getDesignsByCodes(codes: string[]): Promise<Design[]> {
   if (codes.length === 0) return [];
   if (dataSource() === 'local') {
     const set = new Set(codes);
-    return readLocalDesigns().filter((x) => set.has(x.code));
+    return readLocalDesigns()
+      .filter((x) => set.has(x.code))
+      .map((d) => ({ ...d, draft: null, cardDraft: null }));
   }
   const db = await createClient();
   const { data, error } = await db.from('designs').select(LIST_COLUMNS).in('code', codes);
   if (error) fail('디자인 복수 조회', error);
+  return (data ?? []).map(designFromRow);
+}
+
+// 특정 주문번호에 연결된 모든 디자인을 전수 조회한다 (목록 500개 제한 없이 전체 조회)
+export async function getDesignsByOrderNo(orderNo: string): Promise<Design[]> {
+  const target = orderNo.trim();
+  if (!target) return [];
+  if (dataSource() === 'local') {
+    return readLocalDesigns()
+      .filter((x) => x.orderNo === target)
+      .map((d) => ({ ...d, draft: null, cardDraft: null }));
+  }
+  const db = await createClient();
+  const { data, error } = await db.from('designs').select(LIST_COLUMNS).eq('order_no', target);
+  if (error) fail('주문번호별 디자인 조회', error);
   return (data ?? []).map(designFromRow);
 }
 
