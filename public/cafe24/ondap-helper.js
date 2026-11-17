@@ -820,7 +820,80 @@
     }, 7000);
   }
 
+  // 카페24 쇼핑몰 메인의 .ondap-cta 배너에 관리자가 선택한 메인 배너 정보를 동적 반영한다
+  // 서버 오류나 미응답 시 기존 정적 HTML 배너로 유지(fail-safe)된다
+  function applyMainBanner() {
+    var cta = document.querySelector('.ondap-cta');
+    if (!cta || !window.fetch) return;
+
+    fetch(APP + '/api/banner/active').then(function (r) {
+      return r.ok ? r.json() : null;
+    }).then(function (b) {
+      if (!b || !b.isActive) return;
+
+      // 1. 링크 주소 반영 (XSS 방어: http, https 프로토콜만 허용)
+      if (b.linkUrl && (/^https?:\/\//i.test(b.linkUrl) || /^\//.test(b.linkUrl))) {
+        cta.href = b.linkUrl;
+      }
+
+      // 2. 접근성(A11y) 대체 텍스트 / aria-label 반영
+      if (b.altText) {
+        cta.setAttribute('aria-label', b.altText);
+      }
+
+      // 3. 배경 이미지 적용 (추석·크리스마스 등 시즌 배너 또는 커스텀 이미지)
+      if (b.imageUrl) {
+        var cleanImg = b.imageUrl.replace(/[()"\s]/g, '');
+        var fullImgUrl = cleanImg.indexOf('http') === 0 ? cleanImg : (APP + cleanImg);
+        cta.style.setProperty('background-image', 'linear-gradient(rgba(18, 38, 30, 0.65), rgba(18, 38, 30, 0.78)), url("' + fullImgUrl + '")', 'important');
+        cta.style.backgroundPosition = 'center center';
+        cta.style.backgroundSize = 'cover';
+        cta.style.backgroundRepeat = 'no-repeat';
+      } else {
+        // 기본형 텍스트 배너
+        cta.style.setProperty('background-image', 'none', 'important');
+        cta.style.backgroundColor = '#1f4436';
+      }
+
+      // 기존 카페24 스킨의 세로 여백을 줄여 배너 높이를 약 10% 줄인다.
+      var spacing = window.getComputedStyle(cta);
+      cta.style.paddingTop = Math.max(8, parseFloat(spacing.paddingTop) - 9) + 'px';
+      cta.style.paddingBottom = Math.max(8, parseFloat(spacing.paddingBottom) - 9) + 'px';
+
+      // 4. 배너 내부 텍스트 반영
+      var brandEl = cta.querySelector('.ondap-cta-brand');
+      if (brandEl && b.badgeText) {
+        brandEl.innerHTML = '<i aria-hidden="true"></i>' + esc(b.badgeText);
+      }
+
+      var titleEl = cta.querySelector('.ondap-cta-title');
+      if (titleEl && b.headline) {
+        var rawHeadline = esc(b.headline);
+        // 모바일 줄바꿈(<br class="ondap-br">) 지원
+        var formatted = rawHeadline.indexOf(',') !== -1
+          ? rawHeadline.replace(/,\s*/, ',<br class="ondap-br"> ')
+          : rawHeadline;
+        titleEl.innerHTML = formatted;
+      }
+
+      var subEl = cta.querySelector('.ondap-cta-sub');
+      if (subEl && b.subText) {
+        subEl.textContent = b.subText;
+      }
+
+      var btnEl = cta.querySelector('.ondap-cta-btn');
+      if (btnEl && b.buttonText) {
+        btnEl.textContent = b.buttonText;
+      }
+    }).catch(function () {
+      // 서버 장애 시 기존 배너를 그대로 유지하여 쇼핑몰 이용에 지장이 없도록 한다 (Fail-safe)
+    });
+  }
+
   function run() {
+    // 메인 화면 .ondap-cta 배너 자동 반영 (PC 및 모바일)
+    applyMainBanner();
+
     var params = new URLSearchParams(location.search);
     var linkCode = (params.get('ondap_code') || '').toUpperCase();
     var fromLink = CODE.test(linkCode) || params.get('ondap_order') === '1';
