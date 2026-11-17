@@ -87,37 +87,7 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
   const [batchPending, startBatch] = useTransition();
   const [syncPending, startSync] = useTransition();
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
-  const [autoSyncing, setAutoSyncing] = useState(false);
   const syncing = useRef(false);
-
-  // 카페24 주기적 백그라운드 동기화 (30초)
-  useEffect(() => {
-    let active = true;
-    const sync = async () => {
-      if (syncing.current || document.hidden) return;
-      syncing.current = true;
-      setAutoSyncing(true);
-      try {
-        const result = await syncCafe24OrdersAction();
-        if (active) {
-          if (!result.ok) setSyncMessage(result.message);
-          else setSyncMessage(null);
-          router.refresh();
-        }
-      } catch {
-        if (active) setSyncMessage('자동 동기화에 실패했습니다. 수동 동기화 버튼으로 다시 시도해 주세요.');
-      } finally {
-        syncing.current = false;
-        if (active) setAutoSyncing(false);
-      }
-    };
-    void sync();
-    const timer = setInterval(() => void sync(), 30000);
-    return () => {
-      active = false;
-      clearInterval(timer);
-    };
-  }, [router]);
 
   // 각 디자인별 KST 일정 산출 맵
   const scheduleMap = useMemo(() => {
@@ -399,9 +369,9 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
               type="button"
               className="btn small"
               style={{ background: '#2563eb', color: '#fff', fontWeight: 600 }}
-              disabled={syncPending || autoSyncing}
+              disabled={syncPending}
               onClick={() => {
-                if (syncing.current) return setSyncMessage('자동 동기화가 진행 중입니다. 잠시만 기다려 주세요.');
+                if (syncing.current) return;
                 syncing.current = true;
                 setSyncMessage(null);
                 startSync(async () => {
@@ -417,7 +387,7 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
                 });
               }}
             >
-              {syncPending || autoSyncing ? '동기화 중...' : '🔄 카페24 동기화'}
+              {syncPending ? '동기화 중...' : '🔄 카페24 동기화'}
             </button>
 
             <a className="btn ghost small" href={`/admin/packaging/export${exportQuery ? `?${exportQuery}` : ''}`}>
@@ -995,12 +965,10 @@ function BoardRow({
             )}
             <div className="small muted">
               {isPending
-                ? d.orderNo || d.memo?.includes('카페24 주문')
-                  ? '무통장 입금 대기'
-                  : '주문서 미접수'
+                ? '결제 대기'
                 : isCanceled
                 ? '취소된 주문'
-                : `${kstLabel(d.createdAt)} 접수`}
+                : `디자인 생성: ${kstLabel(d.createdAt)}`}
             </div>
           </div>
         </td>
@@ -1077,7 +1045,7 @@ function BoardRow({
                   </span>
                 ) : isPending ? (
                   <span style={{ fontSize: 11, color: '#b45309' }}>
-                    입금 확인 후 인쇄 가능
+                    결제 확인 후 인쇄 가능
                   </span>
                 ) : (
                   <a

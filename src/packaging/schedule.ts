@@ -14,7 +14,7 @@ export interface ScheduleInfo {
   // D-day 숫자: 오늘 = 0, 내일 = 1, 모레 = 2, 어제 = -1 (targetDate - today)
   dDay: number | null;
 
-  // 주문 접수일 기준 경과일수 (today - createdAt)
+  // 디자인 생성일 기준 경과일수 (today - createdAt)
   elapsedDays: number;
 
   // 긴급도 레벨 (적색: emergency, 주황: imminent, 회색: normal/none)
@@ -24,7 +24,7 @@ export interface ScheduleInfo {
   badgeText: string;
   badgeTone: 'red' | 'amber' | 'gray' | 'green';
 
-  // 날짜 역전·오류 입력 여부 (희망수령일 > 행사일 또는 희망수령일 < 주문접수일)
+  // 날짜 역전·오류 입력 여부 (희망수령일 > 행사일 또는 희망수령일 < 디자인 생성일)
   hasConflict: boolean;
   conflictMessage?: string;
 
@@ -60,8 +60,8 @@ export function calculateScheduleStatus(
   now: number = Date.now(),
 ): ScheduleInfo {
   const todayKst = toKstDateString(now);
-  const orderDateKst = toKstDateString(d.createdAt);
-  const elapsedDays = Math.max(0, diffDays(todayKst, orderDateKst));
+  const designDateKst = toKstDateString(d.createdAt);
+  const elapsedDays = Math.max(0, diffDays(todayKst, designDateKst));
 
   const desired = d.desiredDeliveryDate && /^\d{4}-\d{2}-\d{2}$/.test(d.desiredDeliveryDate) ? d.desiredDeliveryDate : null;
   const event = d.eventDate && /^\d{4}-\d{2}-\d{2}$/.test(d.eventDate) ? d.eventDate : null;
@@ -73,9 +73,9 @@ export function calculateScheduleStatus(
   if (desired && event && desired > event) {
     hasConflict = true;
     conflictMessage = '희망 수령일이 행사일보다 늦습니다.';
-  } else if (desired && desired < orderDateKst) {
+  } else if (desired && desired < designDateKst) {
     hasConflict = true;
-    conflictMessage = '희망 수령일이 주문일보다 과거입니다.';
+    conflictMessage = '희망 수령일이 디자인 생성일보다 과거입니다.';
   }
 
   // 2. 기준일 표시 우선순위 결정: 희망 수령일 우선, 없으면 행사일

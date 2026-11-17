@@ -181,7 +181,7 @@ test('5. 날짜 역전 및 과거일 입력 오류 감지 (Conflict detection)',
   assert.equal(conflictReverse.badgeTone, 'red');
   assert.ok(conflictReverse.conflictMessage?.includes('행사일보다 늦습니다'));
 
-  // 희망 수령일이 주문 접수일보다 과거인 오류
+  // 희망 수령일이 디자인 생성일보다 과거인 오류
   const conflictPast = calculateScheduleStatus({
     createdAt: '2026-11-17T00:00:00Z',
     status: 'received',
@@ -190,7 +190,7 @@ test('5. 날짜 역전 및 과거일 입력 오류 감지 (Conflict detection)',
   }, fixedNow);
   assert.equal(conflictPast.hasConflict, true);
   assert.equal(conflictPast.badgeText, '일정 확인 필요');
-  assert.ok(conflictPast.conflictMessage?.includes('과거입니다'));
+  assert.equal(conflictPast.conflictMessage, '희망 수령일이 디자인 생성일보다 과거입니다.');
 });
 
 test('6. 완료 및 취소 상태: 긴급/경과 알림 미표시 및 녹색 배지 처리', () => {
