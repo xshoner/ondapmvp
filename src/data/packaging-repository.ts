@@ -86,6 +86,7 @@ const designFromRow = (r: Row): Design => ({
   statusChangedAt: r.status_changed_at ?? r.created_at,
   orderNo: r.order_no,
   memo: r.memo,
+  cafe24Canceled: Boolean(r.cafe24_canceled),
   eventDate: r.event_date ?? null,
   desiredDeliveryDate: r.desired_delivery_date ?? null,
 });
@@ -271,7 +272,7 @@ export async function createDesign(
 }
 
 // 목록에는 편집 내용(draft·cardDraft, 건당 최대 64KB)이 필요 없으므로 빼고 읽는다 (draft·cardDraft는 null)
-const LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, event, style_id, style_name, sticker, card, print_path, card_print_path, source_code, status, status_changed_at, order_no, memo, event_date, desired_delivery_date';
+const LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, event, style_id, style_name, sticker, card, print_path, card_print_path, source_code, status, status_changed_at, order_no, memo, cafe24_canceled, event_date, desired_delivery_date';
 // 20261025000000_operations.sql을 실행하기 전 DB: 새 칸(상태 시각·원본)이 없다 (42703 undefined_column)
 const OLD_LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, event, style_id, style_name, sticker, print_path, status, order_no, memo';
 
@@ -313,12 +314,13 @@ export async function updateDesign(code: string, patch: {
   memo?: string;
   eventDate?: string | null;
   desiredDeliveryDate?: string | null;
-}, expected?: { status: DesignStatus; orderNo: string | null }): Promise<void> {
+  cafe24Canceled?: boolean;
+}, expected?: { status: DesignStatus; orderNo: string | null; cafe24Canceled?: boolean }): Promise<void> {
   if (dataSource() === 'local') {
     const all = readLocalDesigns();
     const d = all.find((x) => x.code === code);
     if (!d) throw new Error('디자인을 찾을 수 없습니다.');
-    if (expected && (d.status !== expected.status || d.orderNo !== expected.orderNo)) throw new Error('접수 상태가 변경되었습니다. 새로고침 후 다시 확인해 주세요.');
+    if (expected && (d.status !== expected.status || d.orderNo !== expected.orderNo || Boolean(d.cafe24Canceled) !== Boolean(expected.cafe24Canceled))) throw new Error('접수 상태가 변경되었습니다. 새로고침 후 다시 확인해 주세요.');
     if (patch.status !== undefined && d.status !== patch.status) {
       d.status = patch.status;
       d.statusChangedAt = new Date().toISOString();
@@ -327,6 +329,7 @@ export async function updateDesign(code: string, patch: {
     if (patch.memo !== undefined) d.memo = patch.memo;
     if (patch.eventDate !== undefined) d.eventDate = patch.eventDate;
     if (patch.desiredDeliveryDate !== undefined) d.desiredDeliveryDate = patch.desiredDeliveryDate;
+    if (patch.cafe24Canceled !== undefined) d.cafe24Canceled = patch.cafe24Canceled;
     return writeLocalDesigns(all);
   }
   const db = await createClient();
@@ -338,6 +341,7 @@ export async function updateDesign(code: string, patch: {
   if (patch.memo !== undefined) updatePayload.memo = patch.memo;
   if (patch.eventDate !== undefined) updatePayload.event_date = patch.eventDate;
   if (patch.desiredDeliveryDate !== undefined) updatePayload.desired_delivery_date = patch.desiredDeliveryDate;
+  if (patch.cafe24Canceled !== undefined) updatePayload.cafe24_canceled = patch.cafe24Canceled;
   let query = db
     .from('designs')
     .update(updatePayload, { count: 'exact' })
@@ -345,6 +349,7 @@ export async function updateDesign(code: string, patch: {
   if (expected) {
     query = query.eq('status', expected.status);
     query = expected.orderNo === null ? query.is('order_no', null) : query.eq('order_no', expected.orderNo);
+    query = query.eq('cafe24_canceled', Boolean(expected.cafe24Canceled));
   }
   const { error, count } = await query;
   if (error) fail('디자인 수정', error);
@@ -490,9 +495,9 @@ export async function updateDesignsStatus(codes: string[], status: DesignStatus)
     for (const d of all) {
       if (!codes.includes(d.code)) continue;
       // 취소된 주문은 취소가 아닌 다른 상태로 덮어쓸 수 없음 (동시 취소 경합 방어)
-      if ((d.status === 'canceled' || d.status === 'pending') && status !== 'canceled') continue;
+      if ((d.status === 'canceled' || d.status === 'pending' || d.cafe24Canceled) && status !== 'canceled') continue;
       if (['order_confirmed', 'printed', 'completed'].includes(status) && !d.orderNo) continue;
-      if (status === 'no_packaging' && (d.sticker || d.card || d.hasPrintFile || d.hasCardPrintFile)) continue;
+      if (status === 'no_packaging' && (d.styleId || d.sticker || d.card || d.hasPrintFile || d.hasCardPrintFile)) continue;
       if (d.status !== status) d.statusChangedAt = now;
       d.status = status;
       done.push(d.code);
@@ -503,10 +508,10 @@ export async function updateDesignsStatus(codes: string[], status: DesignStatus)
   const db = await createClient();
   let query = db.from('designs').update({ status, updated_at: new Date().toISOString() }).in('code', codes);
   if (status !== 'canceled') {
-    query = query.neq('status', 'canceled').neq('status', 'pending');
+    query = query.neq('status', 'canceled').neq('status', 'pending').eq('cafe24_canceled', false);
   }
   if (['order_confirmed', 'printed', 'completed'].includes(status)) query = query.not('order_no', 'is', null);
-  if (status === 'no_packaging') query = query.is('sticker', null).is('card', null);
+  if (status === 'no_packaging') query = query.is('style_id', null).is('sticker', null).is('card', null);
   const { data, error } = await query.select('code');
   if (error) fail('상태 한꺼번에 바꾸기', error);
   return (data ?? []).map((r) => r.code as string);

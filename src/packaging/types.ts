@@ -122,6 +122,7 @@ export interface Design {
   statusChangedAt: string;
   orderNo: string | null;
   memo: string;
+  cafe24Canceled?: boolean;
   eventDate?: string | null;          // 행사일 (YYYY-MM-DD, 선택 입력)
   desiredDeliveryDate?: string | null; // 희망 수령일 (YYYY-MM-DD, 선택 입력)
 }

@@ -1,6 +1,7 @@
 -- 행사일(event_date) 및 희망 수령일(desired_delivery_date) 컬럼 추가
 alter table public.designs add column if not exists event_date text;
 alter table public.designs add column if not exists desired_delivery_date text;
+alter table public.designs add column if not exists cafe24_canceled boolean not null default false;
 
 -- 희망 수령일 기준 빠른 조회를 위한 부분 인덱스
 create index if not exists designs_desired_delivery_date_idx on public.designs (desired_delivery_date) where desired_delivery_date is not null;
@@ -138,6 +139,7 @@ begin
   loop
     if row_rec.status in ('printed', 'completed') then
       has_produced := true;
+      update public.designs set cafe24_canceled = true, updated_at = now() where code = row_rec.code;
       if note_text is not null and strpos(coalesce(row_rec.memo, ''), p_order_no || ' 취소/환불 알림') = 0 then
         update public.designs
         set memo = left(concat_ws(E'\n', nullif(trim(memo), ''), '[주의: 주문 ' || p_order_no || ' 취소/환불 알림 — 제작/완료 건 확인 필요]'), 500),

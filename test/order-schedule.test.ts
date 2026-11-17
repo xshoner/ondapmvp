@@ -748,6 +748,13 @@ test('17. getDesignsByCodes 전수 조회 및 updateDesignsStatus 동시 취소 
 
     const [after02] = await listDesigns({ code: 'OD-BATCH-02', limit: 1, includePending: true });
     assert.equal(after02.status, 'canceled', 'OD-BATCH-02는 취소 불변식이 유지되어야 함');
+    await createDesign({
+      code: 'OD-STYLE-01', productNo: 305, productName: '포장 접수', quantity: 10,
+      event: null, styleId: 'style-1', styleName: '포장지', sticker: null, draft: null,
+    }, null, null);
+    await updateDesign('OD-STYLE-01', { status: 'received', orderNo: '20261117-0000002' });
+    const noPackaging = await updateDesignsStatus(['OD-STYLE-01'], 'no_packaging');
+    assert.deepEqual(noPackaging, [], '포장 스타일이 있는 접수는 포장 없음으로 바꿀 수 없어야 함');
   } finally {
     delete process.env.ONDAP_TEST_DATA_DIR;
     rmSync(testDir, { recursive: true, force: true });

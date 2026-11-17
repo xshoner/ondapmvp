@@ -209,7 +209,7 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
   };
 
   const printableSelected = displayDesigns.filter(
-    (d) => selected.has(d.code) && d.printCode && (d.sticker || d.card) && d.status !== 'canceled' && d.status !== 'pending',
+    (d) => selected.has(d.code) && d.orderNo && d.printCode && (d.sticker || d.card) && !d.cafe24Canceled && d.status !== 'canceled' && d.status !== 'pending',
   );
   const allSelected = displayDesigns.length > 0 && displayDesigns.every((d) => selected.has(d.code));
 
@@ -235,7 +235,7 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
       else if (e.key === 'Enter') {
         e.preventDefault();
         toggleExpand(d.code);
-      } else if ((e.key === 'p' || e.key === 't') && d.printCode && d.sticker && d.status !== 'canceled' && d.status !== 'pending') {
+      } else if ((e.key === 'p' || e.key === 't') && d.orderNo && d.printCode && d.sticker && !d.cafe24Canceled && d.status !== 'canceled' && d.status !== 'pending') {
         location.href = sheetUrl(d.code, options, e.key === 't');
       } else if (e.key === 's') {
         e.preventDefault();
@@ -269,15 +269,15 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
       const { zipSync } = await import('fflate');
       const files: Record<string, [Uint8Array, { level: 0 }]> = {};
       for (let i = 0; i < list.length; i++) {
-        const { code, printCode } = list[i];
+        const { code } = list[i];
         setZipping(`${i + 1}/${list.length}`);
         const targets: [string, string][] = [];
         if (list[i].sticker) {
-          targets.push([`${code}.png`, fileUrl(printCode!)]);
+          targets.push([`${code}.png`, fileUrl(code)]);
           targets.push([`${code}-${options.paper}.pdf`, sheetUrl(code, options)]);
         }
         if (list[i].card) {
-          targets.push([`${code}-card.png`, `${fileUrl(printCode!)}?item=card`]);
+          targets.push([`${code}-card.png`, `${fileUrl(code)}?item=card`]);
           targets.push([`${code}-card-${options.paper}.pdf`, `${sheetUrl(code, options)}&item=card`]);
         }
         for (const [name, url] of targets) {
@@ -853,7 +853,7 @@ function BoardRow({
   const hasSticker = Boolean(d.printCode && d.sticker);
   const hasCard = Boolean(d.printCode && d.card);
   const printable = hasSticker || hasCard;
-  const isCanceled = d.status === 'canceled';
+  const isCanceled = d.status === 'canceled' || Boolean(d.cafe24Canceled);
   const isPending = d.status === 'pending';
   const stickerSheets = d.sticker ? sheetsNeeded(sheetLayout(d.sticker, options.paper), d.quantity) : 0;
   const cardSheets = d.card ? sheetsNeeded(sheetLayout(d.card, options.paper), d.quantity) : 0;
@@ -1098,6 +1098,8 @@ function BoardRow({
                   <span style={{ fontSize: 11, color: '#b45309' }}>
                     결제 확인 후 인쇄 가능
                   </span>
+                ) : !d.orderNo ? (
+                  <span style={{ fontSize: 11, color: '#b45309' }}>주문 연결 확인 후 인쇄 가능</span>
                 ) : (
                   <a
                     className="btn small"
@@ -1129,9 +1131,9 @@ function BoardRow({
                 <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                   {hasSticker && (
                     <div>
-                      <a href={`${fileUrl(d.printCode!)}?inline=1`} target="_blank" rel="noreferrer" title="스티커 크게 보기">
+                      <a href={`${fileUrl(d.code)}?inline=1`} target="_blank" rel="noreferrer" title="스티커 크게 보기">
                         <img
-                          src={`${fileUrl(d.printCode!)}?thumb=1`}
+                          src={`${fileUrl(d.code)}?thumb=1`}
                           alt="스티커"
                           width={64}
                           height={64}
@@ -1143,9 +1145,9 @@ function BoardRow({
 
                   {hasCard && (
                     <div>
-                      <a href={`${fileUrl(d.printCode!)}?inline=1&item=card`} target="_blank" rel="noreferrer" title="카드 크게 보기">
+                      <a href={`${fileUrl(d.code)}?inline=1&item=card`} target="_blank" rel="noreferrer" title="카드 크게 보기">
                         <img
-                          src={`${fileUrl(d.printCode!)}?thumb=1&item=card`}
+                          src={`${fileUrl(d.code)}?thumb=1&item=card`}
                           alt="카드"
                           width={64}
                           height={44}
@@ -1254,7 +1256,7 @@ function BoardRow({
                       검증 후 연결
                     </button>
                   </div>
-                  {!d.orderNo && !hasSticker && !hasCard && !d.hasPrintFile && !isPending && !isCanceled && (
+                  {!d.orderNo && !d.styleId && !d.sticker && !d.card && !d.hasPrintFile && !d.hasCardPrintFile && !isPending && !isCanceled && (
                     <div style={{ marginTop: 2 }}>
                       <button
                         type="button"
@@ -1270,7 +1272,7 @@ function BoardRow({
                 </div>
 
                 {/* 인쇄 파일 링크 (취소/대기 건은 차단) */}
-                {printable && !isCanceled && !isPending && (
+                {printable && !isCanceled && !isPending && d.orderNo && (
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                     {hasSticker && (
                       <div className="row" style={{ gap: 4, alignItems: 'center' }}>
@@ -1281,7 +1283,7 @@ function BoardRow({
                         <a className="btn ghost small" href={sheetUrl(d.code, options, true)} target="_blank" rel="noreferrer">
                           시험1장
                         </a>
-                        <a className="btn ghost small" href={fileUrl(d.printCode!)} target="_blank" rel="noreferrer">
+                        <a className="btn ghost small" href={fileUrl(d.code)} target="_blank" rel="noreferrer">
                           PNG
                         </a>
                       </div>
@@ -1295,7 +1297,7 @@ function BoardRow({
                         <a className="btn ghost small" href={`${sheetUrl(d.code, options, true)}&item=card`} target="_blank" rel="noreferrer">
                           시험1장
                         </a>
-                        <a className="btn ghost small" href={`${fileUrl(d.printCode!)}?item=card`} target="_blank" rel="noreferrer">
+                        <a className="btn ghost small" href={`${fileUrl(d.code)}?item=card`} target="_blank" rel="noreferrer">
                           PNG
                         </a>
                       </div>

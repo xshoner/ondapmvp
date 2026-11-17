@@ -54,20 +54,19 @@ async function handleCanceledOrderOrItem(
         d.orderNo === order.order_id ||
         (candidateCode && d.code === candidateCode && d.status === 'pending' && d.memo.includes(order.order_id)),
     );
-    const produced = linked.find((d) => d.status === 'printed' || d.status === 'completed');
-    if (produced) {
-      const statusLabel = produced.status === 'completed' ? '포장 완료' : '인쇄 완료';
+    const produced = linked.filter((d) => d.status === 'printed' || d.status === 'completed');
+    for (const item of produced) {
+      const statusLabel = item.status === 'completed' ? '포장 완료' : '인쇄 완료';
       const warn = `[주의: 주문 ${order.order_id} 취소/환불 알림 — ${statusLabel} 건 확인 필요]`;
-      if (!produced.memo.includes(`${order.order_id} 취소/환불 알림`)) {
-        const nextMemo = produced.memo.trim() ? `${produced.memo.trim()}\n${warn}`.slice(0, 500) : warn;
-        await updateDesign(produced.code, { status: produced.status, orderNo: produced.orderNo, memo: nextMemo });
-      }
+      const nextMemo = !item.memo.includes(`${order.order_id} 취소/환불 알림`) && item.memo.length + warn.length + 1 <= 500
+        ? [item.memo.trim(), warn].filter(Boolean).join('\n') : item.memo;
+      await updateDesign(item.code, { cafe24Canceled: true, memo: nextMemo });
+    }
+
+    if (produced.length) {
       await recordOperation('design_save', 'error', startedAt, 'canceled_after_print');
-      return {
-        status: 'conflict',
-        code: produced.code,
-        message: `주문(${order.order_id})이 취소/환불되었으나 디자인(${produced.code})이 이미 ${statusLabel} 상태입니다. 확인이 필요합니다.`,
-      };
+      const firstStatus = produced[0].status === 'completed' ? '포장 완료' : '인쇄 완료';
+      return { status: 'conflict', code: produced[0].code, message: `주문(${order.order_id}) 취소/환불 후 ${firstStatus}된 접수를 확인해 주세요.` };
     }
 
     let reverted = 0;

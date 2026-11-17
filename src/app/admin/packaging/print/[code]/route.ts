@@ -42,7 +42,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
   if (!isThumbOrPreview) {
     const { listDesigns } = await import('@/data/packaging-repository.ts');
     const [design] = await listDesigns({ code, limit: 1, includePending: true });
-    if (design?.status === 'canceled') {
+    if (!design) return new Response('디자인을 찾을 수 없습니다.', { status: 404 });
+    if (!design.orderNo) return new Response('주문 연결을 확인한 뒤 인쇄해 주세요.', { status: 403 });
+    if (design.status === 'canceled' || design.cafe24Canceled) {
       return new Response('취소된 주문의 원본 인쇄 파일은 내려받을 수 없습니다.', { status: 403 });
     }
     if (design?.status === 'pending') {

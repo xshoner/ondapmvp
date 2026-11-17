@@ -130,7 +130,7 @@ export async function updateDesignsStatusAction(rawCodes: string[], status: stri
   const missingCodes = codes.filter((c) => !foundCodes.has(c));
 
   const pendingSet = new Set(existing.filter((d) => d.status === 'pending').map((d) => d.code));
-  const canceledSet = new Set(existing.filter((d) => d.status === 'canceled').map((d) => d.code));
+  const canceledSet = new Set(existing.filter((d) => d.status === 'canceled' || d.cafe24Canceled).map((d) => d.code));
 
   if (status !== 'canceled') {
     const invalidPending = codes.filter((c) => pendingSet.has(c));
@@ -148,8 +148,8 @@ export async function updateDesignsStatusAction(rawCodes: string[], status: stri
   if (['order_confirmed', 'printed', 'completed'].includes(status) && existing.some((d) => !d.orderNo)) {
     return { ok: false, message: '주문번호가 연결되지 않은 접수가 있습니다. 주문을 확인해 주세요.' };
   }
-  if (status === 'no_packaging' && existing.some((d) => d.sticker || d.card || d.hasPrintFile || d.hasCardPrintFile)) {
-    return { ok: false, message: '인쇄물이 포함된 접수는 포장 없음으로 변경할 수 없습니다.' };
+  if (status === 'no_packaging' && existing.some((d) => d.styleId || d.sticker || d.card || d.hasPrintFile || d.hasCardPrintFile)) {
+    return { ok: false, message: '포장이나 인쇄물이 포함된 접수는 포장 없음으로 변경할 수 없습니다.' };
   }
 
   try {
@@ -218,10 +218,11 @@ export async function markPrintedAction(raw: string): Promise<
     const [d] = await listDesigns({ code, limit: 1, includePending: true });
     if (!d) return { ok: false, message: `${code} 접수를 찾을 수 없습니다.` };
     if (d.status === 'pending') return { ok: false, message: `${code}는 결제 대기 중인 접수라 인쇄 완료로 바꿀 수 없습니다.` };
-    if (d.status === 'canceled') return { ok: false, message: `${code}는 취소된 접수라 바꾸지 않았습니다.` };
+    if (d.status === 'canceled' || d.cafe24Canceled) return { ok: false, message: `${code}는 취소된 접수라 바꾸지 않았습니다.` };
+    if (!d.orderNo) return { ok: false, message: `${code}의 주문 연결을 확인해 주세요.` };
     const base = { ok: true as const, code, previous: d.status, productName: d.productName, quantity: d.quantity };
     if (d.status === 'printed') return { ...base, already: true };
-    await updateDesign(code, { status: 'printed' }, { status: d.status, orderNo: d.orderNo });
+    await updateDesign(code, { status: 'printed' }, { status: d.status, orderNo: d.orderNo, cafe24Canceled: d.cafe24Canceled });
     revalidatePath('/admin', 'layout');
     return { ...base, already: false };
   } catch (e) {
@@ -248,7 +249,7 @@ export async function updateDesignAction(
   if (!d) return { ok: false, message: '접수를 찾을 수 없습니다.' };
 
   // 취소된 주문의 상태는 변경 불가
-  if (d.status === 'canceled' && patch.status !== undefined && patch.status !== 'canceled') {
+  if ((d.status === 'canceled' || d.cafe24Canceled) && patch.status !== undefined && patch.status !== 'canceled') {
     return { ok: false, message: '취소된 디자인의 상태는 변경할 수 없습니다.' };
   }
 
@@ -256,8 +257,8 @@ export async function updateDesignAction(
   if (d.status === 'pending' && patch.status !== undefined && patch.status !== 'canceled') {
     return { ok: false, message: '결제 대기 중인 디자인은 카페24 결제가 확인되어야 변경할 수 있습니다.' };
   }
-  if (patch.status === 'no_packaging' && (d.sticker || d.card || d.hasPrintFile || d.hasCardPrintFile)) {
-    return { ok: false, message: '인쇄물이 포함된 접수는 포장 없음으로 변경할 수 없습니다.' };
+  if (patch.status === 'no_packaging' && (d.styleId || d.sticker || d.card || d.hasPrintFile || d.hasCardPrintFile)) {
+    return { ok: false, message: '포장이나 인쇄물이 포함된 접수는 포장 없음으로 변경할 수 없습니다.' };
   }
   if (patch.status && ['order_confirmed', 'printed', 'completed'].includes(patch.status) && !d.orderNo) {
     return { ok: false, message: '카페24 주문 연결을 확인한 뒤 처리해 주세요.' };
@@ -293,7 +294,7 @@ export async function updateDesignAction(
     updatePatch.desiredDeliveryDate = sanitizeIsoDate(patch.desiredDeliveryDate);
   }
 
-  return run(() => updateDesign(c, updatePatch, { status: d.status, orderNo: d.orderNo }));
+  return run(() => updateDesign(c, updatePatch, { status: d.status, orderNo: d.orderNo, cafe24Canceled: d.cafe24Canceled }));
 }
 
 // 관리자 단건 상세 조회: 고객 작성 문구(draft, cardDraft)를 온전히 읽어와 검수를 지원한다
@@ -327,7 +328,7 @@ export async function linkDesignToOrderAction(code: string, rawOrderNo: string):
   if (d.status === 'pending') {
     return { ok: false, message: '결제 대기 건은 카페24 결제 확인이 선행되어야 합니다.' };
   }
-  if (d.status === 'canceled') {
+  if (d.status === 'canceled' || d.cafe24Canceled) {
     return { ok: false, message: '취소된 접수는 주문번호를 연결할 수 없습니다.' };
   }
   if (d.orderNo && d.orderNo !== orderNo) {
@@ -407,7 +408,7 @@ export async function linkDesignToOrderAction(code: string, rawOrderNo: string):
   // 5대 검증 불변식이 모두 통과한 경우에만 안전하게 기록
   return run(() => updateDesign(c, {
     orderNo,
-  }, { status: d.status, orderNo: d.orderNo }));
+  }, { status: d.status, orderNo: d.orderNo, cafe24Canceled: d.cafe24Canceled }));
 }
 
 // 포장이나 인쇄물이 없는 일반 단품 주문에 대해 '포장 없음' 상태로 확정
@@ -424,16 +425,16 @@ export async function dismissPackagingAction(code: string): Promise<Result> {
   if (d.status === 'pending') {
     return { ok: false, message: '결제 대기 중인 주문은 포장 없음으로 변경할 수 없습니다.' };
   }
-  if (d.status === 'canceled') {
+  if (d.status === 'canceled' || d.cafe24Canceled) {
     return { ok: false, message: '취소된 주문은 포장 없음으로 변경할 수 없습니다.' };
   }
-  if (d.sticker || d.card || d.hasPrintFile || d.hasCardPrintFile) {
-    return { ok: false, message: '스티커 또는 카드 인쇄물이 포함된 주문은 포장 없음으로 확정할 수 없습니다.' };
+  if (d.styleId || d.sticker || d.card || d.hasPrintFile || d.hasCardPrintFile) {
+    return { ok: false, message: '포장이나 인쇄물이 포함된 주문은 포장 없음으로 확정할 수 없습니다.' };
   }
 
   return run(() => updateDesign(c, {
     status: 'no_packaging',
-  }, { status: d.status, orderNo: d.orderNo }));
+  }, { status: d.status, orderNo: d.orderNo, cafe24Canceled: d.cafe24Canceled }));
 }
 
 export async function syncCafe24OrdersAction(): Promise<{ ok: boolean; message: string; confirmed?: number; total?: number }> {
