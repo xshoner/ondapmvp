@@ -38,6 +38,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
     if (thumb) return thumb;
   }
   const inline = q.get('inline') === '1' || q.get('thumb') === '1';
+  const isThumbOrPreview = q.get('thumb') === '1' || q.get('inline') === '1';
+  if (!isThumbOrPreview) {
+    const { listDesigns } = await import('@/data/packaging-repository.ts');
+    const [design] = await listDesigns({ code, limit: 1, includePending: true });
+    if (design?.status === 'canceled') {
+      return new Response('취소된 주문의 원본 인쇄 파일은 내려받을 수 없습니다.', { status: 403 });
+    }
+    if (design?.status === 'pending') {
+      return new Response('결제 확인 전인 디자인의 원본 인쇄 파일은 내려받을 수 없습니다.', { status: 403 });
+    }
+  }
+
   const outName = isCard ? `${code}-card.png` : `${code}.png`;
   return new Response(bytes as BodyInit, {
     headers: {

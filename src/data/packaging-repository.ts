@@ -308,9 +308,9 @@ export async function listDesigns(opts: { limit?: number; code?: string | null; 
 }
 
 export async function updateDesign(code: string, patch: {
-  status: DesignStatus;
-  orderNo: string | null;
-  memo: string;
+  status?: DesignStatus;
+  orderNo?: string | null;
+  memo?: string;
   eventDate?: string | null;
   desiredDeliveryDate?: string | null;
 }): Promise<void> {
@@ -318,21 +318,23 @@ export async function updateDesign(code: string, patch: {
     const all = readLocalDesigns();
     const d = all.find((x) => x.code === code);
     if (!d) throw new Error('디자인을 찾을 수 없습니다.');
-    if (d.status !== patch.status) d.statusChangedAt = new Date().toISOString();
+    if (patch.status !== undefined && d.status !== patch.status) {
+      d.status = patch.status;
+      d.statusChangedAt = new Date().toISOString();
+    }
+    if (patch.orderNo !== undefined) d.orderNo = patch.orderNo;
+    if (patch.memo !== undefined) d.memo = patch.memo;
     if (patch.eventDate !== undefined) d.eventDate = patch.eventDate;
     if (patch.desiredDeliveryDate !== undefined) d.desiredDeliveryDate = patch.desiredDeliveryDate;
-    d.status = patch.status;
-    d.orderNo = patch.orderNo;
-    d.memo = patch.memo;
     return writeLocalDesigns(all);
   }
   const db = await createClient();
   const updatePayload: Record<string, unknown> = {
-    status: patch.status,
-    order_no: patch.orderNo,
-    memo: patch.memo,
     updated_at: new Date().toISOString(),
   };
+  if (patch.status !== undefined) updatePayload.status = patch.status;
+  if (patch.orderNo !== undefined) updatePayload.order_no = patch.orderNo;
+  if (patch.memo !== undefined) updatePayload.memo = patch.memo;
   if (patch.eventDate !== undefined) updatePayload.event_date = patch.eventDate;
   if (patch.desiredDeliveryDate !== undefined) updatePayload.desired_delivery_date = patch.desiredDeliveryDate;
   const { error, count } = await db

@@ -38,8 +38,8 @@ const countBy = <T>(xs: T[], key: (x: T) => string) => {
   return [...m].map(([id, count]) => ({ id, count })).sort((a, b) => b.count - a.count);
 };
 
-// 주문으로 이어진 접수: 주문번호가 적혔거나 주문 확인·인쇄 완료 상태
-const isOrdered = (d: DesignLog) => Boolean(d.orderNo) || d.status === 'order_confirmed' || d.status === 'printed';
+// 주문으로 이어진 접수: 주문번호가 적혔거나 주문 확인·인쇄 완료·포장 완료 상태
+const isOrdered = (d: DesignLog) => Boolean(d.orderNo) || d.status === 'order_confirmed' || d.status === 'printed' || d.status === 'completed';
 
 export function summarize(recs: RecLog[], designs: DesignLog[], range: { from: string; to: string }): Summary {
   const live = designs.filter((d) => d.status !== 'canceled' && d.status !== 'pending');
@@ -64,7 +64,7 @@ export function summarize(recs: RecLog[], designs: DesignLog[], range: { from: s
       recommendations: recs.length,
       designs: live.length,
       ordered: live.filter(isOrdered).length,
-      printed: live.filter((d) => d.status === 'printed').length,
+      printed: live.filter((d) => d.status === 'printed' || d.status === 'completed').length,
       withSticker: live.filter((d) => d.hasSticker).length,
     },
     byEvent: countBy(recs, (r) => r.event),

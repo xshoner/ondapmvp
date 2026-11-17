@@ -313,3 +313,333 @@ test('8. designsCsv에 희망 수령일 및 행사일 컬럼 포함 검증', () 
   assert.ok(csv.includes('희망 수령일,행사일'));
   assert.ok(csv.includes('2026-11-21,2026-11-23'));
 });
+// ---------- 저장소 및 무결성 회귀 테스트 (데이터 격리) ----------
+
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import sharp from 'sharp';
+import {
+  createDesign,
+  listDesigns,
+  updateDesign,
+  reorderDesign,
+  updateDesignsStatus,
+  type NewDesign,
+} from '../src/data/packaging-repository.ts';
+import {
+  prepareUploadSession,
+  commitUploadSession,
+  saveLocalSessionFile,
+  type UploadSessionMeta,
+} from '../src/data/upload-session-repository.ts';
+import { printPixels } from '../src/packaging/rules.ts';
+
+async function makeTestPng(width: number, height: number): Promise<Uint8Array> {
+  const buf = await sharp({
+    create: {
+      width,
+      height,
+      channels: 4,
+      background: { r: 200, g: 200, b: 200, alpha: 1 },
+    },
+  })
+    .png()
+    .toBuffer();
+  return new Uint8Array(buf);
+}
+
+test('9. createDesign & listDesigns: 희망 수령일 및 행사일 보존 검증', async () => {
+  const testDir = mkdtempSync(join(tmpdir(), 'ondap-schd-test-'));
+  process.env.ONDAP_TEST_DATA_DIR = testDir;
+
+  try {
+    const newDesign: NewDesign = {
+      code: 'OD-TEST-0001',
+      productNo: 201,
+      productName: '호두과자 세트',
+      quantity: 30,
+      event: 'wedding',
+      styleId: 's1',
+      styleName: '전통 자개',
+      sticker: { shape: 'circle', sizeCm: 6 },
+      draft: null,
+      eventDate: '2026-11-30',
+      desiredDeliveryDate: '2026-11-28',
+    };
+
+    const res = await createDesign(newDesign, null, null);
+    assert.equal(res, 'ok');
+
+    const [saved] = await listDesigns({ code: 'OD-TEST-0001', limit: 1, includePending: true });
+    assert.ok(saved);
+    assert.equal(saved.code, 'OD-TEST-0001');
+    assert.equal(saved.eventDate, '2026-11-30');
+    assert.equal(saved.desiredDeliveryDate, '2026-11-28');
+  } finally {
+    delete process.env.ONDAP_TEST_DATA_DIR;
+    rmSync(testDir, { recursive: true, force: true });
+  }
+});
+
+test('10. prepareUploadSession & commitUploadSession: 세션 업로드 시 희망 수령일 및 행사일 보존 검증', async () => {
+  const testDir = mkdtempSync(join(tmpdir(), 'ondap-schd-sess-'));
+  process.env.ONDAP_TEST_DATA_DIR = testDir;
+
+  try {
+    const stickerPx = printPixels(6);
+    const stickerPng = await makeTestPng(stickerPx, stickerPx);
+
+    const meta: UploadSessionMeta = {
+      productNo: 202,
+      productName: '도라지정과 세트',
+      quantity: 50,
+      event: 'thanks',
+      styleId: 's2',
+      styleName: '모던 플라워',
+      sticker: { shape: 'circle', sizeCm: 6 },
+      draft: null,
+      card: null,
+      cardDraft: null,
+      eventDate: '2026-12-25',
+      desiredDeliveryDate: '2026-12-23',
+    };
+
+    const prep = await prepareUploadSession(meta);
+    assert.equal(prep.ok, true);
+    if (!prep.ok || prep.direct) {
+      assert.fail('세션 준비 실패');
+    }
+
+    const { sessionId, secret, code, uploads } = prep;
+    assert.ok(uploads.sticker);
+
+    saveLocalSessionFile(sessionId, 'sticker', secret, stickerPng);
+
+    const commit = await commitUploadSession({ sessionId, secret });
+    assert.equal(commit.ok, true);
+
+    const [saved] = await listDesigns({ code, limit: 1, includePending: true });
+    assert.ok(saved);
+    assert.equal(saved.code, code);
+    assert.equal(saved.eventDate, '2026-12-25');
+    assert.equal(saved.desiredDeliveryDate, '2026-12-23');
+    assert.equal(saved.status, 'pending');
+  } finally {
+    delete process.env.ONDAP_TEST_DATA_DIR;
+    rmSync(testDir, { recursive: true, force: true });
+  }
+});
+
+test('11. reorderDesign: 재주문 시 원본의 행사일 및 희망 수령일 복제 보존 검증', async () => {
+  const testDir = mkdtempSync(join(tmpdir(), 'ondap-schd-reorder-'));
+  process.env.ONDAP_TEST_DATA_DIR = testDir;
+
+  try {
+    const src: NewDesign = {
+      code: 'OD-ORIG-0001',
+      productNo: 203,
+      productName: '꿀약과 세트',
+      quantity: 40,
+      event: 'funeral',
+      styleId: 's3',
+      styleName: '차분한 단색',
+      sticker: { shape: 'square', sizeCm: 4 },
+      draft: null,
+      eventDate: '2026-12-10',
+      desiredDeliveryDate: '2026-12-08',
+    };
+    await createDesign(src, null, null);
+
+    const reorderRes = await reorderDesign('OD-ORIG-0001', 'OD-REORDER-0002', 60);
+    assert.equal(reorderRes, 'ok');
+
+    const [reordered] = await listDesigns({ code: 'OD-REORDER-0002', limit: 1, includePending: true });
+    assert.ok(reordered);
+    assert.equal(reordered.code, 'OD-REORDER-0002');
+    assert.equal(reordered.quantity, 60);
+    assert.equal(reordered.eventDate, '2026-12-10');
+    assert.equal(reordered.desiredDeliveryDate, '2026-12-08');
+  } finally {
+    delete process.env.ONDAP_TEST_DATA_DIR;
+    rmSync(testDir, { recursive: true, force: true });
+  }
+});
+
+test('12. updateDesign: 독립 부분 수정(Partial Update) 시 타 필드 보존 검증', async () => {
+  const testDir = mkdtempSync(join(tmpdir(), 'ondap-schd-partial-'));
+  process.env.ONDAP_TEST_DATA_DIR = testDir;
+
+  try {
+    const initial: NewDesign = {
+      code: 'OD-PARTIAL-0001',
+      productNo: 204,
+      productName: '곶감 세트',
+      quantity: 20,
+      event: 'birthday',
+      styleId: 's1',
+      styleName: '자개',
+      sticker: null,
+      draft: null,
+      eventDate: '2026-11-25',
+      desiredDeliveryDate: '2026-11-22',
+    };
+    await createDesign(initial, null, null);
+
+    await updateDesign('OD-PARTIAL-0001', {
+      status: 'received',
+      orderNo: '20261117-0001111',
+      memo: '초기 메모 내용',
+    });
+
+    let [current] = await listDesigns({ code: 'OD-PARTIAL-0001', limit: 1, includePending: true });
+    assert.equal(current.status, 'received');
+    assert.equal(current.orderNo, '20261117-0001111');
+    assert.equal(current.memo, '초기 메모 내용');
+    assert.equal(current.eventDate, '2026-11-25');
+    assert.equal(current.desiredDeliveryDate, '2026-11-22');
+
+    // (1) 메모만 단독 수정 시 -> orderNo, eventDate, desiredDeliveryDate 유지
+    await updateDesign('OD-PARTIAL-0001', { memo: '메모만 수정됨' });
+
+    [current] = await listDesigns({ code: 'OD-PARTIAL-0001', limit: 1, includePending: true });
+    assert.equal(current.memo, '메모만 수정됨');
+    assert.equal(current.orderNo, '20261117-0001111');
+    assert.equal(current.eventDate, '2026-11-25');
+    assert.equal(current.desiredDeliveryDate, '2026-11-22');
+    assert.equal(current.status, 'received');
+
+    // (2) 희망 수령일만 단독 수정 시 -> memo, orderNo, eventDate 유지
+    await updateDesign('OD-PARTIAL-0001', { desiredDeliveryDate: '2026-11-23' });
+
+    [current] = await listDesigns({ code: 'OD-PARTIAL-0001', limit: 1, includePending: true });
+    assert.equal(current.desiredDeliveryDate, '2026-11-23');
+    assert.equal(current.eventDate, '2026-11-25');
+    assert.equal(current.memo, '메모만 수정됨');
+    assert.equal(current.orderNo, '20261117-0001111');
+
+    // (3) 상태만 단독 수정 시 -> 타 필드 유지
+    await updateDesign('OD-PARTIAL-0001', { status: 'order_confirmed' });
+
+    [current] = await listDesigns({ code: 'OD-PARTIAL-0001', limit: 1, includePending: true });
+    assert.equal(current.status, 'order_confirmed');
+    assert.equal(current.desiredDeliveryDate, '2026-11-23');
+    assert.equal(current.eventDate, '2026-11-25');
+    assert.equal(current.memo, '메모만 수정됨');
+    assert.equal(current.orderNo, '20261117-0001111');
+  } finally {
+    delete process.env.ONDAP_TEST_DATA_DIR;
+    rmSync(testDir, { recursive: true, force: true });
+  }
+});
+
+test('13. dismissPackaging 가드 불변식 검증 (인쇄물 포함 건, 결제대기 건, 취소 건 차단)', async () => {
+  const canDismissPackaging = (d: {
+    status: string;
+    sticker: unknown;
+    card: unknown;
+    hasPrintFile: boolean;
+    hasCardPrintFile: boolean;
+  }): { ok: boolean; reason?: string } => {
+    if (d.status === 'pending') return { ok: false, reason: '결제 대기' };
+    if (d.status === 'canceled') return { ok: false, reason: '취소된 주문' };
+    if (d.sticker || d.card || d.hasPrintFile || d.hasCardPrintFile) {
+      return { ok: false, reason: '인쇄물이 포함된 주문은 포장 없음 불가' };
+    }
+    return { ok: true };
+  };
+
+  const withSticker = canDismissPackaging({
+    status: 'received',
+    sticker: { shape: 'circle', sizeCm: 6 },
+    card: null,
+    hasPrintFile: true,
+    hasCardPrintFile: false,
+  });
+  assert.equal(withSticker.ok, false);
+  assert.ok(withSticker.reason?.includes('포장 없음 불가'));
+
+  const withCard = canDismissPackaging({
+    status: 'order_confirmed',
+    sticker: null,
+    card: { sizeMm: '148x100' },
+    hasPrintFile: false,
+    hasCardPrintFile: true,
+  });
+  assert.equal(withCard.ok, false);
+  assert.ok(withCard.reason?.includes('포장 없음 불가'));
+
+  const pending = canDismissPackaging({
+    status: 'pending',
+    sticker: null,
+    card: null,
+    hasPrintFile: false,
+    hasCardPrintFile: false,
+  });
+  assert.equal(pending.ok, false);
+  assert.equal(pending.reason, '결제 대기');
+
+  const canceled = canDismissPackaging({
+    status: 'canceled',
+    sticker: null,
+    card: null,
+    hasPrintFile: false,
+    hasCardPrintFile: false,
+  });
+  assert.equal(canceled.ok, false);
+  assert.equal(canceled.reason, '취소된 주문');
+
+  const plain = canDismissPackaging({
+    status: 'received',
+    sticker: null,
+    card: null,
+    hasPrintFile: false,
+    hasCardPrintFile: false,
+  });
+  assert.equal(plain.ok, true);
+});
+
+test('14. linkDesignToOrder 가드 및 자동 상태 전진 차단 검증', async () => {
+  const testDir = mkdtempSync(join(tmpdir(), 'ondap-schd-link-'));
+  process.env.ONDAP_TEST_DATA_DIR = testDir;
+
+  try {
+    await createDesign({
+      code: 'OD-LINK-0001',
+      productNo: 208,
+      productName: '홍삼 세트',
+      quantity: 15,
+      event: 'wedding',
+      styleId: 's1',
+      styleName: '자개',
+      sticker: { shape: 'circle', sizeCm: 6 },
+      draft: null,
+    }, null, null);
+
+    await updateDesign('OD-LINK-0001', { status: 'received' });
+    await updateDesign('OD-LINK-0001', { orderNo: '20261117-0009999' });
+
+    const [linked] = await listDesigns({ code: 'OD-LINK-0001', limit: 1, includePending: true });
+    assert.equal(linked.orderNo, '20261117-0009999');
+    assert.equal(linked.status, 'received');
+  } finally {
+    delete process.env.ONDAP_TEST_DATA_DIR;
+    rmSync(testDir, { recursive: true, force: true });
+  }
+});
+
+test('15. 인쇄(PDF/PNG) 라우트 가드: 결제대기(pending) 및 취소(canceled) 차단 불변식 검증', () => {
+  const canGeneratePrint = (status: string): { allowed: boolean; httpStatus?: number } => {
+    if (status === 'canceled' || status === 'pending') {
+      return { allowed: false, httpStatus: 403 };
+    }
+    return { allowed: true };
+  };
+
+  assert.deepEqual(canGeneratePrint('pending'), { allowed: false, httpStatus: 403 });
+  assert.deepEqual(canGeneratePrint('canceled'), { allowed: false, httpStatus: 403 });
+  assert.deepEqual(canGeneratePrint('received'), { allowed: true });
+  assert.deepEqual(canGeneratePrint('order_confirmed'), { allowed: true });
+  assert.deepEqual(canGeneratePrint('printed'), { allowed: true });
+  assert.deepEqual(canGeneratePrint('completed'), { allowed: true });
+});

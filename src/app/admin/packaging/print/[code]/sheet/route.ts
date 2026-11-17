@@ -19,8 +19,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
   const q = new URL(request.url).searchParams;
   const paper = isPaper(q.get('paper')) ? (q.get('paper') as 'A4' | 'A3') : 'A4';
 
-  const [design] = await listDesigns({ code, limit: 1 });
+  const [design] = await listDesigns({ code, limit: 1, includePending: true });
   if (!design) return new Response('디자인을 찾을 수 없습니다.', { status: 404 });
+
+  if (design.status === 'canceled') {
+    return new Response('취소된 주문의 인쇄 파일은 생성할 수 없습니다.', { status: 403 });
+  }
+  if (design.status === 'pending') {
+    return new Response('결제 확인 전인 디자인은 인쇄할 수 없습니다.', { status: 403 });
+  }
 
   const isCard = q.get('item') === 'card' || (!design.sticker && Boolean(design.card));
   let png: Uint8Array | null = null;

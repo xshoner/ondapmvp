@@ -1,16 +1,17 @@
 'use client';
 
-// 주문·포장 디자인 통합 작업판
-// 1) 상단 핵심 요약 카드 4종: 확인 필요, 일정 임박, 인쇄 대기, 포장 준비 중
-// 2) 행사일·희망 수령일 기준 일정 관리 및 D-day/긴급도 우선순위 정렬
-// 3) 단일 통합 검색(주문번호, 디자인코드, 상품명, 문구) 및 원클릭 상태 전환
-// 4) 접힘 요약 행 + 펼침 상세 아코디언(문구 검수, 일정 수정, 주문 연결, 빠른 인쇄)
+// 주문·포장 디자인 통합 작업판 (간결하고 직관적인 관리자 업무 중심)
+// 1) 상단 3대 핵심 지표: 오늘 처리할 작업 / 일정 임박 / 확인 필요
+// 2) 명확한 4개 작업 탭: 오늘 할 일 (미완료) / 확인 필요 / 일정 임박 / 전체 목록
+// 3) 단일 통합 검색 & 기준일 임박순 정렬
+// 4) 접힘 요약 행 + 펼침 검수 패널 (문구 검수, 일정 수정, 주문번호 기록, 안전한 인쇄)
+// 5) 취소·결제대기 건의 오출고 및 오처리 원천 차단
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { isTyping, saveBlob } from '@/lib/device.ts';
 import { kstLabel } from '@/lib/kst.ts';
 import { MAX_SHEETS, sheetLayout, sheetsNeeded, type Paper } from '@/packaging/sheet.ts';
-import { STATUS_LABEL, designStatusLabel, filterQuery, isLate, type DesignFilter } from '@/packaging/design-filter.ts';
+import { STATUS_LABEL, filterQuery, type DesignFilter } from '@/packaging/design-filter.ts';
 import type { Design, DesignStatus, TextLayer } from '@/packaging/types.ts';
 import { calculateScheduleStatus, type ScheduleInfo } from '@/packaging/schedule.ts';
 import { fillPlaceholders } from '@/packaging/rules.ts';
@@ -18,7 +19,6 @@ import {
   updateDesignAction,
   updateDesignsStatusAction,
   syncCafe24OrdersAction,
-  linkDesignToOrderAction,
   dismissPackagingAction,
 } from './actions.ts';
 
@@ -34,7 +34,7 @@ const fileUrl = (code: string) => `/admin/packaging/print/${code}`;
 const sheetUrl = (code: string, o: PrintOptions, test = false) =>
   `${fileUrl(code)}/sheet?paper=${o.paper}${o.fill && !test ? '&fill=1' : ''}${test ? '&count=1&test=1' : ''}`;
 
-export type WorkTab = 'active' | 'needs_check' | 'imminent' | 'order_confirmed' | 'printed' | 'done' | 'canceled' | 'all';
+export type WorkTab = 'active' | 'needs_check' | 'imminent' | 'all';
 export type SortOption = 'schedule' | 'newest' | 'oldest';
 
 const SHORTCUTS: [string, string][] = [
@@ -76,11 +76,9 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
   const [cursor, setCursor] = useState(-1);
   const [help, setHelp] = useState(false);
 
-  // 작업판 탭 및 필터 상태
+  // 작업판 탭 및 필터 상태 (단순화: 4대 탭)
   const [workTab, setWorkTab] = useState<WorkTab>('active');
   const [searchQuery, setSearchQuery] = useState('');
-  const [onlyImminent, setOnlyImminent] = useState(false);
-  const [onlyUnlinked, setOnlyUnlinked] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>('schedule');
 
   // 일괄 작업 및 동기화 상태
@@ -130,40 +128,35 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
     return map;
   }, [designs, now]);
 
-  // 상단 KPI 집계 (오늘 처리해야 할 주문 한눈에 파악)
+  // 상단 3대 핵심 지표 집계
   const counts = useMemo(() => {
-    let needsCheck = 0;
-    let imminent = 0;
-    let orderConfirmed = 0;
-    let printed = 0;
-    let active = 0;
-    let done = 0;
-    let canceled = 0;
+    let activeCount = 0;
+    let imminentCount = 0;
+    let needsCheckCount = 0;
 
     for (const d of designs) {
       const isDone = d.status === 'completed' || d.status === 'no_packaging';
       const isCanceled = d.status === 'canceled';
+      const isPending = d.status === 'pending';
       const info = scheduleMap.get(d.code);
 
-      if (isDone) done++;
-      else if (isCanceled) canceled++;
-      else active++;
-
-      // 확인 필요: 검수 대기이거나, 미완료인데 주문번호가 연결되지 않은 경우
-      if (d.status === 'received' || (!d.orderNo && d.status !== 'pending' && !isDone && !isCanceled)) {
-        needsCheck++;
+      // 오늘 처리할 작업 (미완료 제작 진행 건)
+      if (!isDone && !isCanceled && !isPending) {
+        activeCount++;
       }
 
-      // 일정 임박: 미완료 건 중 긴급 또는 임박 (D-3 이내 or 경과 or 날짜충돌)
-      if (!isDone && !isCanceled && info && (info.urgency === 'emergency' || info.urgency === 'imminent')) {
-        imminent++;
+      // 확인 필요 (검수 대기 또는 주문 미연결)
+      if (d.status === 'received' || (!d.orderNo && !isDone && !isCanceled && !isPending)) {
+        needsCheckCount++;
       }
 
-      if (d.status === 'order_confirmed') orderConfirmed++;
-      if (d.status === 'printed') printed++;
+      // 일정 임박 (미완료 건 중 긴급 또는 임박: D-3 이내, 당일, 경과)
+      if (!isDone && !isCanceled && !isPending && info && (info.urgency === 'emergency' || info.urgency === 'imminent')) {
+        imminentCount++;
+      }
     }
 
-    return { needsCheck, imminent, orderConfirmed, printed, active, done, canceled };
+    return { activeCount, imminentCount, needsCheckCount, totalCount: designs.length };
   }, [designs, scheduleMap]);
 
   // 실시간 필터링 및 기준일 임박순 정렬
@@ -177,7 +170,7 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
       list = list.filter(
         (d) =>
           d.status === 'received' ||
-          (!d.orderNo && d.status !== 'pending' && d.status !== 'completed' && d.status !== 'no_packaging' && d.status !== 'canceled'),
+          (!d.orderNo && d.status !== 'completed' && d.status !== 'no_packaging' && d.status !== 'canceled'),
       );
     } else if (workTab === 'imminent') {
       list = list.filter((d) => {
@@ -186,31 +179,9 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
         const info = scheduleMap.get(d.code);
         return !isDone && !isCanceled && info && (info.urgency === 'emergency' || info.urgency === 'imminent');
       });
-    } else if (workTab === 'order_confirmed') {
-      list = list.filter((d) => d.status === 'order_confirmed');
-    } else if (workTab === 'printed') {
-      list = list.filter((d) => d.status === 'printed');
-    } else if (workTab === 'done') {
-      list = list.filter((d) => d.status === 'completed' || d.status === 'no_packaging');
-    } else if (workTab === 'canceled') {
-      list = list.filter((d) => d.status === 'canceled');
     }
 
-    // 2. 빠른 토글 필터
-    if (onlyImminent) {
-      list = list.filter((d) => {
-        const isDone = d.status === 'completed' || d.status === 'no_packaging';
-        const isCanceled = d.status === 'canceled';
-        const info = scheduleMap.get(d.code);
-        return !isDone && !isCanceled && info && (info.urgency === 'emergency' || info.urgency === 'imminent');
-      });
-    }
-
-    if (onlyUnlinked) {
-      list = list.filter((d) => !d.orderNo && d.status !== 'no_packaging' && d.status !== 'canceled');
-    }
-
-    // 3. 단일 검색어 필터
+    // 2. 단일 검색어 필터
     const q = searchQuery.trim().toLowerCase();
     if (q) {
       list = list.filter((d) => {
@@ -227,7 +198,7 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
       });
     }
 
-    // 4. 정렬
+    // 3. 정렬 (기준일 임박순 기본)
     if (sortBy === 'schedule') {
       list.sort((a, b) => {
         const scoreA = scheduleMap.get(a.code)?.sortScore ?? 999999;
@@ -242,7 +213,7 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
     }
 
     return list;
-  }, [designs, workTab, onlyImminent, onlyUnlinked, searchQuery, sortBy, scheduleMap]);
+  }, [designs, workTab, searchQuery, sortBy, scheduleMap]);
 
   const toggleSelect = (code: string) =>
     setSelected((prev) => {
@@ -266,7 +237,7 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
   };
 
   const printableSelected = displayDesigns.filter(
-    (d) => selected.has(d.code) && d.printCode && (d.sticker || d.card) && d.status !== 'canceled',
+    (d) => selected.has(d.code) && d.printCode && (d.sticker || d.card) && d.status !== 'canceled' && d.status !== 'pending',
   );
   const allSelected = displayDesigns.length > 0 && displayDesigns.every((d) => selected.has(d.code));
 
@@ -292,7 +263,7 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
       else if (e.key === 'Enter') {
         e.preventDefault();
         toggleExpand(d.code);
-      } else if ((e.key === 'p' || e.key === 't') && d.printCode && d.sticker && d.status !== 'canceled') {
+      } else if ((e.key === 'p' || e.key === 't') && d.printCode && d.sticker && d.status !== 'canceled' && d.status !== 'pending') {
         location.href = sheetUrl(d.code, options, e.key === 't');
       } else if (e.key === 's') {
         e.preventDefault();
@@ -311,7 +282,7 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
       if (!res.ok) return setBatchMessage(res.message);
       setBatchMessage(
         `${res.updated.length}건을 ‘${STATUS_LABEL[batchStatus]}’(으)로 일괄 변경했습니다.${
-          res.missing.length ? ` (변경 실패: ${res.missing.join(', ')})` : ''
+          res.missing.length ? ` (제외 건수: ${res.missing.join(', ')})` : ''
         }`,
       );
       setSelected(new Set());
@@ -354,137 +325,121 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
-      {/* 1. 상단 핵심 요약 카드 4종 (오늘 할 일 KPI) */}
-      <div className="board-kpi-grid">
+      {/* 1. 간결한 3대 핵심 요약 바 (Dashboard Summary) */}
+      <div className="board-kpi-summary">
         <button
           type="button"
-          className={`board-kpi-card ${workTab === 'needs_check' ? 'active' : ''}`}
-          onClick={() => setWorkTab(workTab === 'needs_check' ? 'active' : 'needs_check')}
+          className={`summary-pill ${workTab === 'active' ? 'active' : ''}`}
+          onClick={() => setWorkTab('active')}
         >
-          <div className="kpi-top">
-            <span className="kpi-title">확인 필요</span>
-            <span className="kpi-icon">⚠️</span>
-          </div>
-          <div className="kpi-num" style={{ color: counts.needsCheck > 0 ? '#dc2626' : 'var(--ink)' }}>
-            {counts.needsCheck}건
-          </div>
-          <div className="kpi-desc">검수 대기 또는 주문번호 미연결</div>
+          <span className="summary-title">오늘 처리할 작업</span>
+          <b className="summary-val">{counts.activeCount}건</b>
+          <span className="summary-hint">미완료 제작 건</span>
         </button>
 
         <button
           type="button"
-          className={`board-kpi-card ${workTab === 'imminent' ? 'active' : ''}`}
-          onClick={() => setWorkTab(workTab === 'imminent' ? 'active' : 'imminent')}
+          className={`summary-pill warning ${workTab === 'imminent' ? 'active' : ''}`}
+          onClick={() => setWorkTab('imminent')}
         >
-          <div className="kpi-top">
-            <span className="kpi-title">일정 임박</span>
-            <span className="kpi-icon">⏰</span>
-          </div>
-          <div className="kpi-num" style={{ color: counts.imminent > 0 ? '#ea580c' : 'var(--ink)' }}>
-            {counts.imminent}건
-          </div>
-          <div className="kpi-desc">D-3 이내 및 기준일 경과</div>
+          <span className="summary-title">⏰ 일정 임박</span>
+          <b className="summary-val warning">{counts.imminentCount}건</b>
+          <span className="summary-hint">D-3 이내 및 경과</span>
         </button>
 
         <button
           type="button"
-          className={`board-kpi-card ${workTab === 'order_confirmed' ? 'active' : ''}`}
-          onClick={() => setWorkTab(workTab === 'order_confirmed' ? 'active' : 'order_confirmed')}
+          className={`summary-pill danger ${workTab === 'needs_check' ? 'active' : ''}`}
+          onClick={() => setWorkTab('needs_check')}
         >
-          <div className="kpi-top">
-            <span className="kpi-title">인쇄 대기</span>
-            <span className="kpi-icon">🖨️</span>
-          </div>
-          <div className="kpi-num">{counts.orderConfirmed}건</div>
-          <div className="kpi-desc">검수 완료 · 출력 진행 대기</div>
-        </button>
-
-        <button
-          type="button"
-          className={`board-kpi-card ${workTab === 'printed' ? 'active' : ''}`}
-          onClick={() => setWorkTab(workTab === 'printed' ? 'active' : 'printed')}
-        >
-          <div className="kpi-top">
-            <span className="kpi-title">포장 준비 중</span>
-            <span className="kpi-icon">🎁</span>
-          </div>
-          <div className="kpi-num">{counts.printed}건</div>
-          <div className="kpi-desc">인쇄 완료 · 상품 포장 진행</div>
+          <span className="summary-title">⚠️ 확인 필요</span>
+          <b className="summary-val danger">{counts.needsCheckCount}건</b>
+          <span className="summary-hint">미연결 / 검수 대기</span>
         </button>
       </div>
 
-      {/* 2. 네비게이션 & 검색 & 정렬 제어 바 */}
-      <div className="panel" style={{ padding: '14px 16px', display: 'grid', gap: 12 }}>
-        {/* 상태 탭 */}
-        <div className="board-tab-bar" role="tablist">
-          <button
-            type="button"
-            className={`board-tab-btn ${workTab === 'active' ? 'active' : ''}`}
-            onClick={() => setWorkTab('active')}
-          >
-            미완료 전체 <span className="tab-pill">{counts.active}</span>
-          </button>
-          <button
-            type="button"
-            className={`board-tab-btn ${workTab === 'needs_check' ? 'active danger' : ''}`}
-            onClick={() => setWorkTab('needs_check')}
-          >
-            확인 필요 <span className="tab-pill danger">{counts.needsCheck}</span>
-          </button>
-          <button
-            type="button"
-            className={`board-tab-btn ${workTab === 'imminent' ? 'active warning' : ''}`}
-            onClick={() => setWorkTab('imminent')}
-          >
-            일정 임박 <span className="tab-pill warning">{counts.imminent}</span>
-          </button>
-          <button
-            type="button"
-            className={`board-tab-btn ${workTab === 'order_confirmed' ? 'active' : ''}`}
-            onClick={() => setWorkTab('order_confirmed')}
-          >
-            인쇄 대기 <span className="tab-pill">{counts.orderConfirmed}</span>
-          </button>
-          <button
-            type="button"
-            className={`board-tab-btn ${workTab === 'printed' ? 'active' : ''}`}
-            onClick={() => setWorkTab('printed')}
-          >
-            포장 준비 중 <span className="tab-pill">{counts.printed}</span>
-          </button>
-          <button
-            type="button"
-            className={`board-tab-btn ${workTab === 'done' ? 'active' : ''}`}
-            onClick={() => setWorkTab('done')}
-          >
-            작업 완료 <span className="tab-pill">{counts.done}</span>
-          </button>
-          <button
-            type="button"
-            className={`board-tab-btn ${workTab === 'canceled' ? 'active' : ''}`}
-            onClick={() => setWorkTab('canceled')}
-          >
-            취소 <span className="tab-pill">{counts.canceled}</span>
-          </button>
-          <button
-            type="button"
-            className={`board-tab-btn ${workTab === 'all' ? 'active' : ''}`}
-            onClick={() => setWorkTab('all')}
-          >
-            전체 내역 <span className="tab-pill">{designs.length}</span>
-          </button>
+      {/* 2. 작업 탭 & 통합 검색창 & 액션 */}
+      <div className="panel" style={{ padding: '12px 16px', display: 'grid', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+          {/* 간결한 4개 작업 탭 */}
+          <div className="board-tabs" role="tablist">
+            <button
+              type="button"
+              className={`board-tab ${workTab === 'active' ? 'active' : ''}`}
+              onClick={() => setWorkTab('active')}
+            >
+              오늘 할 일 (미완료)
+            </button>
+            <button
+              type="button"
+              className={`board-tab ${workTab === 'needs_check' ? 'active' : ''}`}
+              onClick={() => setWorkTab('needs_check')}
+            >
+              확인 필요 {counts.needsCheckCount > 0 && `(${counts.needsCheckCount})`}
+            </button>
+            <button
+              type="button"
+              className={`board-tab ${workTab === 'imminent' ? 'active' : ''}`}
+              onClick={() => setWorkTab('imminent')}
+            >
+              일정 임박 {counts.imminentCount > 0 && `(${counts.imminentCount})`}
+            </button>
+            <button
+              type="button"
+              className={`board-tab ${workTab === 'all' ? 'active' : ''}`}
+              onClick={() => setWorkTab('all')}
+            >
+              전체 목록
+            </button>
+          </div>
+
+          {/* 우측 퀵 액션 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              className="btn small"
+              style={{ background: '#2563eb', color: '#fff', fontWeight: 600 }}
+              disabled={syncPending || autoSyncing}
+              onClick={() => {
+                if (syncing.current) return setSyncMessage('자동 동기화가 진행 중입니다. 잠시만 기다려 주세요.');
+                syncing.current = true;
+                setSyncMessage(null);
+                startSync(async () => {
+                  try {
+                    const res = await syncCafe24OrdersAction();
+                    setSyncMessage(res.message);
+                    router.refresh();
+                  } catch {
+                    setSyncMessage('동기화에 실패했습니다. 다시 시도해 주세요.');
+                  } finally {
+                    syncing.current = false;
+                  }
+                });
+              }}
+            >
+              {syncPending || autoSyncing ? '동기화 중...' : '🔄 카페24 동기화'}
+            </button>
+
+            <a className="btn ghost small" href={`/admin/packaging/export${exportQuery ? `?${exportQuery}` : ''}`}>
+              CSV
+            </a>
+
+            <button type="button" className="btn ghost small" onClick={toggleAllExpand}>
+              {expanded.size > 0 ? '모두 접기' : '모두 펼치기'}
+            </button>
+          </div>
         </div>
 
-        {/* 통합 검색 & 빠른 필터 & 정렬 */}
-        <div className="board-search-row">
-          <div className="board-search-wrap">
-            <span style={{ fontSize: 14, color: 'var(--muted)', userSelect: 'none' }}>🔍</span>
+        {/* 단일 통합 검색 & 정렬 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div className="board-search-box">
+            <span style={{ fontSize: 13, color: 'var(--muted)', userSelect: 'none' }}>🔍</span>
             <input
               type="text"
               className="board-search-input"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="주문번호, 디자인코드, 상품명, 인쇄문구 검색..."
+              placeholder="주문번호, 디자인코드, 상품명, 고객문구 검색..."
             />
             {searchQuery && (
               <button type="button" className="board-search-clear" onClick={() => setSearchQuery('')} title="검색어 지우기">
@@ -493,19 +448,7 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-            <label className="filter-toggle-label">
-              <input type="checkbox" checked={onlyImminent} onChange={(e) => setOnlyImminent(e.target.checked)} />
-              <span>⏰ 일정 임박·경과만</span>
-            </label>
-
-            <label className="filter-toggle-label">
-              <input type="checkbox" checked={onlyUnlinked} onChange={(e) => setOnlyUnlinked(e.target.checked)} />
-              <span>🔗 주문 미연결만</span>
-            </label>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
             <span className="small muted">정렬:</span>
             <select
               value={sortBy}
@@ -516,63 +459,18 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
               <option value="newest">접수일 최신순</option>
               <option value="oldest">접수일 오래된순</option>
             </select>
-
-            <button type="button" className="btn ghost small" onClick={toggleAllExpand}>
-              {expanded.size > 0 ? '모두 접기 ▲' : '모두 펼치기 ▼'}
-            </button>
           </div>
-        </div>
-
-        {/* 카페24 동기화 및 CSV/도움말 컨트롤 바 */}
-        <div className="board-action-bar">
-          <button
-            type="button"
-            className="btn small"
-            style={{ background: '#2563eb', color: '#fff', fontWeight: 600 }}
-            disabled={syncPending || autoSyncing}
-            onClick={() => {
-              if (syncing.current) return setSyncMessage('자동 동기화가 진행 중입니다. 잠시만 기다려 주세요.');
-              syncing.current = true;
-              setSyncMessage(null);
-              startSync(async () => {
-                try {
-                  const res = await syncCafe24OrdersAction();
-                  setSyncMessage(res.message);
-                  router.refresh();
-                } catch {
-                  setSyncMessage('동기화에 실패했습니다. 다시 시도해 주세요.');
-                } finally {
-                  syncing.current = false;
-                }
-              });
-            }}
-          >
-            {syncPending || autoSyncing ? '카페24 동기화 중...' : '🔄 카페24 주문 동기화'}
-          </button>
-
-          <a className="btn ghost small" href={`/admin/packaging/export${exportQuery ? `?${exportQuery}` : ''}`}>
-            CSV 내려받기
-          </a>
-
-          <button type="button" className="btn ghost small" onClick={() => setHelp((h) => !h)}>
-            단축키 안내 (?)
-          </button>
-
-          <span style={{ flex: 1 }} />
-          <span className="small muted">
-            총 {designs.length}건 중 현재 <b>{displayDesigns.length}건</b> 표시 중
-          </span>
         </div>
 
         {syncMessage && (
           <div
             style={{
-              padding: '8px 12px',
+              padding: '6px 10px',
               background: '#eff6ff',
               color: '#1e40af',
               border: '1px solid #bfdbfe',
               borderRadius: 6,
-              fontSize: 13,
+              fontSize: 12.5,
             }}
           >
             {syncMessage}
@@ -597,8 +495,8 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
       )}
 
       {/* 인쇄 옵션 바 */}
-      <div className="panel print-bar" style={{ padding: '10px 16px' }}>
-        <b className="small">인쇄 용지:</b>
+      <div className="panel print-bar" style={{ padding: '8px 16px' }}>
+        <b className="small">인쇄 규격:</b>
         <div className="chips">
           {(['A4', 'A3'] as const).map((p) => (
             <button
@@ -617,9 +515,9 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
           마지막 장 남는 칸도 채우기(여분)
         </label>
         <span style={{ flex: 1 }} />
-        <span className="small muted">
-          ⚠️ 인쇄 시 '실제 크기(100%)' 설정 필수 · 우측 상단 QR 촬영 시 즉시 인쇄 완료로 전진
-        </span>
+        <button type="button" className="btn ghost small" style={{ fontSize: 11.5 }} onClick={() => setHelp((h) => !h)}>
+          단축키 (?)
+        </button>
       </div>
 
       {/* 일괄 작업 바 */}
@@ -662,10 +560,10 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
       {/* 3. 통합 작업판 메인 테이블 */}
       {displayDesigns.length === 0 ? (
         <div className="panel" style={{ padding: 40, textAlign: 'center' }}>
-          <p className="small muted" style={{ fontSize: 15, margin: 0 }}>
-            {searchQuery || onlyImminent || onlyUnlinked
-              ? '조건에 맞는 주문·디자인이 없습니다. 검색어나 필터를 변경해 보세요.'
-              : '해당 탭에 표시할 주문·디자인이 없습니다.'}
+          <p className="small muted" style={{ fontSize: 14, margin: 0 }}>
+            {searchQuery
+              ? '검색 결과와 일치하는 주문이 없습니다.'
+              : '해당 탭에 표시할 주문이 없습니다.'}
           </p>
         </div>
       ) : (
@@ -673,7 +571,7 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
           <table className="data designs-table board-table">
             <thead>
               <tr>
-                <th style={{ width: 40, textAlign: 'center' }}>
+                <th style={{ width: 36, textAlign: 'center' }}>
                   <input
                     type="checkbox"
                     aria-label="보이는 접수 모두 선택"
@@ -684,10 +582,10 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
                   />
                 </th>
                 <th style={{ width: 140 }}>일정 · D-Day</th>
-                <th style={{ width: 170 }}>주문번호 · 카페24 상태</th>
-                <th style={{ minWidth: 200 }}>디자인 코드 · 상품 정보</th>
-                <th style={{ width: 160 }}>포장 스타일 · 규격</th>
-                <th style={{ width: 220 }}>내부 제작 상태 · 액션</th>
+                <th style={{ width: 160 }}>주문번호</th>
+                <th style={{ minWidth: 200 }}>디자인 코드 · 상품</th>
+                <th style={{ width: 150 }}>포장 · 인쇄 규격</th>
+                <th style={{ width: 220 }}>제작 상태 · 빠른 작업</th>
               </tr>
             </thead>
             <tbody>
@@ -714,120 +612,81 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
 
       {/* 작업판 전용 Scoped CSS */}
       <style>{`
-        .board-kpi-grid {
+        .board-kpi-summary {
           display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 12px;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 10px;
         }
-        .board-kpi-card {
-          display: grid;
-          gap: 4px;
-          padding: 16px;
+        .summary-pill {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          padding: 12px 16px;
           background: #fff;
           border: 1px solid var(--line);
           border-radius: var(--radius);
           text-align: left;
           cursor: pointer;
-          transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+          transition: border-color 0.12s, box-shadow 0.12s;
         }
-        .board-kpi-card:hover {
+        .summary-pill:hover {
           border-color: var(--line-strong);
-          box-shadow: 0 2px 8px rgba(0,0,0,0.04);
         }
-        .board-kpi-card.active {
+        .summary-pill.active {
           border-color: #2563eb;
-          box-shadow: 0 0 0 2px rgba(37,99,235,0.2);
+          box-shadow: 0 0 0 2px rgba(37,99,235,0.15);
           background: #f8faff;
         }
-        .kpi-top {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        }
-        .kpi-title {
-          font-size: 13px;
+        .summary-title {
+          font-size: 12px;
           font-weight: 600;
           color: var(--muted);
         }
-        .kpi-icon {
-          font-size: 16px;
-        }
-        .kpi-num {
+        .summary-val {
           font-family: var(--font-serif), serif;
-          font-size: 28px;
+          font-size: 24px;
           font-weight: 700;
           line-height: 1.2;
           color: var(--ink);
         }
-        .kpi-desc {
-          font-size: 11.5px;
+        .summary-val.warning {
+          color: #d97706;
+        }
+        .summary-val.danger {
+          color: #dc2626;
+        }
+        .summary-hint {
+          font-size: 11px;
           color: var(--muted);
         }
 
-        .board-tab-bar {
+        .board-tabs {
           display: flex;
-          gap: 6px;
-          overflow-x: auto;
-          padding-bottom: 4px;
-          border-bottom: 1px solid var(--line);
+          gap: 4px;
         }
-        .board-tab-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 7px 12px;
+        .board-tab {
+          padding: 6px 12px;
           border: 1px solid transparent;
           border-radius: 6px;
           background: transparent;
-          font-size: 13.5px;
+          font-size: 13px;
           font-weight: 500;
           color: var(--ink-soft);
           cursor: pointer;
           white-space: nowrap;
           transition: background 0.12s, color 0.12s;
         }
-        .board-tab-btn:hover {
+        .board-tab:hover {
           background: #f3f4f6;
           color: var(--ink);
         }
-        .board-tab-btn.active {
+        .board-tab.active {
           background: #e5e7eb;
           color: var(--ink);
           font-weight: 700;
         }
-        .board-tab-btn.active.danger {
-          background: #fee2e2;
-          color: #991b1b;
-        }
-        .board-tab-btn.active.warning {
-          background: #fef3c7;
-          color: #92400e;
-        }
 
-        .tab-pill {
-          display: inline-block;
-          padding: 1px 6px;
-          border-radius: 999px;
-          background: rgba(0,0,0,0.06);
-          font-size: 11.5px;
-          font-weight: 600;
-        }
-        .tab-pill.danger {
-          background: #fca5a5;
-          color: #7f1d1d;
-        }
-        .tab-pill.warning {
-          background: #fde68a;
-          color: #78350f;
-        }
-
-        .board-search-row {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          flex-wrap: wrap;
-        }
-        .board-search-wrap {
+        .board-search-box {
           display: flex;
           align-items: center;
           gap: 6px;
@@ -836,13 +695,13 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
           background: #fff;
           border: 1px solid var(--line);
           border-radius: 6px;
-          padding: 6px 10px;
+          padding: 5px 10px;
         }
         .board-search-input {
           border: none !important;
           outline: none;
           width: 100%;
-          font-size: 13.5px;
+          font-size: 13px;
           background: transparent;
           padding: 0 !important;
         }
@@ -851,26 +710,8 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
           background: transparent;
           cursor: pointer;
           color: var(--muted);
-          font-size: 12px;
+          font-size: 11px;
           padding: 2px 4px;
-        }
-        .filter-toggle-label {
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-          font-size: 13px;
-          font-weight: 500;
-          color: var(--ink-soft);
-          cursor: pointer;
-          user-select: none;
-        }
-
-        .board-action-bar {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          flex-wrap: wrap;
-          padding-top: 4px;
         }
 
         /* 테이블 행 스타일 */
@@ -886,12 +727,11 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
           border-bottom-color: transparent;
         }
 
-        /* 뱃지 톤 */
         .schedule-badge {
           display: inline-block;
-          padding: 2px 8px;
+          padding: 2px 6px;
           border-radius: 4px;
-          font-size: 12px;
+          font-size: 11.5px;
           font-weight: 700;
           letter-spacing: -0.01em;
           white-space: nowrap;
@@ -927,26 +767,6 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
           font-size: 11.5px;
           font-weight: 600;
         }
-        .order-badge-paid {
-          display: inline-block;
-          padding: 2px 6px;
-          border-radius: 4px;
-          background: #eff6ff;
-          color: #1d4ed8;
-          border: 1px solid #dbeafe;
-          font-size: 11.5px;
-          font-weight: 600;
-        }
-        .order-badge-pending {
-          display: inline-block;
-          padding: 2px 6px;
-          border-radius: 4px;
-          background: #fefce8;
-          color: #a16207;
-          border: 1px solid #fef08a;
-          font-size: 11.5px;
-          font-weight: 600;
-        }
 
         /* 상세 아코디언 패널 */
         .board-detail-row td {
@@ -955,23 +775,22 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
         }
         .board-detail-box {
           display: grid;
-          grid-template-columns: 1.2fr 1.1fr 1fr;
+          grid-template-columns: 1.1fr 1.1fr;
           gap: 16px;
-          padding: 16px 20px;
+          padding: 14px 18px;
           border-top: 1px dashed #cbd5e1;
           border-bottom: 2px solid #94a3b8;
           background: #f8fafc;
         }
         .detail-col {
           display: grid;
-          gap: 10px;
+          gap: 8px;
           align-content: start;
         }
         .detail-col-title {
-          font-size: 12.5px;
+          font-size: 12px;
           font-weight: 700;
           color: #475569;
-          letter-spacing: -0.01em;
           border-bottom: 1px solid #e2e8f0;
           padding-bottom: 4px;
         }
@@ -979,34 +798,26 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
           background: #fff;
           border: 1px solid #cbd5e1;
           border-radius: 6px;
-          padding: 10px 12px;
+          padding: 8px 10px;
           font-family: ui-monospace, Consolas, monospace;
-          font-size: 13px;
+          font-size: 12.5px;
           line-height: 1.5;
           color: #0f172a;
           white-space: pre-wrap;
           word-break: break-all;
-          max-height: 220px;
+          max-height: 180px;
           overflow-y: auto;
         }
 
-        /* 모바일 반응형 */
         @media (max-width: 768px) {
-          .board-kpi-grid {
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
+          .board-kpi-summary {
+            grid-template-columns: 1fr;
+            gap: 6px;
           }
           .board-detail-box {
             grid-template-columns: 1fr;
-            gap: 14px;
-            padding: 12px 14px;
-          }
-          .board-search-row {
-            flex-direction: column;
-            align-items: stretch;
-          }
-          .board-search-wrap {
-            min-width: 100%;
+            gap: 12px;
+            padding: 10px 12px;
           }
         }
       `}</style>
@@ -1014,7 +825,7 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
   );
 }
 
-// 각 주문·디자인 행 컴포넌트 (접힘 요약 + 펼침 아코디언)
+// 각 주문·디자인 행 컴포넌트
 function BoardRow({
   design: d,
   scheduleInfo: info,
@@ -1043,67 +854,89 @@ function BoardRow({
   const router = useRouter();
   const [pending, start] = useTransition();
 
-  // 인라인 수정 상태
+  // 인라인 수정 상태 (각 필드 독립 분리 저장 지원)
   const [status, setStatus] = useState<DesignStatus>(d.status);
-  const [orderNo, setOrderNo] = useState(d.orderNo ?? '');
-  const [memo, setMemo] = useState(d.memo ?? '');
-  const [eventDate, setEventDate] = useState(d.eventDate ?? '');
-  const [desiredDeliveryDate, setDesiredDeliveryDate] = useState(d.desiredDeliveryDate ?? '');
+  const [orderNoInput, setOrderNoInput] = useState(d.orderNo ?? '');
+  const [memoInput, setMemoInput] = useState(d.memo ?? '');
+  const [eventDateInput, setEventDateInput] = useState(d.eventDate ?? '');
+  const [desiredDeliveryDateInput, setDesiredDeliveryDateInput] = useState(d.desiredDeliveryDate ?? '');
   const [message, setMessage] = useState<string | null>(null);
 
-  // 서버 동기화 반영
   useEffect(() => {
     setStatus(d.status);
-    setOrderNo(d.orderNo ?? '');
-    setMemo(d.memo ?? '');
-    setEventDate(d.eventDate ?? '');
-    setDesiredDeliveryDate(d.desiredDeliveryDate ?? '');
+    setOrderNoInput(d.orderNo ?? '');
+    setMemoInput(d.memo ?? '');
+    setEventDateInput(d.eventDate ?? '');
+    setDesiredDeliveryDateInput(d.desiredDeliveryDate ?? '');
   }, [d.status, d.orderNo, d.memo, d.eventDate, d.desiredDeliveryDate]);
 
   const hasSticker = Boolean(d.printCode && d.sticker);
   const hasCard = Boolean(d.printCode && d.card);
   const printable = hasSticker || hasCard;
   const isCanceled = d.status === 'canceled';
+  const isPending = d.status === 'pending';
   const stickerSheets = d.sticker ? sheetsNeeded(sheetLayout(d.sticker, options.paper), d.quantity) : 0;
   const cardSheets = d.card ? sheetsNeeded(sheetLayout(d.card, options.paper), d.quantity) : 0;
 
   const msgDetails = useMemo(() => getMessageDetails(d), [d]);
 
-  // 상태 빠른 변경 액션
-  const handleFastStatusChange = (nextStatus: DesignStatus) =>
+  // 상태 변경 (오직 status만 업데이트하여 memo, orderNo, 일정 유실 차단)
+  const handleStatusChange = (nextStatus: DesignStatus) =>
+    start(async () => {
+      setMessage(null);
+      const res = await updateDesignAction(d.code, { status: nextStatus });
+      if (res.ok) {
+        setStatus(nextStatus);
+        setMessage(`‘${STATUS_LABEL[nextStatus]}’(으)로 변경 완료`);
+        router.refresh();
+      } else {
+        setMessage(res.message);
+      }
+    });
+
+  // 주문번호 저장 (상태 자동 전진 없이 오직 orderNo만 저장)
+  const handleSaveOrderNo = () =>
+    start(async () => {
+      setMessage(null);
+      const res = await updateDesignAction(d.code, { orderNo: orderNoInput.trim() || null });
+      if (res.ok) {
+        setMessage('주문번호를 저장했습니다.');
+        router.refresh();
+      } else {
+        setMessage(res.message);
+      }
+    });
+
+  // 일정 저장 (오직 일정 필드만 저장)
+  const handleSaveSchedule = () =>
     start(async () => {
       setMessage(null);
       const res = await updateDesignAction(d.code, {
-        status: nextStatus,
-        orderNo: orderNo || undefined,
-        memo,
-        eventDate: eventDate || null,
-        desiredDeliveryDate: desiredDeliveryDate || null,
+        eventDate: eventDateInput || null,
+        desiredDeliveryDate: desiredDeliveryDateInput || null,
       });
       if (res.ok) {
-        setStatus(nextStatus);
-        setMessage(`‘${STATUS_LABEL[nextStatus]}’(으)로 변경했습니다.`);
+        setMessage('일정을 저장했습니다.');
         router.refresh();
       } else {
         setMessage(res.message);
       }
     });
 
-  // 주문번호 연결 액션
-  const handleLinkOrder = () =>
+  // 메모 저장 (오직 메모만 저장)
+  const handleSaveMemo = () =>
     start(async () => {
       setMessage(null);
-      if (!orderNo.trim()) return setMessage('주문번호를 입력해 주세요.');
-      const res = await linkDesignToOrderAction(d.code, orderNo.trim());
+      const res = await updateDesignAction(d.code, { memo: memoInput });
       if (res.ok) {
-        setMessage('주문번호를 연결했습니다.');
+        setMessage('메모를 저장했습니다.');
         router.refresh();
       } else {
         setMessage(res.message);
       }
     });
 
-  // 포장·인쇄 없음 확정 액션
+  // 포장·인쇄 없음 확정 (스티커/카드가 없는 경우만 허용)
   const handleDismissPackaging = () =>
     start(async () => {
       setMessage(null);
@@ -1111,25 +944,6 @@ function BoardRow({
       if (res.ok) {
         setStatus('no_packaging');
         setMessage('‘포장 없음’으로 확정했습니다.');
-        router.refresh();
-      } else {
-        setMessage(res.message);
-      }
-    });
-
-  // 메모 및 일정 저장 액션
-  const handleSaveDetails = () =>
-    start(async () => {
-      setMessage(null);
-      const res = await updateDesignAction(d.code, {
-        status,
-        orderNo: orderNo || undefined,
-        memo,
-        eventDate: eventDate || null,
-        desiredDeliveryDate: desiredDeliveryDate || null,
-      });
-      if (res.ok) {
-        setMessage('저장했습니다.');
         router.refresh();
       } else {
         setMessage(res.message);
@@ -1145,21 +959,20 @@ function BoardRow({
         style={{ opacity: isCanceled ? 0.55 : 1 }}
         onFocusCapture={onFocusRow}
       >
-        {/* 체크박스 */}
         <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
           <input type="checkbox" checked={selected} onChange={onToggleSelect} aria-label={`${d.code} 선택`} />
         </td>
 
         {/* 일정 배지 & 요약 */}
         <td onClick={onToggleExpand}>
-          <div style={{ display: 'grid', gap: 4 }}>
+          <div style={{ display: 'grid', gap: 3 }}>
             <div>
               <span className={`schedule-badge ${info.badgeTone}`}>
                 {info.urgency === 'emergency' ? '🔴 ' : info.urgency === 'imminent' ? '🟠 ' : ''}
                 {info.badgeText}
               </span>
             </div>
-            <div className="small" style={{ fontWeight: 600, color: '#334155' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>
               {info.displayDateText}
             </div>
             {info.hasConflict && (
@@ -1168,45 +981,39 @@ function BoardRow({
           </div>
         </td>
 
-        {/* 주문번호 & 카페24 상태 배지 */}
+        {/* 주문번호 (사실 기반 표시) */}
         <td onClick={onToggleExpand}>
-          <div style={{ display: 'grid', gap: 4 }}>
+          <div style={{ display: 'grid', gap: 3 }}>
             {d.orderNo ? (
-              <div className="mono font-semibold" style={{ fontSize: 13, color: '#0f172a' }}>
+              <div className="mono font-semibold" style={{ fontSize: 12.5, color: '#0f172a' }}>
                 {d.orderNo}
               </div>
             ) : (
               <div>
-                <span className="order-badge-unlinked">⚠️ 주문 미연결</span>
+                <span className="order-badge-unlinked">⚠️ 미연결</span>
               </div>
             )}
-
-            <div>
-              {d.status === 'pending' ? (
-                d.orderNo || d.memo?.includes('카페24 주문') ? (
-                  <span className="order-badge-pending">무통장 입금 대기</span>
-                ) : (
-                  <span className="order-badge-pending">주문서 작성 전 (보관)</span>
-                )
-              ) : isCanceled ? (
-                <span className="schedule-badge gray">취소됨</span>
-              ) : d.orderNo ? (
-                <span className="order-badge-paid">카페24 결제확인</span>
-              ) : null}
+            <div className="small muted">
+              {isPending
+                ? d.orderNo || d.memo?.includes('카페24 주문')
+                  ? '무통장 입금 대기'
+                  : '주문서 미접수'
+                : isCanceled
+                ? '취소된 주문'
+                : `${kstLabel(d.createdAt)} 접수`}
             </div>
-            <div className="small muted">{kstLabel(d.createdAt)} 접수</div>
           </div>
         </td>
 
         {/* 디자인 코드 & 상품 정보 */}
         <td onClick={onToggleExpand}>
           <div style={{ display: 'grid', gap: 2 }}>
-            <div className="mono" style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>
+            <div className="mono" style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink)' }}>
               {d.code}
             </div>
-            <div style={{ fontSize: 13.5, fontWeight: 600, color: '#1e293b' }}>{d.productName}</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{d.productName}</div>
             <div className="small muted">
-              상품 #{d.productNo} · <b>{d.quantity}개</b>
+              #{d.productNo} · <b>{d.quantity}개</b>
               {d.event ? ` · ${eventNames[d.event] ?? d.event}` : ''}
             </div>
           </div>
@@ -1215,7 +1022,7 @@ function BoardRow({
         {/* 포장 스타일 & 인쇄 규격 */}
         <td onClick={onToggleExpand}>
           <div style={{ display: 'grid', gap: 2 }}>
-            <div style={{ fontSize: 13, fontWeight: 600 }}>{d.styleName}</div>
+            <div style={{ fontSize: 12.5, fontWeight: 600 }}>{d.styleName}</div>
             <div className="small muted">
               {(() => {
                 const items: string[] = [];
@@ -1229,16 +1036,16 @@ function BoardRow({
 
         {/* 내부 제작 상태 & 액션 */}
         <td onClick={(e) => e.stopPropagation()}>
-          <div style={{ display: 'grid', gap: 6 }}>
+          <div style={{ display: 'grid', gap: 5 }}>
             <div className="row" style={{ gap: 6 }}>
               <select
                 value={status}
-                onChange={(e) => handleFastStatusChange(e.target.value as DesignStatus)}
-                disabled={pending}
+                onChange={(e) => handleStatusChange(e.target.value as DesignStatus)}
+                disabled={pending || isCanceled}
                 aria-label="상태"
                 style={{
-                  fontSize: 12.5,
-                  padding: '4px 6px',
+                  fontSize: 12,
+                  padding: '3px 6px',
                   fontWeight: 600,
                   border: '1px solid var(--line)',
                   borderRadius: 6,
@@ -1255,28 +1062,32 @@ function BoardRow({
                 type="button"
                 className="btn ghost small"
                 onClick={onToggleExpand}
-                style={{ padding: '3px 8px', fontSize: 12 }}
+                style={{ padding: '2px 6px', fontSize: 11.5 }}
               >
                 {expanded ? '접기 ▲' : '상세 ▼'}
               </button>
             </div>
 
-            {/* 빠른 인쇄 버튼 (취소 건은 비활성화 및 경고) */}
+            {/* 빠른 인쇄 버튼: 취소나 결제대기 건은 안전하게 차단 */}
             {printable && (
               <div>
                 {isCanceled ? (
-                  <span className="small" style={{ color: '#dc2626', fontWeight: 600 }}>
+                  <span style={{ fontSize: 11, color: '#dc2626', fontWeight: 600 }}>
                     ⚠️ 취소 주문 (인쇄 금지)
                   </span>
-                ) : d.status === 'pending' ? (
-                  <span className="small muted">입금 확인 후 인쇄</span>
+                ) : isPending ? (
+                  <span style={{ fontSize: 11, color: '#b45309' }}>
+                    입금 확인 후 인쇄 가능
+                  </span>
                 ) : (
                   <a
                     className="btn small"
                     href={sheetUrl(d.code, options)}
-                    style={{ padding: '3px 8px', fontSize: 12, background: 'var(--pine)', color: '#fff' }}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ padding: '2px 8px', fontSize: 11.5, background: 'var(--pine)', color: '#fff' }}
                   >
-                    🖨️ PDF {options.paper}·{Math.max(stickerSheets, cardSheets)}장
+                    🖨️ PDF {options.paper} ({Math.max(stickerSheets, cardSheets)}장)
                   </a>
                 )}
               </div>
@@ -1292,67 +1103,61 @@ function BoardRow({
         <tr className="board-detail-row">
           <td colSpan={6}>
             <div className="board-detail-box">
-              {/* 컬럼 1: 고객 인쇄 문구 검수 & 시안 미리보기 */}
+              {/* 좌측: 고객 인쇄 문구 검수 & 시안 미리보기 */}
               <div className="detail-col">
-                <div className="detail-col-title">고객 인쇄 문구 검수 & 시안 미리보기</div>
+                <div className="detail-col-title">고객 인쇄 문구 검수 & 시안</div>
 
                 <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                   {hasSticker && (
                     <div>
-                      <a href={`${fileUrl(d.printCode!)}?inline=1`} target="_blank" rel="noreferrer" title="스티커 원본 보기">
+                      <a href={`${fileUrl(d.printCode!)}?inline=1`} target="_blank" rel="noreferrer" title="스티커 크게 보기">
                         <img
                           src={`${fileUrl(d.printCode!)}?thumb=1`}
-                          alt="스티커 시안"
-                          width={72}
-                          height={72}
-                          style={{ objectFit: 'contain', background: '#eee', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                          alt="스티커"
+                          width={64}
+                          height={64}
+                          style={{ objectFit: 'contain', background: '#eee', borderRadius: 4, border: '1px solid #cbd5e1' }}
                         />
                       </a>
-                      <div className="small muted" style={{ textAlign: 'center', marginTop: 2 }}>
-                        스티커
-                      </div>
                     </div>
                   )}
 
                   {hasCard && (
                     <div>
-                      <a href={`${fileUrl(d.printCode!)}?inline=1&item=card`} target="_blank" rel="noreferrer" title="카드 원본 보기">
+                      <a href={`${fileUrl(d.printCode!)}?inline=1&item=card`} target="_blank" rel="noreferrer" title="카드 크게 보기">
                         <img
                           src={`${fileUrl(d.printCode!)}?thumb=1&item=card`}
-                          alt="카드 시안"
-                          width={72}
-                          height={50}
-                          style={{ objectFit: 'contain', background: '#eee', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                          alt="카드"
+                          width={64}
+                          height={44}
+                          style={{ objectFit: 'contain', background: '#eee', borderRadius: 4, border: '1px solid #cbd5e1' }}
                         />
                       </a>
-                      <div className="small muted" style={{ textAlign: 'center', marginTop: 2 }}>
-                        카드
-                      </div>
                     </div>
                   )}
 
                   {!hasSticker && !hasCard && <div className="small muted">인쇄물 없는 일반 포장입니다.</div>}
                 </div>
 
-                {/* 고객 입력 문구 박스 (가독성 높은 monospace 폰트) */}
+                {/* 고객 입력 문구 원문 박스 */}
                 <div className="customer-msg-box">
-                  {msgDetails.recipient && <div>[받는 분] {msgDetails.recipient}</div>}
+                  {msgDetails.recipient && <div><b>[받는 분]</b> {msgDetails.recipient}</div>}
                   {msgDetails.stickerTexts.length > 0 && (
                     <div style={{ marginTop: 4 }}>
-                      [스티커 문구]
+                      <b>[스티커 문구]</b>
                       <br />
                       {msgDetails.stickerTexts.join('\n')}
                     </div>
                   )}
                   {msgDetails.cardTexts.length > 0 && (
                     <div style={{ marginTop: 4 }}>
-                      [카드 문구]
+                      <b>[카드 문구]</b>
                       <br />
                       {msgDetails.cardTexts.join('\n')}
                     </div>
                   )}
-                  {msgDetails.sender && <div style={{ marginTop: 4 }}>[보내는 분] {msgDetails.sender}</div>}
-                  {msgDetails.printDate && <div style={{ marginTop: 4 }}>[인쇄 일자] {msgDetails.printDate}</div>}
+                  {msgDetails.sender && <div style={{ marginTop: 4 }}><b>[보내는 분]</b> {msgDetails.sender}</div>}
+                  {msgDetails.printDate && <div style={{ marginTop: 4 }}><b>[인쇄 일자]</b> {msgDetails.printDate}</div>}
                   {!msgDetails.recipient &&
                     !msgDetails.sender &&
                     msgDetails.stickerTexts.length === 0 &&
@@ -1365,182 +1170,125 @@ function BoardRow({
                     type="button"
                     className="btn small"
                     disabled={pending}
-                    onClick={() => handleFastStatusChange('order_confirmed')}
-                    style={{ background: '#16a34a', color: '#fff', fontWeight: 600, width: '100%' }}
+                    onClick={() => handleStatusChange('order_confirmed')}
+                    style={{ background: '#16a34a', color: '#fff', fontWeight: 600 }}
                   >
                     ✓ 문구 검수 완료 → [인쇄 대기]로 변경
                   </button>
                 )}
               </div>
 
-              {/* 컬럼 2: 일정 관리 & 카페24 주문 연결 조치 */}
+              {/* 우측: 일정 관리 & 주문번호 기록 & 인쇄 파일 & 메모 */}
               <div className="detail-col">
-                <div className="detail-col-title">일정 관리 & 카페24 주문 연결</div>
+                <div className="detail-col-title">일정 확인 및 작업 관리</div>
 
-                {/* 일정 인라인 편집 */}
-                <div style={{ display: 'grid', gap: 6, background: '#fff', padding: 10, borderRadius: 6, border: '1px solid #cbd5e1' }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, color: '#334155' }}>
-                    행사일 및 희망 수령일 (고객 입력)
-                  </div>
-
+                {/* 일정 인라인 편집 (희망 수령일 / 행사일) */}
+                <div style={{ background: '#fff', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1', display: 'grid', gap: 6 }}>
                   <div className="row" style={{ gap: 8 }}>
-                    <label style={{ flex: 1, fontSize: 12 }}>
-                      <span className="muted">희망 수령일:</span>
+                    <label style={{ flex: 1, fontSize: 11.5 }}>
+                      <span className="muted">희망 수령일 (고객 입력):</span>
                       <input
                         type="date"
-                        value={desiredDeliveryDate}
-                        onChange={(e) => setDesiredDeliveryDate(e.target.value)}
+                        value={desiredDeliveryDateInput}
+                        onChange={(e) => setDesiredDeliveryDateInput(e.target.value)}
                         style={{ width: '100%', marginTop: 2 }}
                       />
                     </label>
-
-                    <label style={{ flex: 1, fontSize: 12 }}>
-                      <span className="muted">행사일:</span>
+                    <label style={{ flex: 1, fontSize: 11.5 }}>
+                      <span className="muted">행사일 (고객 입력):</span>
                       <input
                         type="date"
-                        value={eventDate}
-                        onChange={(e) => setEventDate(e.target.value)}
+                        value={eventDateInput}
+                        onChange={(e) => setEventDateInput(e.target.value)}
                         style={{ width: '100%', marginTop: 2 }}
                       />
                     </label>
                   </div>
 
-                  {info.hasConflict && (
-                    <div style={{ fontSize: 12, color: '#dc2626', background: '#fef2f2', padding: 6, borderRadius: 4 }}>
-                      ⚠️ {info.conflictMessage}
-                    </div>
-                  )}
-
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}>
-                    <button type="button" className="btn ghost small" disabled={pending} onClick={handleSaveDetails}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button type="button" className="btn ghost small" disabled={pending} onClick={handleSaveSchedule}>
                       일정 저장
                     </button>
                   </div>
                 </div>
 
-                {/* 카페24 주문번호 연결 및 포장 없음 조치 */}
-                <div style={{ display: 'grid', gap: 6, background: '#fff', padding: 10, borderRadius: 6, border: '1px solid #cbd5e1' }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, color: '#334155' }}>카페24 주문번호 연결</div>
-
+                {/* 주문번호 수동 입력 (자동 상태 전진 없이 기록만 수행) */}
+                <div style={{ background: '#fff', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1', display: 'grid', gap: 4 }}>
+                  <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>카페24 주문번호 기록:</span>
                   <div className="row" style={{ gap: 6 }}>
                     <input
                       type="text"
-                      value={orderNo}
-                      onChange={(e) => setOrderNo(e.target.value)}
+                      value={orderNoInput}
+                      onChange={(e) => setOrderNoInput(e.target.value)}
                       placeholder="예: 20261117-0000123"
-                      style={{ flex: 1, fontSize: 12.5 }}
+                      style={{ flex: 1, fontSize: 12 }}
                     />
-                    <button type="button" className="btn small" disabled={pending} onClick={handleLinkOrder}>
-                      연결하기
+                    <button type="button" className="btn small" disabled={pending} onClick={handleSaveOrderNo}>
+                      주문번호 저장
                     </button>
                   </div>
-
-                  {!d.orderNo && (
-                    <div style={{ marginTop: 4 }}>
+                  {!d.orderNo && !hasSticker && !hasCard && !d.hasPrintFile && !isPending && !isCanceled && (
+                    <div style={{ marginTop: 2 }}>
                       <button
                         type="button"
                         className="btn ghost small"
                         disabled={pending}
                         onClick={handleDismissPackaging}
-                        style={{ width: '100%', color: '#64748b' }}
+                        style={{ width: '100%', fontSize: 11.5 }}
                       >
-                        포장·인쇄물 없음으로 확정 (일반 상품)
+                        포장·인쇄물 없음으로 확정
                       </button>
                     </div>
                   )}
                 </div>
-              </div>
 
-              {/* 컬럼 3: 인쇄 파일 출력 & 빠른 작업 전진 & 관리자 메모 */}
-              <div className="detail-col">
-                <div className="detail-col-title">인쇄 파일 출력 & 작업 메모</div>
-
-                {/* 인쇄 파일 다운로드 목록 */}
-                <div style={{ display: 'grid', gap: 6 }}>
-                  {isCanceled ? (
-                    <div style={{ background: '#fef2f2', color: '#991b1b', padding: 8, borderRadius: 6, fontSize: 12.5, fontWeight: 600 }}>
-                      ⚠️ 취소·환불된 주문입니다. 인쇄 및 출고가 차단됩니다.
-                    </div>
-                  ) : (
-                    <>
-                      {hasSticker && (
-                        <div className="row" style={{ gap: 6, alignItems: 'center' }}>
-                          <span className="small muted" style={{ minWidth: 46 }}>
-                            스티커:
-                          </span>
-                          <a className="btn small" href={sheetUrl(d.code, options)} target="_blank" rel="noreferrer">
-                            PDF ({options.paper})
-                          </a>
-                          <a className="btn ghost small" href={sheetUrl(d.code, options, true)} target="_blank" rel="noreferrer">
-                            시험 1장
-                          </a>
-                          <a className="btn ghost small" href={fileUrl(d.printCode!)} target="_blank" rel="noreferrer">
-                            PNG
-                          </a>
-                        </div>
-                      )}
-
-                      {hasCard && (
-                        <div className="row" style={{ gap: 6, alignItems: 'center' }}>
-                          <span className="small muted" style={{ minWidth: 46 }}>
-                            카드:
-                          </span>
-                          <a className="btn small" href={`${sheetUrl(d.code, options)}&item=card`} target="_blank" rel="noreferrer">
-                            PDF ({options.paper})
-                          </a>
-                          <a className="btn ghost small" href={`${sheetUrl(d.code, options, true)}&item=card`} target="_blank" rel="noreferrer">
-                            시험 1장
-                          </a>
-                          <a className="btn ghost small" href={`${fileUrl(d.printCode!)}?item=card`} target="_blank" rel="noreferrer">
-                            PNG
-                          </a>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                {/* 상태 빠른 전진 버튼 */}
-                {!isCanceled && (
-                  <div style={{ display: 'grid', gap: 6, marginTop: 4 }}>
-                    {d.status === 'order_confirmed' && (
-                      <button
-                        type="button"
-                        className="btn small"
-                        disabled={pending}
-                        onClick={() => handleFastStatusChange('printed')}
-                        style={{ background: '#2563eb', color: '#fff', fontWeight: 600 }}
-                      >
-                        ✓ 인쇄 출력 완료 → [인쇄 완료]로 전진
-                      </button>
+                {/* 인쇄 파일 링크 (취소/대기 건은 차단) */}
+                {printable && !isCanceled && !isPending && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                    {hasSticker && (
+                      <div className="row" style={{ gap: 4, alignItems: 'center' }}>
+                        <span className="small muted">스티커:</span>
+                        <a className="btn small" href={sheetUrl(d.code, options)} target="_blank" rel="noreferrer">
+                          PDF ({options.paper})
+                        </a>
+                        <a className="btn ghost small" href={sheetUrl(d.code, options, true)} target="_blank" rel="noreferrer">
+                          시험1장
+                        </a>
+                        <a className="btn ghost small" href={fileUrl(d.printCode!)} target="_blank" rel="noreferrer">
+                          PNG
+                        </a>
+                      </div>
                     )}
-                    {d.status === 'printed' && (
-                      <button
-                        type="button"
-                        className="btn small"
-                        disabled={pending}
-                        onClick={() => handleFastStatusChange('completed')}
-                        style={{ background: '#16a34a', color: '#fff', fontWeight: 600 }}
-                      >
-                        ✓ 포장 작업 완료 → [포장 완료]로 확정
-                      </button>
+                    {hasCard && (
+                      <div className="row" style={{ gap: 4, alignItems: 'center' }}>
+                        <span className="small muted">카드:</span>
+                        <a className="btn small" href={`${sheetUrl(d.code, options)}&item=card`} target="_blank" rel="noreferrer">
+                          PDF ({options.paper})
+                        </a>
+                        <a className="btn ghost small" href={`${sheetUrl(d.code, options, true)}&item=card`} target="_blank" rel="noreferrer">
+                          시험1장
+                        </a>
+                        <a className="btn ghost small" href={`${fileUrl(d.printCode!)}?item=card`} target="_blank" rel="noreferrer">
+                          PNG
+                        </a>
+                      </div>
                     )}
                   </div>
                 )}
 
-                {/* 관리자 메모 */}
-                <div style={{ display: 'grid', gap: 4, marginTop: 4 }}>
-                  <span className="small muted">관리자 한 줄 메모:</span>
+                {/* 관리자 메모 인라인 입력 */}
+                <div style={{ display: 'grid', gap: 2 }}>
+                  <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>관리자 메모:</span>
                   <div className="row" style={{ gap: 6 }}>
                     <input
                       type="text"
-                      value={memo}
-                      onChange={(e) => setMemo(e.target.value)}
+                      value={memoInput}
+                      onChange={(e) => setMemoInput(e.target.value)}
                       placeholder="특이사항 메모 입력"
-                      style={{ flex: 1, fontSize: 12.5 }}
+                      style={{ flex: 1, fontSize: 12 }}
                     />
-                    <button type="button" className="btn small" disabled={pending} onClick={handleSaveDetails}>
-                      저장
+                    <button type="button" className="btn small" disabled={pending} onClick={handleSaveMemo}>
+                      메모 저장
                     </button>
                   </div>
                 </div>
