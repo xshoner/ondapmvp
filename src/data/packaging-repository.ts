@@ -276,15 +276,26 @@ const LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, even
 // 20261025000000_operations.sql을 실행하기 전 DB: 새 칸(상태 시각·원본)이 없다 (42703 undefined_column)
 const OLD_LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, event, style_id, style_name, sticker, print_path, status, order_no, memo';
 
-export async function listDesigns(opts: { limit?: number; code?: string | null; status?: DesignStatus | null; from?: string | null; to?: string | null; late?: boolean; includePending?: boolean; intakeOnly?: boolean } = {}): Promise<Design[]> {
+export async function listDesigns(opts: { limit?: number; code?: string | null; status?: DesignStatus | null; from?: string | null; to?: string | null; late?: boolean; includePending?: boolean; intakeOnly?: boolean; preserveIncomplete?: boolean } = {}): Promise<Design[]> {
   const limit = opts.limit ?? 200;
   const { gte, lt } = kstRange({ from: opts.from ?? null, to: opts.to ?? null });
   const now = Date.now();
   if (dataSource() === 'local') {
-    return readLocalDesigns()
+    const filtered = readLocalDesigns()
       .filter((d) => (opts.includePending || opts.status === 'pending' || d.status !== 'pending') && (!opts.intakeOnly || d.status !== 'pending' || d.orderNo != null || (d.memo || '').includes('카페24 주문: 20')) && (!opts.code || d.code === opts.code) && (!opts.status || d.status === opts.status)
-        && (!gte || d.createdAt >= gte) && (!lt || d.createdAt < lt) && (!opts.late || isLate(d, now)))
-      .slice(0, limit).map((d) => ({ ...d, draft: null, cardDraft: null }));
+        && (!gte || d.createdAt >= gte) && (!lt || d.createdAt < lt) && (!opts.late || isLate(d, now)));
+
+    if (opts.preserveIncomplete) {
+      const isIncomplete = (d: Design) => (d.status !== 'completed' && d.status !== 'no_packaging' && d.status !== 'canceled') || Boolean(d.cafe24Canceled);
+      const incompletedList = filtered.filter(isIncomplete);
+      const completedList = filtered.filter((d) => !isIncomplete(d));
+      const remainingSlots = Math.max(0, limit - incompletedList.length);
+      const combined = [...incompletedList, ...completedList.slice(0, remainingSlots)];
+      combined.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      return combined.map((d) => ({ ...d, draft: null, cardDraft: null }));
+    }
+
+    return filtered.slice(0, limit).map((d) => ({ ...d, draft: null, cardDraft: null }));
   }
   const db = await createClient();
   const query = (columns: string, late: boolean) => {
@@ -305,6 +316,27 @@ export async function listDesigns(opts: { limit?: number; code?: string | null; 
   let { rows, error } = await readAll(LIST_COLUMNS, Boolean(opts.late));
   if (error?.code === '42703') ({ rows, error } = await readAll(OLD_LIST_COLUMNS, false));
   if (error) fail('디자인 목록 읽기', error);
+
+  // 미완료/확인필요 건이 최근 완료 건에 밀려 잘리지 않도록 추가 보존 조회
+  if (opts.preserveIncomplete && !opts.code && !opts.status && rows.length >= limit) {
+    try {
+      let incompleteQ = db.from('designs').select(LIST_COLUMNS).or('status.in.(received,order_confirmed,printed,holding),cafe24_canceled.eq.true').order('created_at', { ascending: false });
+      if (!opts.includePending) incompleteQ = incompleteQ.neq('status', 'pending');
+      if (opts.intakeOnly) incompleteQ = incompleteQ.or('status.neq.pending,order_no.not.is.null,memo.like.*카페24 주문: 20*');
+      const { rows: incRows, error: incError } = await readPages((from, to) => incompleteQ.range(from, to) as unknown as DbPage<Row>, limit);
+      if (!incError && incRows.length > 0) {
+        const rowMap = new Map<string, Row>();
+        for (const r of incRows) rowMap.set(r.code, r);
+        for (const r of rows) rowMap.set(r.code, r);
+        const mergedRows = Array.from(rowMap.values());
+        mergedRows.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+        return mergedRows.map(designFromRow);
+      }
+    } catch {
+      // 보존 쿼리 실패 시 기존 rows 유지
+    }
+  }
+
   return rows.map(designFromRow);
 }
 

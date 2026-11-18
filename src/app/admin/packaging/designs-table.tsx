@@ -24,6 +24,7 @@ import {
   getDesignDetailAction,
   linkDesignToOrderAction,
   confirmCancelAction,
+  confirmResumeAction,
 } from './actions.ts';
 
 type PrintOptions = { paper: Paper; fill: boolean };
@@ -31,6 +32,8 @@ type Props = {
   designs: Design[];
   mergedItems?: MergedBoardItem[];
   cafe24Error?: string | null;
+  cafe24HasMore?: boolean;
+  cafe24Days?: number;
   eventNames: Record<string, string>;
   filter: DesignFilter & { rawCode: string; codeInvalid: boolean };
   now: number;
@@ -73,7 +76,7 @@ function getMessageDetails(d: Design) {
   return { stickerTexts, cardTexts, recipient, sender, printDate };
 }
 
-export function DesignsTable({ designs, mergedItems, cafe24Error, eventNames, filter, now }: Props) {
+export function DesignsTable({ designs, mergedItems, cafe24Error, cafe24HasMore, cafe24Days = 7, eventNames, filter, now }: Props) {
   const router = useRouter();
   const exportQuery = filterQuery(filter);
   const [options, setOptions] = useState<PrintOptions>({ paper: 'A4', fill: false });
@@ -379,7 +382,7 @@ export function DesignsTable({ designs, mergedItems, cafe24Error, eventNames, fi
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
-      {/* 카페24 API 오류/권한 부족 발생 시 상단 알림 */}
+      {/* 카페24 주문 조회 오류/권한 문제 발생 시 상단 알림 */}
       {cafe24Error && (
         <div
           role="alert"
@@ -400,9 +403,9 @@ export function DesignsTable({ designs, mergedItems, cafe24Error, eventNames, fi
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 16 }}>⚠️</span>
             <div>
-              <b>카페24 실시간 주문 연동 알림:</b> {cafe24Error}
+              <b>주문 일부를 확인하지 못했습니다:</b> {cafe24Error}
               <div style={{ fontSize: 11.5, color: '#9f1239', marginTop: 1 }}>
-                관리자 토큰 만료 또는 권한 부족 시 주문 조회가 제한될 수 있습니다.
+                쇼핑몰 연동 상태 또는 권한 문제 시 주문 조회가 제한될 수 있습니다.
               </div>
             </div>
           </div>
@@ -411,8 +414,31 @@ export function DesignsTable({ designs, mergedItems, cafe24Error, eventNames, fi
             className="btn small"
             style={{ fontSize: 12, background: '#e11d48', color: '#fff', border: 'none', fontWeight: 600 }}
           >
-            운영 상태 점검
+            운영 상태 확인
           </a>
+        </div>
+      )}
+
+      {/* 페이지/조회 한도 도달 알림 */}
+      {cafe24HasMore && (
+        <div
+          role="status"
+          style={{
+            padding: '8px 12px',
+            background: '#fffbeb',
+            color: '#92400e',
+            border: '1px solid #fde68a',
+            borderRadius: 8,
+            fontSize: 12.5,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <span>ℹ️</span>
+          <div>
+            <b>주문 조회 한도 도달:</b> 최근 주문량이 많아 일부 주문이 표시되지 않았을 수 있습니다. 기간을 좁히거나 주문번호로 검색해 확인해 주세요.
+          </div>
         </div>
       )}
 
@@ -541,7 +567,29 @@ export function DesignsTable({ designs, mergedItems, cafe24Error, eventNames, fi
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginRight: 8 }}>
+              <span className="small muted" style={{ fontSize: 12 }}>주문 조회:</span>
+              {[7, 14, 30].map((d) => (
+                <a
+                  key={d}
+                  href={`/admin/packaging?tab=designs&days=${d}${exportQuery ? `&${exportQuery}` : ''}`}
+                  style={{
+                    fontSize: 11.5,
+                    padding: '2px 6px',
+                    borderRadius: 4,
+                    textDecoration: 'none',
+                    background: cafe24Days === d ? '#0f172a' : '#f1f5f9',
+                    color: cafe24Days === d ? '#fff' : '#475569',
+                    fontWeight: cafe24Days === d ? 700 : 400,
+                  }}
+                  title={`최근 ${d}일간의 카페24 주문 조회`}
+                >
+                  최근 {d}일
+                </a>
+              ))}
+            </div>
+
             <span className="small muted">정렬:</span>
             <select
               value={sortBy}
@@ -1042,7 +1090,9 @@ function BoardRow({
   const hasSticker = Boolean(d.printCode && d.sticker);
   const hasCard = Boolean(d.printCode && d.card);
   const printable = hasSticker || hasCard;
-  const isCanceled = d.status === 'canceled' || Boolean(d.cafe24Canceled);
+  const isConfirmedCanceled = d.status === 'canceled';
+  const isPartialCancelCheckNeeded = !isConfirmedCanceled && Boolean(d.cafe24Canceled);
+  const isCanceled = isConfirmedCanceled;
   const isPending = d.status === 'pending';
   const stickerSheets = d.sticker ? sheetsNeeded(sheetLayout(d.sticker, options.paper), d.quantity) : 0;
   const cardSheets = d.card ? sheetsNeeded(sheetLayout(d.card, options.paper), d.quantity) : 0;
@@ -1093,7 +1143,7 @@ function BoardRow({
       }
     });
 
-  // 주문번호 연결 (카페24 결제·상품·수량·중복 5대 불변식 실시간 검증 후 연결)
+  // 주문번호 연결 (결제·상품·수량 일치 실시간 확인 후 연결)
   const handleSaveOrderNo = () =>
     start(async () => {
       setMessage(null);
@@ -1160,14 +1210,37 @@ function BoardRow({
       }
     });
 
+  // 부분 취소 확인 필요 상태에서 카페24 주문서 대조 후 정상 진행 확인 처리
+  const handleConfirmResume = () =>
+    start(async () => {
+      const reason = prompt(
+        `[정상 진행 확인]\n카페24 주문서와 대조하여 이 디자인(${d.code})이 취소 대상이 아님을 확인하셨습니까?\n확인 사유나 메모를 입력해 주세요:`,
+        '카페24 주문서 대조 완료, 정상 제작 진행',
+      );
+      if (reason === null) return;
+      setMessage(null);
+      const res = await confirmResumeAction(d.code, reason);
+      if (res.ok) {
+        setMessage('정상 진행 확인 완료 (확인 필요 해제)');
+        router.refresh();
+      } else {
+        setMessage(res.message);
+      }
+    });
+
+  // 카페24 주문 취소 건을 관리자가 확인하고 취소 확정 처리
   const handleConfirmCancel = () =>
     start(async () => {
-      if (!confirm(`카페24 주문 취소 건(${d.code})을 확인하고 접수 상태를 '취소'로 확정하시겠습니까?`)) return;
+      const reason = prompt(
+        `[취소 확정]\n이 디자인(${d.code})을 취소 처리하시겠습니까?\n취소 사유나 메모를 입력해 주세요:`,
+        '카페24 주문 취소 확인 완료',
+      );
+      if (reason === null) return;
       setMessage(null);
-      const res = await confirmCancelAction(d.code);
+      const res = await confirmCancelAction(d.code, reason);
       if (res.ok) {
         setStatus('canceled');
-        setMessage('취소 확인 처리 완료');
+        setMessage('취소 확정 처리 완료');
         router.refresh();
       } else {
         setMessage(res.message);
@@ -1180,7 +1253,7 @@ function BoardRow({
       <tr
         data-row={d.code}
         className={`board-core-row ${active ? 'cursor' : ''} ${expanded ? 'expanded' : ''}`}
-        style={{ opacity: isCanceled ? 0.55 : 1 }}
+        style={{ opacity: isConfirmedCanceled ? 0.55 : 1 }}
         onFocusCapture={onFocusRow}
       >
         <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
@@ -1217,18 +1290,26 @@ function BoardRow({
                 <span className="order-badge-unlinked">⚠️ 미연결</span>
               </div>
             )}
-            {d.cafe24Canceled && d.status !== 'canceled' && (
+            {isConfirmedCanceled ? (
               <div>
                 <span className="badge small" style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', fontWeight: 700 }}>
-                  ⚠️ 카페24 취소 알림
+                  ✕ 취소 확정
                 </span>
               </div>
-            )}
+            ) : isPartialCancelCheckNeeded ? (
+              <div>
+                <span className="badge small" style={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fcd34d', fontWeight: 700 }}>
+                  ⚠️ 부분 취소 확인 필요
+                </span>
+              </div>
+            ) : null}
             <div className="small muted">
               {isPending
                 ? '결제 대기'
-                : isCanceled
+                : isConfirmedCanceled
                 ? '취소된 주문'
+                : isPartialCancelCheckNeeded
+                ? '카페24 취소 감지 (확인 필요)'
                 : `디자인 생성: ${kstLabel(d.createdAt)}`}
             </div>
           </div>
@@ -1270,7 +1351,7 @@ function BoardRow({
               <select
                 value={status}
                 onChange={(e) => handleStatusChange(e.target.value as DesignStatus)}
-                disabled={pending || isCanceled}
+                disabled={pending || isConfirmedCanceled}
                 aria-label="상태"
                 style={{
                   fontSize: 12,
@@ -1300,9 +1381,13 @@ function BoardRow({
             {/* 빠른 인쇄 버튼: 취소나 결제대기 건은 안전하게 차단 */}
             {printable && (
               <div>
-                {isCanceled ? (
+                {isConfirmedCanceled ? (
                   <span style={{ fontSize: 11, color: '#dc2626', fontWeight: 600 }}>
                     ⚠️ 취소 주문 (인쇄 금지)
+                  </span>
+                ) : isPartialCancelCheckNeeded ? (
+                  <span style={{ fontSize: 11, color: '#b45309', fontWeight: 600 }}>
+                    ⚠️ 부분 취소 확인 후 인쇄 가능
                   </span>
                 ) : isPending ? (
                   <span style={{ fontSize: 11, color: '#b45309' }}>
@@ -1324,24 +1409,44 @@ function BoardRow({
               </div>
             )}
 
-            {/* 카페24 취소 알림 건의 관리자 확인 처리 버튼 */}
-            {d.cafe24Canceled && d.status !== 'canceled' && (
-              <div>
+            {/* 카페24 취소 알림 건: 정상 진행 vs 취소 확정 선택 */}
+            {isPartialCancelCheckNeeded && (
+              <div style={{ display: 'flex', gap: 4 }}>
                 <button
                   type="button"
                   className="btn small"
                   style={{
-                    width: '100%',
+                    flex: 1,
+                    background: '#16a34a',
+                    color: '#fff',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: '2px 4px',
+                    whiteSpace: 'nowrap',
+                  }}
+                  disabled={pending}
+                  onClick={handleConfirmResume}
+                  title="카페24 주문서 대조 후 정상 품목인 경우 제작을 계속 진행합니다"
+                >
+                  ✓ 정상 진행
+                </button>
+                <button
+                  type="button"
+                  className="btn small"
+                  style={{
+                    flex: 1,
                     background: '#dc2626',
                     color: '#fff',
-                    fontSize: 11.5,
+                    fontSize: 11,
                     fontWeight: 700,
-                    padding: '2px 6px',
+                    padding: '2px 4px',
+                    whiteSpace: 'nowrap',
                   }}
                   disabled={pending}
                   onClick={handleConfirmCancel}
+                  title="이 디자인이 취소 대상임을 확인하고 취소 확정 처리합니다"
                 >
-                  취소 확인 처리
+                  ✕ 취소 확정
                 </button>
               </div>
             )}
@@ -1355,32 +1460,49 @@ function BoardRow({
       {expanded && (
         <tr className="board-detail-row">
           <td colSpan={6}>
-            {d.cafe24Canceled && d.status !== 'canceled' && (
+            {isPartialCancelCheckNeeded && (
               <div
                 style={{
-                  background: '#fef2f2',
-                  border: '1px solid #fecaca',
-                  padding: '8px 12px',
+                  background: '#fffbeb',
+                  border: '1px solid #fde68a',
+                  padding: '10px 14px',
                   margin: '10px 14px 0',
                   borderRadius: 6,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: 10,
+                  flexWrap: 'wrap',
                 }}
               >
-                <div style={{ fontSize: 12, color: '#991b1b', fontWeight: 600 }}>
-                  ⚠️ 이 접수는 카페24에서 주문이 취소/환불되었습니다. 제작·출고를 중단하고 취소 확인 처리를 해 주세요.
+                <div>
+                  <div style={{ fontSize: 12.5, color: '#92400e', fontWeight: 700 }}>
+                    ⚠️ 카페24에서 주문 취소가 감지되었습니다 (확인 필요)
+                  </div>
+                  <div style={{ fontSize: 11.5, color: '#78350f', marginTop: 2 }}>
+                    동일 주문 내 다른 품목이 취소되었을 수 있습니다. 카페24 주문서와 대조하여 이 디자인의 품목이 정상 건이면 [정상 진행], 취소 건이면 [취소 확정]을 선택해 주세요.
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  className="btn small"
-                  style={{ background: '#dc2626', color: '#fff', fontSize: 11.5, fontWeight: 700, whiteSpace: 'nowrap' }}
-                  disabled={pending}
-                  onClick={handleConfirmCancel}
-                >
-                  취소 확인 처리
-                </button>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    type="button"
+                    className="btn small"
+                    style={{ background: '#16a34a', color: '#fff', fontSize: 11.5, fontWeight: 700, whiteSpace: 'nowrap' }}
+                    disabled={pending}
+                    onClick={handleConfirmResume}
+                  >
+                    ✓ 정상 진행 확인
+                  </button>
+                  <button
+                    type="button"
+                    className="btn small"
+                    style={{ background: '#dc2626', color: '#fff', fontSize: 11.5, fontWeight: 700, whiteSpace: 'nowrap' }}
+                    disabled={pending}
+                    onClick={handleConfirmCancel}
+                  >
+                    ✕ 취소 확정
+                  </button>
+                </div>
               </div>
             )}
             <div className="board-detail-box">
@@ -1501,9 +1623,9 @@ function BoardRow({
                   </div>
                 </div>
 
-                {/* 주문번호 연결 (카페24 결제·상품·수량 5대 불변식 검증 후 연결) */}
+                {/* 주문번호 연결 (결제·상품·수량 확인 후 연결) */}
                 <div style={{ background: '#fff', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1', display: 'grid', gap: 4 }}>
-                  <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>카페24 주문번호 연결 (결제·상품·수량 실시간 검증):</span>
+                  <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>카페24 주문번호 연결 (결제·상품·수량 확인):</span>
                   <div className="row" style={{ gap: 6 }}>
                     <input
                       type="text"
@@ -1715,7 +1837,7 @@ function UnlinkedOrderRow({
 
                 {/* 디자인 수동 연결 폼 */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 280, background: '#fff', padding: 10, borderRadius: 6, border: '1px solid #fed7aa' }}>
-                  <b className="small" style={{ color: '#9a3412' }}>디자인 수동 연결 (5대 불변식 검증):</b>
+                  <b className="small" style={{ color: '#9a3412' }}>디자인 연결:</b>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <input
                       type="text"

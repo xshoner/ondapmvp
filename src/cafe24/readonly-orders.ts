@@ -22,6 +22,9 @@ export interface ReadOnlyOrdersResult {
   total: number;
   error?: string;
   errorCode?: ReadOnlyErrorCode;
+  hasMore?: boolean;
+  checkedDays?: number;
+  failedCount?: number;
 }
 
 export interface FetchReadOnlyOrdersOptions {
@@ -70,23 +73,28 @@ export function extractItemDesignCode(item: Cafe24AdminOrderItem): string | null
   if (!item) return null;
 
   if (Array.isArray(item.options)) {
-    for (const opt of item.options) {
+    for (const opt of item.options as Record<string, unknown>[]) {
       if (!opt) continue;
-      const code = normalizeDesignCode(opt.value) || findDesignCode(opt.value);
-      if (code) return code;
-    }
-  }
-
-  if (Array.isArray(item.additional_option)) {
-    for (const opt of item.additional_option as { name?: string; value?: string }[]) {
-      if (typeof opt?.value === 'string') {
-        const code = normalizeDesignCode(opt.value) || findDesignCode(opt.value);
+      const v = typeof opt.value === 'string' ? opt.value : (typeof opt.option_value === 'string' ? opt.option_value : '');
+      if (v) {
+        const code = normalizeDesignCode(v) || findDesignCode(v);
         if (code) return code;
       }
     }
   }
 
-  if (typeof item.option_value === 'string') {
+  if (Array.isArray(item.additional_option)) {
+    for (const opt of item.additional_option as Record<string, unknown>[]) {
+      if (!opt) continue;
+      const v = typeof opt.value === 'string' ? opt.value : (typeof opt.option_value === 'string' ? opt.option_value : '');
+      if (v) {
+        const code = normalizeDesignCode(v) || findDesignCode(v);
+        if (code) return code;
+      }
+    }
+  }
+
+  if (typeof item.option_value === 'string' && item.option_value) {
     const code = normalizeDesignCode(item.option_value) || findDesignCode(item.option_value);
     if (code) return code;
   }
@@ -147,12 +155,13 @@ export async function fetchRecentCafe24OrdersReadOnly(
   let token: string;
   try {
     token = options.customToken || (await getValidAccessToken());
-  } catch (err) {
+  } catch {
     return {
       ok: false,
       orders: [],
       total: 0,
-      error: `카페24 인증 토큰을 가져오지 못했습니다: ${err instanceof Error ? err.message : String(err)}`,
+      checkedDays: days,
+      error: '카페24 쇼핑몰 계정 연동을 확인해 주세요. (운영 상태 메뉴에서 다시 연결할 수 있습니다)',
       errorCode: 'AUTH_EXPIRED',
     };
   }
@@ -167,6 +176,7 @@ export async function fetchRecentCafe24OrdersReadOnly(
   const allOrders: Cafe24AdminOrder[] = [];
   let offset = 0;
   const limit = 100;
+  let reachedMaxPages = false;
 
   for (let page = 0; page < maxPages; page++) {
     const url = `https://${mallId}.cafe24api.com/api/v2/admin/orders?start_date=${from}&end_date=${today}&embed=items,additional_order_info_list&limit=${limit}&offset=${offset}`;
@@ -182,12 +192,13 @@ export async function fetchRecentCafe24OrdersReadOnly(
         cache: 'no-store',
         signal: AbortSignal.timeout(timeoutMs),
       });
-    } catch (err) {
+    } catch {
       return {
         ok: false,
         orders: allOrders,
         total: allOrders.length,
-        error: `카페24 API 네트워크 연결 실패: ${err instanceof Error ? err.message : String(err)}`,
+        checkedDays: days,
+        error: '카페24 주문 서버에 연결할 수 없습니다. 잠시 후 다시 확인해 주세요.',
         errorCode: 'NETWORK_ERROR',
       };
     }
@@ -211,7 +222,8 @@ export async function fetchRecentCafe24OrdersReadOnly(
           ok: false,
           orders: allOrders,
           total: allOrders.length,
-          error: '카페24 관리자 OAuth 인증이 만료되었습니다. 운영 상태에서 재인증이 필요합니다.',
+          checkedDays: days,
+          error: '카페24 연동 계정이 만료되었습니다. 관리자 메뉴(운영 상태)에서 다시 연결해 주세요.',
           errorCode: 'AUTH_EXPIRED',
         };
       }
@@ -222,18 +234,19 @@ export async function fetchRecentCafe24OrdersReadOnly(
         ok: false,
         orders: allOrders,
         total: allOrders.length,
-        error: '카페24 주문 조회 권한이 부족합니다 (403 Forbidden). 관리자 권한 및 스코프(mall.read_order)를 확인해 주세요.',
+        checkedDays: days,
+        error: '카페24 주문 조회 권한이 부족합니다. 관리자 권한 및 주문 조회 설정을 확인해 주세요.',
         errorCode: 'PERMISSION_DENIED',
       };
     }
 
     if (!res.ok) {
-      const errText = await res.text().catch(() => '');
       return {
         ok: false,
         orders: allOrders,
         total: allOrders.length,
-        error: `카페24 주문 목록 조회 실패 (${res.status}): ${errText.slice(0, 150)}`,
+        checkedDays: days,
+        error: '카페24 주문 목록을 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.',
         errorCode: 'API_ERROR',
       };
     }
@@ -243,6 +256,9 @@ export async function fetchRecentCafe24OrdersReadOnly(
     allOrders.push(...batch);
 
     if (batch.length < limit) break;
+    if (page === maxPages - 1 && batch.length >= limit) {
+      reachedMaxPages = true;
+    }
     offset += limit;
   }
 
@@ -250,5 +266,7 @@ export async function fetchRecentCafe24OrdersReadOnly(
     ok: true,
     orders: allOrders,
     total: allOrders.length,
+    checkedDays: days,
+    hasMore: reachedMaxPages,
   };
 }

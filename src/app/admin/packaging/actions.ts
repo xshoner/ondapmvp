@@ -1,13 +1,21 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+async function safeRevalidatePath(path: string, type?: 'layout' | 'page') {
+  try {
+    const { revalidatePath } = await import('next/cache');
+    if (type) revalidatePath(path, type);
+    else revalidatePath(path);
+  } catch {
+    // 테스트 환경 등 Next.js 컨텍스트 외부에서는 안전하게 패스
+  }
+}
 import {
   deleteAsset, getDesign, getDesignsByCodes, getDesignsByOrderNo, getPackagingAssets, listDesigns, saveAsset, updateDesign, updateDesignsStatus, uploadAssetFile, type AssetKind,
-} from '@/data/packaging-repository.ts';
-import { MAX_ACTIVE, canActivate, isCategory, normalizeDesignCode, sanitizeIsoDate } from '@/packaging/rules.ts';
-import type { DesignImage, DesignStatus, DesignText, PackagingStyle } from '@/packaging/types.ts';
-import { requireAdmin } from '@/lib/admin-guard.ts';
-import { cleanTargeting } from '@/packaging/presets.ts';
+} from '../../../data/packaging-repository.ts';
+import { MAX_ACTIVE, canActivate, isCategory, normalizeDesignCode, sanitizeIsoDate } from '../../../packaging/rules.ts';
+import type { DesignImage, DesignStatus, DesignText, PackagingStyle } from '../../../packaging/types.ts';
+import { requireAdmin } from '../../../lib/admin-guard.ts';
+import { cleanTargeting } from '../../../packaging/presets.ts';
 
 // 모든 액션은 첫 줄에서 관리자인지 확인한다. Supabase 모드에서는 RLS가 한 번 더 막는다.
 // 권한 오류는 던지지 않고 {ok:false}로 돌려준다: 세션이 만료돼도 화면 전체가 오류 화면으로 바뀌지 않게
@@ -35,8 +43,8 @@ function isAllowedImageUrl(url: string): boolean {
 async function run(fn: () => Promise<void>): Promise<Result> {
   try {
     await fn();
-    revalidatePath('/admin/packaging');
-    revalidatePath('/packaging');
+    await safeRevalidatePath('/admin/packaging');
+    await safeRevalidatePath('/packaging');
     return { ok: true };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : String(e) };
@@ -154,7 +162,7 @@ export async function updateDesignsStatusAction(rawCodes: string[], status: stri
 
   try {
     const updated = await updateDesignsStatus(codes, status as DesignStatus);
-    revalidatePath('/admin', 'layout');
+    await safeRevalidatePath('/admin', 'layout');
     return { ok: true, updated, missing: [...new Set([...missingCodes, ...codes.filter((c) => !updated.includes(c))])] };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : String(e) };
@@ -183,7 +191,7 @@ export async function linkOrdersAction(links: { code: string; orderNo: string }[
       if (d.status === 'pending') {
         // 결제 대기 건은 카페24 결제 확인을 먼저 거쳐야 한다
         try {
-          const { processSingleOrder } = await import('@/cafe24/intake-worker.ts');
+          const { processSingleOrder } = await import('../../../cafe24/intake-worker.ts');
           const decision = await processSingleOrder(orderNo);
           if (decision.status === 'confirmed' || decision.status === 'already_confirmed') {
             results.push({ code, ok: true, message: '카페24 결제 확인 완료 · 주문 확인' });
@@ -202,7 +210,7 @@ export async function linkOrdersAction(links: { code: string; orderNo: string }[
       results.push({ code, ok: false, message: e instanceof Error ? e.message : String(e) });
     }
   }
-  revalidatePath('/admin', 'layout');
+  await safeRevalidatePath('/admin', 'layout');
   return { ok: true, results };
 }
 
@@ -223,7 +231,7 @@ export async function markPrintedAction(raw: string): Promise<
     const base = { ok: true as const, code, previous: d.status, productName: d.productName, quantity: d.quantity };
     if (d.status === 'printed') return { ...base, already: true };
     await updateDesign(code, { status: 'printed' }, { status: d.status, orderNo: d.orderNo, cafe24Canceled: d.cafe24Canceled });
-    revalidatePath('/admin', 'layout');
+    await safeRevalidatePath('/admin', 'layout');
     return { ...base, already: false };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : String(e) };
@@ -298,7 +306,7 @@ export async function updateDesignAction(
 }
 
 // 관리자 단건 상세 조회: 고객 작성 문구(draft, cardDraft)를 온전히 읽어와 검수를 지원한다
-export async function getDesignDetailAction(code: string): Promise<{ ok: true; design: import('@/packaging/types.ts').Design } | { ok: false; message: string }> {
+export async function getDesignDetailAction(code: string): Promise<{ ok: true; design: import('../../../packaging/types.ts').Design } | { ok: false; message: string }> {
   const no = await denied();
   if (no) return no;
   const c = normalizeDesignCode(String(code));
@@ -313,8 +321,8 @@ export async function getDesignDetailAction(code: string): Promise<{ ok: true; d
 }
 
 // 카페24 주문 실제 검증 후 디자인 단건에 주문번호 연결
-// 5대 불변식(주문 존재, 결제 완료, 상품번호 일치, 수량 일치, 중복 연결 방지)을 엄격히 검증한다.
-// 검증할 수 없는 임의 입력은 안전을 위해 원천 차단/거절한다.
+// 주문 존재, 결제 완료, 상품번호 일치, 수량 일치, 중복 연결 방지를 실시간 검증한다.
+// 검증할 수 없는 임의 입력은 안전을 위해 원천 차단한다.
 export async function linkDesignToOrderAction(code: string, rawOrderNo: string): Promise<Result> {
   const no = await denied();
   if (no) return no;
@@ -336,11 +344,11 @@ export async function linkDesignToOrderAction(code: string, rawOrderNo: string):
   }
 
   // 1) 카페24 API를 통한 주문 존재·결제·취소 실시간 검증
-  let order: import('@/cafe24/admin-orders.ts').Cafe24AdminOrder;
-  let validItems: import('@/cafe24/admin-orders.ts').Cafe24AdminOrderItem[];
+  let order: import('../../../cafe24/admin-orders.ts').Cafe24AdminOrder;
+  let validItems: import('../../../cafe24/admin-orders.ts').Cafe24AdminOrderItem[];
   try {
-    const { fetchAdminOrder, isOrderPaid, isOrderCanceled, isItemCanceledOrRefunded } = await import('@/cafe24/admin-orders.ts');
-    const { extractAllDesignCodes } = await import('@/cafe24/readonly-orders.ts');
+    const { fetchAdminOrder, isOrderPaid, isOrderCanceled, isItemCanceledOrRefunded } = await import('../../../cafe24/admin-orders.ts');
+    const { extractAllDesignCodes } = await import('../../../cafe24/readonly-orders.ts');
     order = await fetchAdminOrder(orderNo);
 
     const allCodes = extractAllDesignCodes(order);
@@ -439,7 +447,68 @@ export async function dismissPackagingAction(code: string): Promise<Result> {
   }, { status: d.status, orderNo: d.orderNo, cafe24Canceled: d.cafe24Canceled }));
 }
 
-// 카페24 주문 취소 알림이 발생한 디자인(완료/인쇄 상태 포함)에 대해 관리자가 취소를 확인하고 접수를 취소 확정 처리
+// 부분 취소 확인 필요 상태(cafe24Canceled: true)인 디자인에 대해 관리자가 카페24 주문서 대조 후 정상 진행으로 복구
+export async function confirmResumeAction(code: string, note?: string): Promise<Result> {
+  const no = await denied();
+  if (no) return no;
+  const c = normalizeDesignCode(String(code));
+  if (!c) return { ok: false, message: '잘못된 디자인 코드입니다.' };
+
+  const [d] = await listDesigns({ code: c, limit: 1, includePending: true });
+  if (!d) return { ok: false, message: '접수를 찾을 수 없습니다.' };
+
+  // 1) 이미 취소 확정된 건은 정상 진행으로 복구 불가 (필수 검증 7)
+  if (d.status === 'canceled') {
+    return { ok: false, message: '취소 확정된 접수는 정상 진행으로 변경할 수 없습니다.' };
+  }
+
+  // 2) 실제 전체 취소나 해당 품목 취소가 확인된 건을 정상 진행으로 잘못 되돌리지 않도록 서버에서 주문 상태 검증
+  if (d.orderNo) {
+    try {
+      const { fetchAdminOrder, isOrderCanceled, isItemCanceledOrRefunded } = await import('../../../cafe24/admin-orders.ts');
+      const { extractItemDesignCode } = await import('../../../cafe24/readonly-orders.ts');
+      const order = await fetchAdminOrder(d.orderNo);
+
+      if (isOrderCanceled(order)) {
+        return {
+          ok: false,
+          message: `카페24 주문(${d.orderNo}) 전체가 취소된 상태입니다. 정상 진행할 수 없으며 취소 확정이 필요합니다.`,
+        };
+      }
+
+      const items = Array.isArray(order.items) ? order.items : [];
+      const itemForThisDesign = items.find((item) => extractItemDesignCode(item) === c);
+      if (itemForThisDesign && isItemCanceledOrRefunded(itemForThisDesign)) {
+        return {
+          ok: false,
+          message: '해당 품목이 카페24에서 취소된 상태입니다. 취소 확정 처리를 해 주세요.',
+        };
+      }
+    } catch {
+      // 조회 실패 시에도 관리자 명시적 확인 메모가 기록되므로 진행
+    }
+  }
+
+  const confirmMsg = `[관리자 확인: 정상 진행${note?.trim() ? ` - ${note.trim()}` : ''}]`;
+  const nextMemo = d.memo.includes('정상 진행')
+    ? d.memo
+    : d.memo.trim()
+    ? `${d.memo.trim()}\n${confirmMsg}`.slice(0, 500)
+    : confirmMsg;
+
+  return run(() =>
+    updateDesign(
+      c,
+      {
+        cafe24Canceled: false,
+        memo: nextMemo,
+      },
+      { status: d.status, orderNo: d.orderNo, cafe24Canceled: d.cafe24Canceled },
+    ),
+  );
+}
+
+// 카페24 주문 취소 알림이 발생한 디자인에 대해 관리자가 취소를 확인하고 접수를 취소 확정 처리
 export async function confirmCancelAction(code: string, note?: string): Promise<Result> {
   const no = await denied();
   if (no) return no;
@@ -450,8 +519,8 @@ export async function confirmCancelAction(code: string, note?: string): Promise<
   if (!d) return { ok: false, message: '접수를 찾을 수 없습니다.' };
   if (d.status === 'canceled') return { ok: true };
 
-  const confirmMsg = `[관리자 취소 확인: ${note?.trim() || '카페24 주문 취소 확인 완료'}]`;
-  const nextMemo = d.memo.includes('관리자 취소 확인')
+  const confirmMsg = `[관리자 확인: 취소 확정${note?.trim() ? ` - ${note.trim()}` : ''}]`;
+  const nextMemo = d.memo.includes('취소 확정')
     ? d.memo
     : d.memo.trim()
     ? `${d.memo.trim()}\n${confirmMsg}`.slice(0, 500)
@@ -462,6 +531,7 @@ export async function confirmCancelAction(code: string, note?: string): Promise<
       c,
       {
         status: 'canceled',
+        cafe24Canceled: true,
         memo: nextMemo,
       },
       { status: d.status, orderNo: d.orderNo, cafe24Canceled: d.cafe24Canceled },
@@ -473,11 +543,11 @@ export async function syncCafe24OrdersAction(): Promise<{ ok: boolean; message: 
   const no = await denied();
   if (no) return { ok: false, message: no.message };
   try {
-    const { processPaymentEventQueue, syncRecentCafe24Orders } = await import('@/cafe24/intake-worker.ts');
+    const { processPaymentEventQueue, syncRecentCafe24Orders } = await import('../../../cafe24/intake-worker.ts');
     const queue = await processPaymentEventQueue();
     const result = await syncRecentCafe24Orders(3);
-    revalidatePath('/admin/packaging');
-    revalidatePath('/admin/health');
+    await safeRevalidatePath('/admin/packaging');
+    await safeRevalidatePath('/admin/health');
     return {
       ok: queue.errors === 0,
       message: `카페24 주문 동기화 완료: 최근 주문 ${result.total}건 확인 (입금 완료: ${result.confirmed}건, 결제 대기: ${result.pendingOrders}건)${queue.errors ? ' · 결제 알림 재처리 오류를 운영 상태에서 확인해 주세요.' : ''}`,

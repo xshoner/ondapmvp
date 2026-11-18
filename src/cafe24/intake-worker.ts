@@ -42,7 +42,7 @@ export function eventStatusFromDecision(decision: IntakeDecision): {
 }
 
 // 전체 주문 취소/환불 처리 (주문에 연결된 모든 디자인 일괄 처리)
-async function handleCanceledOrder(
+export async function handleCanceledOrder(
   order: Cafe24AdminOrder,
   startedAt: number,
 ): Promise<IntakeDecision> {
@@ -124,7 +124,7 @@ async function handleCanceledOrder(
 }
 
 // 부분 품목 취소/환불 처리 (특정 디자인만 취소·경고하고 다른 유효 품목은 온전히 유지)
-async function handleCanceledItem(
+export async function handleCanceledItem(
   order: Cafe24AdminOrder,
   startedAt: number,
   targetCode: string,
@@ -208,7 +208,7 @@ async function handleCanceledItem(
 
 // 부분 취소 발생 시 대상 품목/디자인이 불명확한 경우:
 // 전체 디자인을 성급하게 취소하지 않고, 확인 필요(cafe24Canceled: true) 상태로 마킹하여 관리자가 수동 확인할 수 있게 함
-async function markAmbiguousPartialCancel(
+export async function markAmbiguousPartialCancel(
   order: Cafe24AdminOrder,
   targetCodes: string[],
 ): Promise<void> {

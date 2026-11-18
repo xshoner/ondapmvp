@@ -38,20 +38,23 @@ export default async function PackagingAdminPage({ searchParams }: { searchParam
   let banners: MainBanner[] = [];
   let error: string | null = null;
   let cafe24Error: string | null = null;
+  let cafe24HasMore = false;
+  const days = Math.max(1, Math.min(Number(sp.days) || 7, 30));
 
   try {
     if (tab === 'designs') {
       if (!filter.codeInvalid) {
-        designs = await listDesigns({ ...filter, includePending: true, intakeOnly: true });
+        designs = await listDesigns({ ...filter, includePending: true, intakeOnly: true, preserveIncomplete: true });
 
         // 카페24 최근 주문·품목을 읽기 전용으로 안전하게 가져와 디자인 접수와 결합
         // DB 쓰기나 가짜 데이터 생성을 절대 하지 않음
         try {
-          const cafe24Res = await fetchRecentCafe24OrdersReadOnly({ days: 7 });
+          const cafe24Res = await fetchRecentCafe24OrdersReadOnly({ days });
+          cafe24HasMore = Boolean(cafe24Res.hasMore);
           if (cafe24Res.ok) {
             mergedItems = mergeDesignsAndOrders(designs, cafe24Res.orders);
           } else {
-            cafe24Error = cafe24Res.error || '카페24 주문 목록을 가져오지 못했습니다.';
+            cafe24Error = cafe24Res.error || '카페24 주문 목록을 가져오지 못했습니다. 연결 상태를 확인해 주세요.';
             mergedItems = mergeDesignsAndOrders(designs, []);
           }
         } catch (c24Err) {
@@ -90,6 +93,8 @@ export default async function PackagingAdminPage({ searchParams }: { searchParam
           designs={designs}
           mergedItems={mergedItems}
           cafe24Error={cafe24Error}
+          cafe24HasMore={cafe24HasMore}
+          cafe24Days={days}
           eventNames={eventNames}
           filter={filter}
           now={Date.now()}

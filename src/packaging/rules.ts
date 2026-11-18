@@ -176,10 +176,14 @@ export function generateDesignCode(random: (n: number) => Uint8Array = (n) => cr
 }
 
 // QR 내용(주소 또는 코드)이나 긴 글 속에서 디자인 코드 하나를 꺼낸다
-export const findDesignCode = (text: string): string | null => text.toUpperCase().match(new RegExp(CODE_PATTERN.source.slice(1, -1)))?.[0] ?? null;
+export const findDesignCode = (text: string): string | null => {
+  if (!text || typeof text !== 'string') return null;
+  return text.toUpperCase().match(new RegExp(CODE_PATTERN.source.slice(1, -1)))?.[0] ?? null;
+};
 
 // 고객이 소문자·공백을 섞어 적어도 찾을 수 있게 정리한다
 export function normalizeDesignCode(value: string): string | null {
+  if (!value || typeof value !== 'string') return null;
   const v = value.trim().toUpperCase().replace(/\s+/g, '');
   return CODE_PATTERN.test(v) ? v : null;
 }
