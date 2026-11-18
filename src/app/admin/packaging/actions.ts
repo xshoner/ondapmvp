@@ -339,10 +339,12 @@ export async function linkDesignToOrderAction(code: string, rawOrderNo: string):
   let order: import('@/cafe24/admin-orders.ts').Cafe24AdminOrder;
   let validItems: import('@/cafe24/admin-orders.ts').Cafe24AdminOrderItem[];
   try {
-    const { fetchAdminOrder, extractDesignCode, isOrderPaid, isOrderCanceled, isItemCanceledOrRefunded } = await import('@/cafe24/admin-orders.ts');
+    const { fetchAdminOrder, isOrderPaid, isOrderCanceled, isItemCanceledOrRefunded } = await import('@/cafe24/admin-orders.ts');
+    const { extractAllDesignCodes } = await import('@/cafe24/readonly-orders.ts');
     order = await fetchAdminOrder(orderNo);
 
-    if (extractDesignCode(order) !== c) {
+    const allCodes = extractAllDesignCodes(order);
+    if (!allCodes.includes(c)) {
       return { ok: false, message: '카페24 주문에 이 디자인 코드가 확인되지 않습니다. 주문서의 코드를 확인해 주세요.' };
     }
 

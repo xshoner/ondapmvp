@@ -256,3 +256,6 @@ export async function fetchAdminOrder(orderId: string, tokenOrOptions?: string |
 
   return order;
 }
+
+export { extractAllDesignCodes, extractItemDesignCode } from './readonly-orders.ts';
+

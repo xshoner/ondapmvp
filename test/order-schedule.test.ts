@@ -631,6 +631,43 @@ test('14. linkDesignToOrder 가드 및 자동 상태 전진 차단 검증', asyn
   }
 });
 
+test('14-1. 다중 디자인 코드 주문의 수동 연결: 첫 번째 코드뿐 아니라 두 번째/모든 품목의 디자인 코드도 검증 및 연결 통과', async () => {
+  const { extractAllDesignCodes } = await import('../src/cafe24/admin-orders.ts');
+
+  const order: import('../src/cafe24/admin-orders.ts').Cafe24AdminOrder = {
+    order_id: '20261118-0005555',
+    shop_no: 1,
+    order_date: '2026-11-18 11:00:00',
+    paid: 'T',
+    canceled: 'F',
+    items: [
+      {
+        product_no: 101,
+        product_name: '상품 1',
+        quantity: 10,
+        options: [{ name: '선물 포장 코드', value: 'OD-FRST-2345' }],
+      },
+      {
+        product_no: 102,
+        product_name: '상품 2',
+        quantity: 20,
+        options: [{ name: '선물 포장 코드', value: 'OD-SCND-2345' }],
+      },
+    ],
+    additional_order_info_list: [
+      { name: '공통 포장 코드', value: 'OD-THRD-2345' },
+    ],
+  };
+
+  const allCodes = extractAllDesignCodes(order);
+  assert.deepEqual(allCodes.sort(), ['OD-FRST-2345', 'OD-SCND-2345', 'OD-THRD-2345'].sort());
+
+  // 첫 번째 코드가 아닌 두 번째 품목의 코드(OD-SCND-2345)도 allCodes에 포함됨을 검증
+  assert.ok(allCodes.includes('OD-SCND-2345'), '두 번째 품목의 디자인 코드도 검증 통과해야 함');
+  assert.ok(allCodes.includes('OD-THRD-2345'), '공통 추가 정보의 디자인 코드도 검증 통과해야 함');
+  assert.ok(!allCodes.includes('OD-NONE-9999'), '주문서에 없는 코드는 거절되어야 함');
+});
+
 test('15. 인쇄(PDF/PNG) 라우트 가드: 결제대기(pending) 및 취소(canceled) 차단 불변식 검증', () => {
   const canGeneratePrint = (status: string): { allowed: boolean; httpStatus?: number } => {
     if (status === 'canceled' || status === 'pending') {
@@ -894,6 +931,100 @@ test('18-1. 로컬 취소 처리: 이미 인쇄된 건이 있어도 같은 주�
     const [dUnpr] = await listDesigns({ code: 'OD-UNPR-0002', limit: 1, includePending: true });
     assert.equal(dUnpr.status, 'canceled', '미인쇄 건은 인쇄된 건이 있어도 취소 처리되어야 함');
     assert.equal(dUnpr.cafe24Canceled, true);
+  } finally {
+    delete process.env.ONDAP_TEST_DATA_DIR;
+    rmSync(testDir, { recursive: true, force: true });
+  }
+});
+
+test('18-2. 동일 주문 부분 취소: 한 품목만 취소된 경우 해당 품목 디자인만 취소되고 다른 유효 품목 디자인은 온전히 유지됨을 검증', async () => {
+  const testDir = mkdtempSync(join(tmpdir(), 'ondap-schd-part-cancel-'));
+  process.env.ONDAP_TEST_DATA_DIR = testDir;
+
+  try {
+    const orderId = '20261118-0099888';
+
+    // 품목 1: 상품 #305 (수량 10개), 디자인 OD-KEEP-0001 (유효 품목, order_confirmed)
+    await createDesign({
+      code: 'OD-KEEP-0001',
+      productNo: 305,
+      productName: '호두강정 세트 (유효)',
+      quantity: 10,
+      event: null,
+      styleId: 's1',
+      styleName: '자개',
+      sticker: { shape: 'circle', sizeCm: 6 },
+      draft: null,
+    }, null, null);
+    await updateDesign('OD-KEEP-0001', {
+      status: 'order_confirmed',
+      orderNo: orderId,
+    });
+
+    // 품목 2: 상품 #306 (수량 20개), 디자인 OD-DROP-0002 (취소 품목, order_confirmed)
+    await createDesign({
+      code: 'OD-DROP-0002',
+      productNo: 306,
+      productName: '도라지정과 세트 (취소 대상)',
+      quantity: 20,
+      event: null,
+      styleId: 's1',
+      styleName: '자개',
+      sticker: null,
+      draft: null,
+    }, null, null);
+    await updateDesign('OD-DROP-0002', {
+      status: 'order_confirmed',
+      orderNo: orderId,
+    });
+
+    const { verifyAndAcceptOrder } = await import('../src/cafe24/intake-worker.ts');
+
+    // 카페24 주문: 주문 전체는 정상(paid: 'T', canceled: 'F'), 품목 305는 정상(N10), 품목 306은 취소/환불(C00)
+    const partialCanceledOrder: import('../src/cafe24/admin-orders.ts').Cafe24AdminOrder = {
+      order_id: orderId,
+      shop_no: 1,
+      order_date: '2026-11-18 10:00:00',
+      paid: 'T',
+      canceled: 'F',
+      order_status: 'N10',
+      items: [
+        {
+          product_no: 305,
+          product_name: '호두강정 세트',
+          quantity: 10,
+          status: 'N10',
+          options: [{ name: '선물 포장 코드', value: 'OD-KEEP-0001' }],
+        },
+        {
+          product_no: 306,
+          product_name: '도라지정과 세트',
+          quantity: 20,
+          status: 'C00',
+          options: [{ name: '선물 포장 코드', value: 'OD-DROP-0002' }],
+        },
+      ],
+    };
+
+    // 1) verifyAndAcceptOrder(partialCanceledOrder, 'OD-DROP-0002') 로 취소 품목 검증
+    const dropDecision = await verifyAndAcceptOrder(partialCanceledOrder, 'OD-DROP-0002');
+    assert.equal(dropDecision.status, 'canceled', '취소된 품목은 canceled 결정');
+
+    // 검증:
+    // 취소 품목(OD-DROP-0002): canceled 및 cafe24Canceled = true
+    const [dDrop] = await listDesigns({ code: 'OD-DROP-0002', limit: 1, includePending: true });
+    assert.equal(dDrop.status, 'canceled', '취소 품목은 canceled 로 전환되어야 함');
+    assert.equal(dDrop.cafe24Canceled, true);
+    assert.ok(dDrop.memo.includes('품목 취소/환불 확인'));
+
+    // 유효 품목(OD-KEEP-0001): 여전히 order_confirmed 및 cafe24Canceled = false 로 온전히 유지되어야 함!!
+    const [dKeep] = await listDesigns({ code: 'OD-KEEP-0001', limit: 1, includePending: true });
+    assert.equal(dKeep.status, 'order_confirmed', '다른 유효 품목은 order_confirmed 상태를 그대로 유지해야 함');
+    assert.equal(Boolean(dKeep.cafe24Canceled), false, '다른 유효 품목은 취소 플래그가 붙지 않아야 함');
+
+    // 2) 유효 품목을 verifyAndAcceptOrder 호출 시 정상 already_confirmed 확인
+    const keepDecision = await verifyAndAcceptOrder(partialCanceledOrder, 'OD-KEEP-0001');
+    assert.equal(keepDecision.status, 'already_confirmed', '유효 품목은 정상 confirmed 유지');
   } finally {
     delete process.env.ONDAP_TEST_DATA_DIR;
     rmSync(testDir, { recursive: true, force: true });
