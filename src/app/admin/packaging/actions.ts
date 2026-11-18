@@ -437,6 +437,36 @@ export async function dismissPackagingAction(code: string): Promise<Result> {
   }, { status: d.status, orderNo: d.orderNo, cafe24Canceled: d.cafe24Canceled }));
 }
 
+// 카페24 주문 취소 알림이 발생한 디자인(완료/인쇄 상태 포함)에 대해 관리자가 취소를 확인하고 접수를 취소 확정 처리
+export async function confirmCancelAction(code: string, note?: string): Promise<Result> {
+  const no = await denied();
+  if (no) return no;
+  const c = normalizeDesignCode(String(code));
+  if (!c) return { ok: false, message: '잘못된 디자인 코드입니다.' };
+
+  const [d] = await listDesigns({ code: c, limit: 1, includePending: true });
+  if (!d) return { ok: false, message: '접수를 찾을 수 없습니다.' };
+  if (d.status === 'canceled') return { ok: true };
+
+  const confirmMsg = `[관리자 취소 확인: ${note?.trim() || '카페24 주문 취소 확인 완료'}]`;
+  const nextMemo = d.memo.includes('관리자 취소 확인')
+    ? d.memo
+    : d.memo.trim()
+    ? `${d.memo.trim()}\n${confirmMsg}`.slice(0, 500)
+    : confirmMsg;
+
+  return run(() =>
+    updateDesign(
+      c,
+      {
+        status: 'canceled',
+        memo: nextMemo,
+      },
+      { status: d.status, orderNo: d.orderNo, cafe24Canceled: d.cafe24Canceled },
+    ),
+  );
+}
+
 export async function syncCafe24OrdersAction(): Promise<{ ok: boolean; message: string; confirmed?: number; total?: number }> {
   const no = await denied();
   if (no) return { ok: false, message: no.message };

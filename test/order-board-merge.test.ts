@@ -343,4 +343,47 @@ describe('주문·포장 작업판 결합 (mergeDesignsAndOrders)', () => {
       assert.match(item.missingReason, /OD-WXYZ-9876/);
     }
   });
+
+  it('10. 복수 디자인 코드 주문에서 일부만 접수된 경우: 접수건은 linked_design, 미접수 코드는 unlinked_order로 보존', () => {
+    // OD-ABCD-EF23만 등록됨
+    const design = createMockDesign('OD-ABCD-EF23');
+    const orders: Cafe24AdminOrder[] = [
+      {
+        order_id: '20261118-0000088',
+        shop_no: 1,
+        order_date: '2026-11-18 09:00:00',
+        paid: 'T',
+        canceled: 'F',
+        order_status: 'N10',
+        items: [
+          {
+            product_no: 101,
+            product_name: '호두강정 10구 (디자인 1)',
+            quantity: 30,
+            options: [{ name: '선물 포장 코드', value: 'OD-ABCD-EF23' }],
+          },
+          {
+            product_no: 102,
+            product_name: '도라지정과 세트 (디자인 2 미접수)',
+            quantity: 20,
+            options: [{ name: '선물 포장 코드', value: 'OD-WXYZ-9876' }],
+          },
+        ],
+      },
+    ];
+
+    const merged = mergeDesignsAndOrders([design], orders);
+    assert.equal(merged.length, 2, '접수된 디자인 1건과 미접수 주문 1건이 모두 존재해야 함');
+
+    const linked = merged.find((i) => i.kind === 'linked_design');
+    assert.ok(linked, 'linked_design 항목이 있어야 함');
+    assert.equal(linked?.code, 'OD-ABCD-EF23');
+
+    const unlinked = merged.find((i) => i.kind === 'unlinked_order');
+    assert.ok(unlinked, '미접수 코드를 위한 unlinked_order 항목이 있어야 함');
+    if (unlinked && unlinked.kind === 'unlinked_order') {
+      assert.deepEqual(unlinked.suggestedCodes, ['OD-WXYZ-9876']);
+      assert.match(unlinked.missingReason, /OD-WXYZ-9876/);
+    }
+  });
 });

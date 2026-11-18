@@ -823,6 +823,83 @@ test('18. 카페24 취소 시 completed(포장 완료) 건 오출고 방지 보�
   }
 });
 
+test('18-1. 로컬 취소 처리: 이미 인쇄된 건이 있어도 같은 주문의 미인쇄 건은 취소됨을 검증', async () => {
+  const testDir = mkdtempSync(join(tmpdir(), 'ondap-schd-cancel-partial-'));
+  process.env.ONDAP_TEST_DATA_DIR = testDir;
+
+  try {
+    const orderId = '20261118-0099111';
+
+    // 1) 인쇄 완료된 디자인 1건
+    await createDesign({
+      code: 'OD-PRNT-0001',
+      productNo: 305,
+      productName: '흑삼 세트 (인쇄완료)',
+      quantity: 10,
+      event: null,
+      styleId: 's1',
+      styleName: '자개',
+      sticker: { shape: 'circle', sizeCm: 6 },
+      draft: null,
+    }, null, null);
+    await updateDesign('OD-PRNT-0001', {
+      status: 'printed',
+      orderNo: orderId,
+    });
+
+    // 2) 아직 미인쇄된 디자인 1건 (order_confirmed)
+    await createDesign({
+      code: 'OD-UNPR-0002',
+      productNo: 306,
+      productName: '도라지정과 (미인쇄)',
+      quantity: 20,
+      event: null,
+      styleId: 's1',
+      styleName: '자개',
+      sticker: null,
+      draft: null,
+    }, null, null);
+    await updateDesign('OD-UNPR-0002', {
+      status: 'order_confirmed',
+      orderNo: orderId,
+    });
+
+    const { verifyAndAcceptOrder } = await import('../src/cafe24/intake-worker.ts');
+
+    const canceledOrder: import('../src/cafe24/admin-orders.ts').Cafe24AdminOrder = {
+      order_id: orderId,
+      shop_no: 1,
+      order_date: '2026-11-18',
+      canceled: 'T',
+      order_status: 'C00',
+      items: [
+        { product_no: 305, product_name: '흑삼 세트', quantity: 10, status: 'C00' },
+        { product_no: 306, product_name: '도라지정과', quantity: 20, status: 'C00' },
+      ],
+    };
+
+    const decision = await verifyAndAcceptOrder(canceledOrder);
+
+    // conflict 반환 (인쇄 완료 건이 있으므로 경고)
+    assert.equal(decision.status, 'conflict');
+    assert.ok(decision.message.includes('인쇄 완료'));
+
+    // 1) 인쇄 완료 건은 printed 상태 유지 + cafe24Canceled: true
+    const [dPrnt] = await listDesigns({ code: 'OD-PRNT-0001', limit: 1, includePending: true });
+    assert.equal(dPrnt.status, 'printed');
+    assert.equal(dPrnt.cafe24Canceled, true);
+    assert.ok(dPrnt.memo.includes('취소/환불 알림 — 인쇄 완료 건 확인 필요'));
+
+    // 2) 미인쇄 건은 정상적으로 canceled 로 변경되었는지 검증!
+    const [dUnpr] = await listDesigns({ code: 'OD-UNPR-0002', limit: 1, includePending: true });
+    assert.equal(dUnpr.status, 'canceled', '미인쇄 건은 인쇄된 건이 있어도 취소 처리되어야 함');
+    assert.equal(dUnpr.cafe24Canceled, true);
+  } finally {
+    delete process.env.ONDAP_TEST_DATA_DIR;
+    rmSync(testDir, { recursive: true, force: true });
+  }
+});
+
 test('19. getDesignsByOrderNo: 500개 제한 없는 전수 조회 및 한 주문 복수 디자인 연결 검증', async () => {
   const testDir = mkdtempSync(join(tmpdir(), 'ondap-schd-orderno-'));
   process.env.ONDAP_TEST_DATA_DIR = testDir;

@@ -63,25 +63,28 @@ async function handleCanceledOrderOrItem(
       await updateDesign(item.code, { cafe24Canceled: true, memo: nextMemo });
     }
 
-    if (produced.length) {
-      await recordOperation('design_save', 'error', startedAt, 'canceled_after_print');
-      const firstStatus = produced[0].status === 'completed' ? '포장 완료' : '인쇄 완료';
-      return { status: 'conflict', code: produced[0].code, message: `주문(${order.order_id}) 취소/환불 후 ${firstStatus}된 접수를 확인해 주세요.` };
-    }
-
+    // 이미 인쇄/완료된 건이 있더라도 같은 주문의 미인쇄 건들은 취소 처리한다
     let reverted = 0;
-    for (const d of linked) {
+    const unproduced = linked.filter((d) => d.status !== 'printed' && d.status !== 'completed');
+    for (const d of unproduced) {
       if (d.status === 'order_confirmed' || d.status === 'received') {
         const nextMemo = d.memo.includes(note) ? d.memo : (d.memo.trim() ? `${d.memo.trim()}\n${note}` : note).slice(0, 500);
-        await updateDesign(d.code, { status: 'canceled', orderNo: d.orderNo, memo: nextMemo });
+        await updateDesign(d.code, { status: 'canceled', orderNo: d.orderNo, memo: nextMemo, cafe24Canceled: true });
         reverted++;
       } else if (d.status === 'pending' && d.memo.includes(order.order_id) && d.memo.includes('(무통장 입금 대기)')) {
         await updateDesign(d.code, {
           status: 'pending',
           orderNo: d.orderNo,
           memo: d.memo.replace('(무통장 입금 대기)', '(주문 취소)').slice(0, 500),
+          cafe24Canceled: true,
         });
       }
+    }
+
+    if (produced.length) {
+      await recordOperation('design_save', 'error', startedAt, 'canceled_after_print');
+      const firstStatus = produced[0].status === 'completed' ? '포장 완료' : '인쇄 완료';
+      return { status: 'conflict', code: produced[0].code, message: `주문(${order.order_id}) 취소/환불 후 ${firstStatus}된 접수를 확인해 주세요.` };
     }
 
     if (reverted > 0) {

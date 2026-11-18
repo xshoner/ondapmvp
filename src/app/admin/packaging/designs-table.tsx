@@ -23,6 +23,7 @@ import {
   dismissPackagingAction,
   getDesignDetailAction,
   linkDesignToOrderAction,
+  confirmCancelAction,
 } from './actions.ts';
 
 type PrintOptions = { paper: Paper; fill: boolean };
@@ -135,18 +136,18 @@ export function DesignsTable({ designs, mergedItems, cafe24Error, eventNames, fi
         const isPending = d.status === 'pending';
         const info = scheduleMap.get(d.code);
 
-        // 오늘 처리할 작업 (미완료 제작 진행 건)
-        if (!isDone && !isCanceled && !isPending) {
+        // 오늘 처리할 작업 (미완료 제작 진행 건, 취소 건 제외)
+        if (!isDone && !isCanceled && !isPending && !d.cafe24Canceled) {
           activeCount++;
         }
 
-        // 확인 필요 (검수 대기 또는 주문 미연결)
-        if (d.status === 'received' || (!d.orderNo && !isDone && !isCanceled && !isPending)) {
+        // 확인 필요 (검수 대기, 주문 미연결, 또는 카페24 취소 알림 건)
+        if (d.status === 'received' || (!d.orderNo && !isDone && !isCanceled && !isPending) || Boolean(d.cafe24Canceled)) {
           needsCheckCount++;
         }
 
         // 일정 임박 (미완료 건 중 긴급 또는 임박: D-3 이내, 당일, 경과)
-        if (!isDone && !isCanceled && !isPending && info && (info.urgency === 'emergency' || info.urgency === 'imminent')) {
+        if (!isDone && !isCanceled && !isPending && !d.cafe24Canceled && info && (info.urgency === 'emergency' || info.urgency === 'imminent')) {
           imminentCount++;
         }
       } else if (item.kind === 'unlinked_order' || item.kind === 'unknown_order') {
@@ -178,7 +179,7 @@ export function DesignsTable({ designs, mergedItems, cafe24Error, eventNames, fi
       list = list.filter((item) => {
         if (item.kind !== 'linked_design') return false;
         const d = item.design;
-        return d.status !== 'completed' && d.status !== 'no_packaging' && d.status !== 'canceled';
+        return d.status !== 'completed' && d.status !== 'no_packaging' && d.status !== 'canceled' && !d.cafe24Canceled;
       });
     } else if (workTab === 'needs_check') {
       list = list.filter((item) => {
@@ -187,7 +188,8 @@ export function DesignsTable({ designs, mergedItems, cafe24Error, eventNames, fi
           const d = item.design;
           return (
             d.status === 'received' ||
-            (!d.orderNo && d.status !== 'completed' && d.status !== 'no_packaging' && d.status !== 'canceled')
+            (!d.orderNo && d.status !== 'completed' && d.status !== 'no_packaging' && d.status !== 'canceled') ||
+            Boolean(d.cafe24Canceled)
           );
         }
         return false;
@@ -199,7 +201,7 @@ export function DesignsTable({ designs, mergedItems, cafe24Error, eventNames, fi
         const isDone = d.status === 'completed' || d.status === 'no_packaging';
         const isCanceled = d.status === 'canceled';
         const info = scheduleMap.get(d.code);
-        return !isDone && !isCanceled && info && (info.urgency === 'emergency' || info.urgency === 'imminent');
+        return !isDone && !isCanceled && !d.cafe24Canceled && info && (info.urgency === 'emergency' || info.urgency === 'imminent');
       });
     }
 
@@ -1158,6 +1160,20 @@ function BoardRow({
       }
     });
 
+  const handleConfirmCancel = () =>
+    start(async () => {
+      if (!confirm(`카페24 주문 취소 건(${d.code})을 확인하고 접수 상태를 '취소'로 확정하시겠습니까?`)) return;
+      setMessage(null);
+      const res = await confirmCancelAction(d.code);
+      if (res.ok) {
+        setStatus('canceled');
+        setMessage('취소 확인 처리 완료');
+        router.refresh();
+      } else {
+        setMessage(res.message);
+      }
+    });
+
   return (
     <>
       {/* 1. 접힌 요약 행 (Core Row) */}
@@ -1199,6 +1215,13 @@ function BoardRow({
             ) : (
               <div>
                 <span className="order-badge-unlinked">⚠️ 미연결</span>
+              </div>
+            )}
+            {d.cafe24Canceled && d.status !== 'canceled' && (
+              <div>
+                <span className="badge small" style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', fontWeight: 700 }}>
+                  ⚠️ 카페24 취소 알림
+                </span>
               </div>
             )}
             <div className="small muted">
@@ -1301,6 +1324,28 @@ function BoardRow({
               </div>
             )}
 
+            {/* 카페24 취소 알림 건의 관리자 확인 처리 버튼 */}
+            {d.cafe24Canceled && d.status !== 'canceled' && (
+              <div>
+                <button
+                  type="button"
+                  className="btn small"
+                  style={{
+                    width: '100%',
+                    background: '#dc2626',
+                    color: '#fff',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    padding: '2px 6px',
+                  }}
+                  disabled={pending}
+                  onClick={handleConfirmCancel}
+                >
+                  취소 확인 처리
+                </button>
+              </div>
+            )}
+
             {message && <div style={{ fontSize: 11, color: '#2563eb', fontWeight: 600 }}>{message}</div>}
           </div>
         </td>
@@ -1310,6 +1355,34 @@ function BoardRow({
       {expanded && (
         <tr className="board-detail-row">
           <td colSpan={6}>
+            {d.cafe24Canceled && d.status !== 'canceled' && (
+              <div
+                style={{
+                  background: '#fef2f2',
+                  border: '1px solid #fecaca',
+                  padding: '8px 12px',
+                  margin: '10px 14px 0',
+                  borderRadius: 6,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                }}
+              >
+                <div style={{ fontSize: 12, color: '#991b1b', fontWeight: 600 }}>
+                  ⚠️ 이 접수는 카페24에서 주문이 취소/환불되었습니다. 제작·출고를 중단하고 취소 확인 처리를 해 주세요.
+                </div>
+                <button
+                  type="button"
+                  className="btn small"
+                  style={{ background: '#dc2626', color: '#fff', fontSize: 11.5, fontWeight: 700, whiteSpace: 'nowrap' }}
+                  disabled={pending}
+                  onClick={handleConfirmCancel}
+                >
+                  취소 확인 처리
+                </button>
+              </div>
+            )}
             <div className="board-detail-box">
               {/* 좌측: 고객 인쇄 문구 검수 & 시안 미리보기 */}
               <div className="detail-col">

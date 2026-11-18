@@ -182,7 +182,9 @@ export function mergeDesignsAndOrders(
     }
   }
 
-  const matchedOrderIds = new Set<string>();
+  const existingCodesSet = new Set(designs.map((d) => d.code));
+  const linkedDesignCountByOrder = new Map<string, number>();
+  const fullyMatchedOrderIds = new Set<string>();
 
   // 2. 기존 접수된 designs 행들 결합
   for (const d of designs) {
@@ -192,7 +194,7 @@ export function mergeDesignsAndOrders(
     if (d.orderNo && ordersById.has(d.orderNo)) {
       const rawOrder = ordersById.get(d.orderNo)!;
       matchedOrder = summarizeCafe24Order(rawOrder);
-      matchedOrderIds.add(rawOrder.order_id);
+      linkedDesignCountByOrder.set(rawOrder.order_id, (linkedDesignCountByOrder.get(rawOrder.order_id) || 0) + 1);
     }
     // 2-2. 주문서 옵션에 적힌 코드로 매칭
     else if (ordersByCode.has(d.code)) {
@@ -201,7 +203,7 @@ export function mergeDesignsAndOrders(
       const cand = candidates.find((o) => !isOrderCanceled(o)) || candidates[0];
       if (cand) {
         matchedOrder = summarizeCafe24Order(cand);
-        matchedOrderIds.add(cand.order_id);
+        linkedDesignCountByOrder.set(cand.order_id, (linkedDesignCountByOrder.get(cand.order_id) || 0) + 1);
       }
     }
 
@@ -216,15 +218,33 @@ export function mergeDesignsAndOrders(
     });
   }
 
-  // 3. 아직 디자인과 매칭되지 않은 카페24 주문들 분류
+  // 3. 주문별 다중 디자인 매칭 여부 판정
   for (const o of orders) {
     if (!o || !o.order_id) continue;
-    if (matchedOrderIds.has(o.order_id)) continue;
+    const codes = extractAllDesignCodes(o);
+    if (codes.length > 0) {
+      // 주문서에 디자인 코드가 있는 경우: 모든 코드가 접수되었을 때만 완전히 매칭된 것으로 판정
+      const unlinkedCodes = codes.filter((c) => !existingCodesSet.has(c));
+      if (unlinkedCodes.length === 0) {
+        fullyMatchedOrderIds.add(o.order_id);
+      }
+    } else {
+      // 주문서에 코드가 없는 경우: 연결된 디자인이 1개 이상이면 매칭 완료 판정
+      if ((linkedDesignCountByOrder.get(o.order_id) || 0) > 0) {
+        fullyMatchedOrderIds.add(o.order_id);
+      }
+    }
+  }
+
+  // 4. 아직 완전히 디자인과 매칭되지 않은 카페24 주문들 분류
+  for (const o of orders) {
+    if (!o || !o.order_id) continue;
+    if (fullyMatchedOrderIds.has(o.order_id)) continue;
 
     const summary = summarizeCafe24Order(o);
     const sortTime = Date.parse(o.order_date) || 0;
 
-    // 3-1. 품목 정보가 아예 없거나 식별 불가인 경우 -> 확인 불가
+    // 4-1. 품목 정보가 아예 없거나 식별 불가인 경우 -> 확인 불가
     if (summary.items.length === 0) {
       merged.push({
         kind: 'unknown_order',
@@ -236,7 +256,7 @@ export function mergeDesignsAndOrders(
       continue;
     }
 
-    // 3-2. 전체 취소/환불 주문인 경우 -> 포장 불필요 처리 (취소 사유 명시)
+    // 4-2. 전체 취소/환불 주문인 경우 -> 포장 불필요 처리 (취소 사유 명시)
     if (summary.canceled) {
       merged.push({
         kind: 'no_packaging_order',
@@ -248,25 +268,32 @@ export function mergeDesignsAndOrders(
       continue;
     }
 
-    // 3-3. 유효 품목 중 포장 옵션이 있거나, 주문에 디자인 코드가 기재된 경우 -> 디자인 미연결
+    // 4-3. 유효 품목 중 포장 옵션이 있거나, 주문에 디자인 코드가 기재된 경우 -> 디자인 미연결
     if (summary.hasPackaging) {
-      const hasCode = summary.extractedCodes.length > 0;
-      const reason = hasCode
-        ? `주문서에 디자인 코드(${summary.extractedCodes.join(', ')})가 있으나 접수된 디자인이 없습니다.`
-        : '포장 옵션이 선택된 주문이나 아직 고객 디자인이 접수되지 않았습니다.';
+      const codes = summary.extractedCodes;
+      const unlinkedCodes = codes.filter((c) => !existingCodesSet.has(c));
+
+      let reason: string;
+      if (unlinkedCodes.length > 0) {
+        reason = codes.length > unlinkedCodes.length
+          ? `주문 내 일부 디자인 미접수 (미연결 코드: ${unlinkedCodes.join(', ')})`
+          : `주문서에 디자인 코드(${unlinkedCodes.join(', ')})가 있으나 접수된 디자인이 없습니다.`;
+      } else {
+        reason = '포장 옵션이 선택된 주문이나 아직 고객 디자인이 접수되지 않았습니다.';
+      }
 
       merged.push({
         kind: 'unlinked_order',
         id: `unlinked-${o.order_id}`,
         order: summary,
         missingReason: reason,
-        suggestedCodes: summary.extractedCodes,
+        suggestedCodes: unlinkedCodes.length > 0 ? unlinkedCodes : summary.extractedCodes,
         sortTime,
       });
       continue;
     }
 
-    // 3-4. 포장 옵션이 전혀 없는 일반 상품 주문 -> 포장 미요청
+    // 4-4. 포장 옵션이 전혀 없는 일반 상품 주문 -> 포장 미요청
     merged.push({
       kind: 'no_packaging_order',
       id: `noop-${o.order_id}`,
