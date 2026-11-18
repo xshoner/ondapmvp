@@ -1119,6 +1119,102 @@ test('18-3. 부분 취소 대상 디자인이 불명확한 경우: 전체를 취
   }
 });
 
+test('18-4. 미연결 접수 보호: order_no가 없는 received/printed 접수는 취소되지 않고, 메모에 해당 주문번호가 있는 pending만 대기 안내 변경', async () => {
+  const testDir = mkdtempSync(join(tmpdir(), 'ondap-schd-part-protect-'));
+  process.env.ONDAP_TEST_DATA_DIR = testDir;
+
+  try {
+    const cancelOrderId = '20261118-0099555';
+
+    // 1) 아직 주문번호가 없는 일반 검수 접수 건 (received)
+    await createDesign({
+      code: 'OD-PROT-0001',
+      productNo: 501,
+      productName: '배도라지청 (미연결 검수)',
+      quantity: 10,
+      event: null,
+      styleId: 's1',
+      styleName: '자개',
+      sticker: { shape: 'circle', sizeCm: 6 },
+      draft: null,
+    }, null, null);
+    await updateDesign('OD-PROT-0001', { status: 'received' }); // orderNo 없음!
+
+    // 2) 아직 주문번호가 없지만 메모에 cancelOrderId가 적힌 무통장 입금 대기 건 (pending)
+    await createDesign({
+      code: 'OD-PROT-0002',
+      productNo: 502,
+      productName: '수제 양갱 (무통장 대기)',
+      quantity: 20,
+      event: null,
+      styleId: 's1',
+      styleName: '자개',
+      sticker: null,
+      draft: null,
+    }, null, null);
+    await updateDesign('OD-PROT-0002', {
+      status: 'pending',
+      memo: `[주문번호 ${cancelOrderId} (무통장 입금 대기)] 고객 결제 대기 중`,
+    });
+
+    // 갱신 전: pending 건에 (무통장 입금 대기) 존재 확인
+    const [d2Before] = await listDesigns({ code: 'OD-PROT-0002', limit: 1, includePending: true });
+    assert.ok(d2Before.memo.includes('(무통장 입금 대기)'));
+
+    const { verifyAndAcceptOrder } = await import('../src/cafe24/intake-worker.ts');
+
+    const canceledOrder: import('../src/cafe24/admin-orders.ts').Cafe24AdminOrder = {
+      order_id: cancelOrderId,
+      shop_no: 1,
+      order_date: '2026-11-18 10:00:00',
+      paid: 'F',
+      canceled: 'T',
+      order_status: 'C00',
+      items: [
+        { product_no: 501, product_name: '배도라지청', quantity: 10, status: 'C00' },
+        { product_no: 502, product_name: '수제 양갱', quantity: 20, status: 'C00' },
+      ],
+    };
+
+    // 1) 취소 주문 처리 시, orderNo가 없는 received 디자인(OD-PROT-0001)은 보호되어 변경되지 않아야 함!
+    await verifyAndAcceptOrder(canceledOrder, 'OD-PROT-0001');
+    const [d1] = await listDesigns({ code: 'OD-PROT-0001', limit: 1, includePending: true });
+    assert.equal(d1.status, 'received', 'order_no가 없는 received 접수는 취소되지 않고 유지되어야 함');
+    assert.equal(Boolean(d1.cafe24Canceled), false, '다른 주문 취소에 영향받지 않아야 함');
+
+    // 2) 반면 메모에 해당 주문번호가 명시된 pending 건(OD-PROT-0002)은 대기 안내가 (주문 취소)로 안전하게 치환됨:
+    const [d2After] = await listDesigns({ code: 'OD-PROT-0002', limit: 1, includePending: true });
+    assert.equal(d2After.status, 'pending', 'pending 상태는 유지');
+    assert.equal(d2After.cafe24Canceled, true);
+    assert.ok(d2After.memo.includes('(주문 취소)'), '무통장 대기 안내가 주문 취소로 변경되어야 함');
+  } finally {
+    delete process.env.ONDAP_TEST_DATA_DIR;
+    rmSync(testDir, { recursive: true, force: true });
+  }
+});
+
+test('18-5. 작업판 확인 필요(needs_check) 필터: cafe24Canceled=true 여도 status=canceled 이면 목록에서 제외됨을 검증', () => {
+  const checkNeedsCheck = (d: { status: string; orderNo: string | null; cafe24Canceled?: boolean | null }): boolean => {
+    const isDone = d.status === 'completed' || d.status === 'no_packaging';
+    const isCanceled = d.status === 'canceled';
+    const isPending = d.status === 'pending';
+    return (
+      d.status === 'received' ||
+      (!d.orderNo && !isDone && !isCanceled && !isPending) ||
+      (Boolean(d.cafe24Canceled) && d.status !== 'canceled')
+    );
+  };
+
+  // 1. 카페24 취소 알림이 발생했으나 아직 취소 확정 전인 건 -> 확인 필요에 노출되어야 함!
+  assert.equal(checkNeedsCheck({ status: 'completed', orderNo: '20261118-0000001', cafe24Canceled: true }), true);
+  assert.equal(checkNeedsCheck({ status: 'printed', orderNo: '20261118-0000001', cafe24Canceled: true }), true);
+  assert.equal(checkNeedsCheck({ status: 'order_confirmed', orderNo: '20261118-0000001', cafe24Canceled: true }), true);
+
+  // 2. 관리자가 '취소 확인 처리'를 완료하여 status = 'canceled'가 된 건 -> 확인 필요 목록에서 깔끔하게 빠져야 함!
+  assert.equal(checkNeedsCheck({ status: 'canceled', orderNo: '20261118-0000001', cafe24Canceled: true }), false, '취소 확정 건은 needs_check에서 빠져야 함');
+  assert.equal(checkNeedsCheck({ status: 'canceled', orderNo: '20261118-0000001', cafe24Canceled: false }), false);
+});
+
 test('19. getDesignsByOrderNo: 500개 제한 없는 전수 조회 및 한 주문 복수 디자인 연결 검증', async () => {
   const testDir = mkdtempSync(join(tmpdir(), 'ondap-schd-orderno-'));
   process.env.ONDAP_TEST_DATA_DIR = testDir;

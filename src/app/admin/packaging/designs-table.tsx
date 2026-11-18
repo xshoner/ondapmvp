@@ -141,8 +141,8 @@ export function DesignsTable({ designs, mergedItems, cafe24Error, eventNames, fi
           activeCount++;
         }
 
-        // 확인 필요 (검수 대기, 주문 미연결, 또는 카페24 취소 알림 건)
-        if (d.status === 'received' || (!d.orderNo && !isDone && !isCanceled && !isPending) || Boolean(d.cafe24Canceled)) {
+        // 확인 필요 (검수 대기, 주문 미연결, 또는 카페24 취소 알림 건 중 아직 취소 확정 안 된 건)
+        if (d.status === 'received' || (!d.orderNo && !isDone && !isCanceled && !isPending) || (Boolean(d.cafe24Canceled) && d.status !== 'canceled')) {
           needsCheckCount++;
         }
 
@@ -189,7 +189,7 @@ export function DesignsTable({ designs, mergedItems, cafe24Error, eventNames, fi
           return (
             d.status === 'received' ||
             (!d.orderNo && d.status !== 'completed' && d.status !== 'no_packaging' && d.status !== 'canceled') ||
-            Boolean(d.cafe24Canceled)
+            (Boolean(d.cafe24Canceled) && d.status !== 'canceled')
           );
         }
         return false;

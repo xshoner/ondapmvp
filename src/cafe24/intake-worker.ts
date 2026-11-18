@@ -137,6 +137,14 @@ async function handleCanceledItem(
       return { status: 'not_applicable', message: `취소 대상 디자인(${targetCode})을 찾을 수 없습니다.` };
     }
 
+    // 주문번호가 일치하는 건만 변경하고, 주문번호 없는 pending은 메모에 해당 주문번호가 확인될 때만 대기 안내를 변경한다.
+    // 다른 주문이나 주문 미연결 접수는 보호한다.
+    const isMatchingOrder = d.orderNo === order.order_id;
+    const isMatchingPending = !d.orderNo && d.status === 'pending' && d.memo.includes(order.order_id);
+    if (!isMatchingOrder && !isMatchingPending) {
+      return { status: 'not_applicable', message: `디자인(${targetCode})은 해당 주문(${order.order_id})과 연결되어 있지 않습니다.` };
+    }
+
     // 다른 유효 품목은 일절 건드리지 않고, 오직 targetCode 해당 건만 처리
     if (d.status === 'printed' || d.status === 'completed') {
       const statusLabel = d.status === 'completed' ? '포장 완료' : '인쇄 완료';
