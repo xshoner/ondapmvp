@@ -4,6 +4,7 @@ import { lookupDesign } from '../data/packaging-repository.ts';
 import { recordOperation } from '../data/operations-repository.ts';
 import {
   extractDesignCode,
+  extractItemDesignCode,
   fetchAdminOrder,
   hasPackagingOption,
   isItemCanceledOrRefunded,
@@ -197,6 +198,40 @@ async function handleCanceledItem(
   return { status: 'canceled', code: targetCode, message: `품목(${targetCode})이 취소되었습니다.` };
 }
 
+// 부분 취소 발생 시 대상 품목/디자인이 불명확한 경우:
+// 전체 디자인을 성급하게 취소하지 않고, 확인 필요(cafe24Canceled: true) 상태로 마킹하여 관리자가 수동 확인할 수 있게 함
+async function markAmbiguousPartialCancel(
+  order: Cafe24AdminOrder,
+  targetCodes: string[],
+): Promise<void> {
+  const warn = `[주의: 주문 ${order.order_id} 부분 취소 발생 — 대상 디자인 불명확, 관리자 확인 필요]`;
+  if (dataSource() === 'local') {
+    const { listDesigns, updateDesign } = await import('../data/packaging-repository.ts');
+    for (const code of targetCodes) {
+      const [d] = await listDesigns({ code, limit: 1, includePending: true });
+      if (!d) continue;
+      // 상태는 canceled로 바꾸지 않고 기존 상태 유지! cafe24Canceled: true 플래그만 설정
+      const nextMemo = !d.memo.includes(`${order.order_id} 부분 취소 발생`) && d.memo.length + warn.length + 1 <= 500
+        ? [d.memo.trim(), warn].filter(Boolean).join('\n') : d.memo;
+      await updateDesign(d.code, { cafe24Canceled: true, memo: nextMemo });
+    }
+  } else {
+    const db = createServiceClient();
+    for (const code of targetCodes) {
+      const { data: row } = await db.from('designs').select('memo').eq('code', code).maybeSingle();
+      const curMemo = (row?.memo as string) || '';
+      const nextMemo = !curMemo.includes(`${order.order_id} 부분 취소 발생`) && curMemo.length + warn.length + 1 <= 500
+        ? [curMemo.trim(), warn].filter(Boolean).join('\n') : curMemo;
+      await db.from('designs').update({
+        cafe24_canceled: true,
+        memo: nextMemo,
+        updated_at: new Date().toISOString(),
+      }).eq('code', code);
+    }
+  }
+  await recordOperation('design_save', 'error', Date.now(), 'partial_cancel_ambiguous');
+}
+
 async function handleCanceledOrderOrItem(
   order: Cafe24AdminOrder,
   startedAt: number,
@@ -250,8 +285,25 @@ export async function verifyAndAcceptOrder(
   // 5. 상품번호 일치 품목 탐색 (부분 취소/환불 구분 - 해당 디자인 품목만 부분 취소 처리)
   const productItems = Array.isArray(order.items) ? order.items.filter((item) => item.product_no === design.productNo) : [];
   const activeItems = productItems.filter((item) => !isItemCanceledOrRefunded(item));
+  const canceledProductItems = productItems.filter(isItemCanceledOrRefunded);
+
   if (productItems.length > 0 && activeItems.length === 0) {
+    // 해당 상품번호의 모든 품목이 취소된 경우: 이 디자인의 품목 취소 확실
     return handleCanceledItem(order, startedAt, code);
+  } else if (canceledProductItems.length > 0) {
+    // 해당 상품번호 중 일부만 취소된 경우:
+    const matchedCancelItem = canceledProductItems.find((item) => extractItemDesignCode(item) === code);
+    if (matchedCancelItem) {
+      return handleCanceledItem(order, startedAt, code);
+    }
+    // 취소 품목에 명시된 코드가 없거나 일치하지 않아 어느 디자인이 취소 대상인지 불명확한 경우:
+    // 전체를 취소하지 말고 확인 필요(conflict / cafe24Canceled: true)로 처리!
+    await markAmbiguousPartialCancel(order, [code]);
+    return {
+      status: 'conflict',
+      code,
+      message: `주문(${order.order_id}) 부분 취소가 확인되었으나 대상 디자인이 불명확합니다. 관리자 확인이 필요합니다.`,
+    };
   }
   const matchingItem =
     activeItems.find((item) => hasPackagingOption(item) && item.quantity === design.quantity) ??
@@ -481,10 +533,35 @@ export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number;
             .eq('order_no', order.order_id);
           linkedRows = (rows ?? []).map((r) => ({ code: r.code as string, productNo: r.product_no as number }));
         }
+
         for (const linked of linkedRows) {
           const productItems = order.items.filter((item) => item.product_no === linked.productNo);
-          if (productItems.length > 0 && productItems.every(isItemCanceledOrRefunded)) {
-            await handleCanceledItem(order, Date.now(), linked.code);
+          const productCanceledItems = productItems.filter(isItemCanceledOrRefunded);
+          const productActiveItems = productItems.filter((item) => !isItemCanceledOrRefunded(item));
+
+          if (productItems.length > 0 && productCanceledItems.length > 0) {
+            if (productActiveItems.length === 0) {
+              // 해당 상품번호 전체가 취소된 경우:
+              // 같은 상품번호의 디자인이 1개뿐이면 명확히 그 디자인만 부분 취소
+              const sameProductDesigns = linkedRows.filter((r) => r.productNo === linked.productNo);
+              if (sameProductDesigns.length === 1) {
+                await handleCanceledItem(order, Date.now(), linked.code);
+              } else {
+                // 같은 상품번호로 여러 디자인이 등록되어 있다면 대상 불명확 -> 확인 필요
+                await markAmbiguousPartialCancel(order, sameProductDesigns.map((r) => r.code));
+              }
+            } else {
+              // 해당 상품번호 중 일부 품목만 취소된 경우:
+              // 취소된 품목 옵션에 linked.code가 직접 명시되어 있는지 확인
+              const directlyCanceled = productCanceledItems.some((item) => extractItemDesignCode(item) === linked.code);
+              if (directlyCanceled) {
+                await handleCanceledItem(order, Date.now(), linked.code);
+              } else {
+                // 취소 품목에 코드가 없어 어느 디자인이 취소되었는지 불명확:
+                // 전체를 취소하지 말고 확인 필요(cafe24Canceled: true)로 처리
+                await markAmbiguousPartialCancel(order, [linked.code]);
+              }
+            }
           }
         }
       } catch (err) {

@@ -386,4 +386,45 @@ describe('주문·포장 작업판 결합 (mergeDesignsAndOrders)', () => {
       assert.match(unlinked.missingReason, /OD-WXYZ-9876/);
     }
   });
+
+  it('11. 주문서에 코드가 없으나 포장 품목 2개 중 1개만 연결된 경우: 나머지 미연결 품목이 unlinked_order로 보존', () => {
+    // OD-ONLY-ONE1 디자인 1건만 주문번호에 연결됨
+    const design = createMockDesign('OD-ONLY-ONE1', { orderNo: '20261118-0000099' });
+    const orders: Cafe24AdminOrder[] = [
+      {
+        order_id: '20261118-0000099',
+        shop_no: 1,
+        order_date: '2026-11-18 10:00:00',
+        paid: 'T',
+        canceled: 'F',
+        order_status: 'N10',
+        items: [
+          {
+            product_no: 201,
+            product_name: '보자기 포장 상품 1',
+            quantity: 10,
+            options: [{ name: '선물 포장 신청', value: '보자기 포장(+3000원)' }],
+          },
+          {
+            product_no: 202,
+            product_name: '보자기 포장 상품 2 (미연결)',
+            quantity: 10,
+            options: [{ name: '선물 포장 신청', value: '전통 자개 포장(+5000원)' }],
+          },
+        ],
+      },
+    ];
+
+    const merged = mergeDesignsAndOrders([design], orders);
+    assert.equal(merged.length, 2, '연결된 디자인 1건과 미연결 포장 품목 1건이 모두 존재해야 함');
+
+    const linked = merged.find((i) => i.kind === 'linked_design');
+    assert.ok(linked, 'linked_design 항목이 있어야 함');
+
+    const unlinked = merged.find((i) => i.kind === 'unlinked_order');
+    assert.ok(unlinked, '미연결 품목을 위한 unlinked_order 항목이 숨겨지지 않고 존재해야 함');
+    if (unlinked && unlinked.kind === 'unlinked_order') {
+      assert.match(unlinked.missingReason, /2개 중 1개 미연결/);
+    }
+  });
 });

@@ -1031,6 +1031,94 @@ test('18-2. 동일 주문 부분 취소: 한 품목만 취소된 경우 해당 �
   }
 });
 
+test('18-3. 부분 취소 대상 디자인이 불명확한 경우: 전체를 취소하지 않고 cafe24Canceled: true 및 확인 필요 경고로 처리', async () => {
+  const testDir = mkdtempSync(join(tmpdir(), 'ondap-schd-part-ambig-'));
+  process.env.ONDAP_TEST_DATA_DIR = testDir;
+
+  try {
+    const orderId = '20261118-0099777';
+
+    // 동일 상품 #401에 2개 디자인 등록
+    await createDesign({
+      code: 'OD-AMBG-0001',
+      productNo: 401,
+      productName: '도라지정과 1호',
+      quantity: 10,
+      event: null,
+      styleId: 's1',
+      styleName: '자개',
+      sticker: { shape: 'circle', sizeCm: 6 },
+      draft: null,
+    }, null, null);
+    await updateDesign('OD-AMBG-0001', {
+      status: 'order_confirmed',
+      orderNo: orderId,
+    });
+
+    await createDesign({
+      code: 'OD-AMBG-0002',
+      productNo: 401,
+      productName: '도라지정과 2호',
+      quantity: 10,
+      event: null,
+      styleId: 's1',
+      styleName: '자개',
+      sticker: null,
+      draft: null,
+    }, null, null);
+    await updateDesign('OD-AMBG-0002', {
+      status: 'order_confirmed',
+      orderNo: orderId,
+    });
+
+    const { verifyAndAcceptOrder } = await import('../src/cafe24/intake-worker.ts');
+
+    // 주문에 #401 품목 2개 중 1개만 취소되었으나, 옵션에 디자인 코드가 적혀있지 않아 어느 디자인이 취소된 것인지 불명확한 경우
+    const ambiguousOrder: import('../src/cafe24/admin-orders.ts').Cafe24AdminOrder = {
+      order_id: orderId,
+      shop_no: 1,
+      order_date: '2026-11-18 10:00:00',
+      paid: 'T',
+      canceled: 'F',
+      order_status: 'N10',
+      items: [
+        {
+          product_no: 401,
+          product_name: '도라지정과',
+          quantity: 10,
+          status: 'N10',
+          options: [{ name: '선물 포장 신청', value: '보자기 포장' }], // 코드 없음
+        },
+        {
+          product_no: 401,
+          product_name: '도라지정과',
+          quantity: 10,
+          status: 'C00', // 취소됨!
+          options: [{ name: '선물 포장 신청', value: '보자기 포장' }], // 코드 없음
+        },
+      ],
+    };
+
+    const decision = await verifyAndAcceptOrder(ambiguousOrder, 'OD-AMBG-0001');
+
+    // conflict(확인 필요) 반환되어야 함
+    assert.equal(decision.status, 'conflict');
+    assert.ok(decision.message.includes('관리자 확인이 필요'));
+
+    // 두 디자인 모두 canceled 로 함부로 변경되지 않아야 함!
+    const [d1] = await listDesigns({ code: 'OD-AMBG-0001', limit: 1, includePending: true });
+    assert.equal(d1.status, 'order_confirmed', '취소 대상 불명확 시 canceled로 함부로 변경되지 않아야 함');
+    assert.equal(d1.cafe24Canceled, true, '관리자 확인 필요를 위해 cafe24Canceled=true 설정되어야 함');
+    assert.ok(d1.memo.includes('대상 디자인 불명확, 관리자 확인 필요'));
+
+    const [d2] = await listDesigns({ code: 'OD-AMBG-0002', limit: 1, includePending: true });
+    assert.equal(d2.status, 'order_confirmed', '다른 디자인도 canceled로 바뀌지 않아야 함');
+  } finally {
+    delete process.env.ONDAP_TEST_DATA_DIR;
+    rmSync(testDir, { recursive: true, force: true });
+  }
+});
+
 test('19. getDesignsByOrderNo: 500개 제한 없는 전수 조회 및 한 주문 복수 디자인 연결 검증', async () => {
   const testDir = mkdtempSync(join(tmpdir(), 'ondap-schd-orderno-'));
   process.env.ONDAP_TEST_DATA_DIR = testDir;

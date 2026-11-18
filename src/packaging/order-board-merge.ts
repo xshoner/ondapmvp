@@ -221,16 +221,27 @@ export function mergeDesignsAndOrders(
   // 3. 주문별 다중 디자인 매칭 여부 판정
   for (const o of orders) {
     if (!o || !o.order_id) continue;
+    const summary = summarizeCafe24Order(o);
     const codes = extractAllDesignCodes(o);
+    const packagingItems = summary.items.filter((i) => !i.isCanceled && i.hasPackaging);
+    const linkedCount = linkedDesignCountByOrder.get(o.order_id) || 0;
+
     if (codes.length > 0) {
-      // 주문서에 디자인 코드가 있는 경우: 모든 코드가 접수되었을 때만 완전히 매칭된 것으로 판정
+      // 주문서에 디자인 코드가 있는 경우:
+      // 모든 코드가 접수되어 있고, 포장 품목 수 대비 연결된 디자인 수가 부족하지 않을 때만 완전히 매칭된 것으로 판정
       const unlinkedCodes = codes.filter((c) => !existingCodesSet.has(c));
-      if (unlinkedCodes.length === 0) {
+      const requiredCount = packagingItems.length > 0 ? packagingItems.length : codes.length;
+      if (unlinkedCodes.length === 0 && linkedCount >= requiredCount) {
         fullyMatchedOrderIds.add(o.order_id);
       }
     } else {
-      // 주문서에 코드가 없는 경우: 연결된 디자인이 1개 이상이면 매칭 완료 판정
-      if ((linkedDesignCountByOrder.get(o.order_id) || 0) > 0) {
+      // 주문서에 코드가 없는 경우:
+      // 포장 품목이 있다면 모든 포장 품목 수만큼 디자인이 연결되었을 때만 완전히 매칭된 것으로 판정
+      if (packagingItems.length > 0) {
+        if (linkedCount >= packagingItems.length) {
+          fullyMatchedOrderIds.add(o.order_id);
+        }
+      } else if (linkedCount > 0) {
         fullyMatchedOrderIds.add(o.order_id);
       }
     }
@@ -268,16 +279,20 @@ export function mergeDesignsAndOrders(
       continue;
     }
 
-    // 4-3. 유효 품목 중 포장 옵션이 있거나, 주문에 디자인 코드가 기재된 경우 -> 디자인 미연결
-    if (summary.hasPackaging) {
+    // 4-3. 유효 품목 중 포장 옵션이 있거나, 주문에 디자인 코드가 기재된 경우 -> 디자인 미연결 (확인 필요)
+    if (summary.hasPackaging || summary.extractedCodes.length > 0) {
       const codes = summary.extractedCodes;
       const unlinkedCodes = codes.filter((c) => !existingCodesSet.has(c));
+      const packagingItems = summary.items.filter((i) => !i.isCanceled && i.hasPackaging);
+      const linkedCount = linkedDesignCountByOrder.get(o.order_id) || 0;
 
       let reason: string;
       if (unlinkedCodes.length > 0) {
         reason = codes.length > unlinkedCodes.length
           ? `주문 내 일부 디자인 미접수 (미연결 코드: ${unlinkedCodes.join(', ')})`
           : `주문서에 디자인 코드(${unlinkedCodes.join(', ')})가 있으나 접수된 디자인이 없습니다.`;
+      } else if (linkedCount > 0 && packagingItems.length > linkedCount) {
+        reason = `포장 옵션 품목 ${packagingItems.length}개 중 ${packagingItems.length - linkedCount}개 미연결 (디자인 접수 확인 필요)`;
       } else {
         reason = '포장 옵션이 선택된 주문이나 아직 고객 디자인이 접수되지 않았습니다.';
       }
