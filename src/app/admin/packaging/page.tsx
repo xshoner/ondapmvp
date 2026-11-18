@@ -4,6 +4,8 @@ import { listBanners, type MainBanner } from '@/data/banner-repository.ts';
 import { CATEGORY_ORDER, categoryName } from '@/packaging/rules.ts';
 import { parseDesignFilter } from '@/packaging/design-filter.ts';
 import type { Design, PackagingAssets } from '@/packaging/types.ts';
+import { fetchRecentCafe24OrdersReadOnly } from '@/cafe24/readonly-orders.ts';
+import { mergeDesignsAndOrders, type MergedBoardItem } from '@/packaging/order-board-merge.ts';
 import { AssetManager } from './asset-manager.tsx';
 import { DesignsTable } from './designs-table.tsx';
 import { BannerManager } from './banner-manager.tsx';
@@ -32,11 +34,31 @@ export default async function PackagingAdminPage({ searchParams }: { searchParam
 
   let assets: PackagingAssets | null = null;
   let designs: Design[] = [];
+  let mergedItems: MergedBoardItem[] = [];
   let banners: MainBanner[] = [];
   let error: string | null = null;
+  let cafe24Error: string | null = null;
+
   try {
     if (tab === 'designs') {
-      if (!filter.codeInvalid) designs = await listDesigns({ ...filter, includePending: true, intakeOnly: true });
+      if (!filter.codeInvalid) {
+        designs = await listDesigns({ ...filter, includePending: true, intakeOnly: true });
+
+        // 카페24 최근 주문·품목을 읽기 전용으로 안전하게 가져와 디자인 접수와 결합
+        // DB 쓰기나 가짜 데이터 생성을 절대 하지 않음
+        try {
+          const cafe24Res = await fetchRecentCafe24OrdersReadOnly({ days: 7 });
+          if (cafe24Res.ok) {
+            mergedItems = mergeDesignsAndOrders(designs, cafe24Res.orders);
+          } else {
+            cafe24Error = cafe24Res.error || '카페24 주문 목록을 가져오지 못했습니다.';
+            mergedItems = mergeDesignsAndOrders(designs, []);
+          }
+        } catch (c24Err) {
+          cafe24Error = c24Err instanceof Error ? c24Err.message : String(c24Err);
+          mergedItems = mergeDesignsAndOrders(designs, []);
+        }
+      }
     } else if (tab === 'banners') {
       banners = await listBanners();
     } else {
@@ -64,7 +86,14 @@ export default async function PackagingAdminPage({ searchParams }: { searchParam
           <br />Supabase를 쓴다면 SQL Editor에서 최신 마이그레이션이 실행되었는지 확인하세요.
         </div>
       ) : tab === 'designs' ? (
-        <DesignsTable designs={designs} eventNames={eventNames} filter={filter} now={Date.now()} />
+        <DesignsTable
+          designs={designs}
+          mergedItems={mergedItems}
+          cafe24Error={cafe24Error}
+          eventNames={eventNames}
+          filter={filter}
+          now={Date.now()}
+        />
       ) : tab === 'banners' ? (
         <BannerManager banners={banners} />
       ) : assets ? (

@@ -15,6 +15,7 @@ import { STATUS_LABEL, filterQuery, type DesignFilter } from '@/packaging/design
 import type { Design, DesignStatus, TextLayer } from '@/packaging/types.ts';
 import { calculateScheduleStatus, type ScheduleInfo } from '@/packaging/schedule.ts';
 import { fillPlaceholders } from '@/packaging/rules.ts';
+import type { MergedBoardItem, Cafe24OrderSummary } from '@/packaging/order-board-merge.ts';
 import {
   updateDesignAction,
   updateDesignsStatusAction,
@@ -27,6 +28,8 @@ import {
 type PrintOptions = { paper: Paper; fill: boolean };
 type Props = {
   designs: Design[];
+  mergedItems?: MergedBoardItem[];
+  cafe24Error?: string | null;
   eventNames: Record<string, string>;
   filter: DesignFilter & { rawCode: string; codeInvalid: boolean };
   now: number;
@@ -37,6 +40,7 @@ const sheetUrl = (code: string, o: PrintOptions, test = false) =>
   `${fileUrl(code)}/sheet?paper=${o.paper}${o.fill && !test ? '&fill=1' : ''}${test ? '&count=1&test=1' : ''}`;
 
 export type WorkTab = 'active' | 'needs_check' | 'imminent' | 'all';
+export type ItemKindFilter = 'all' | 'designs' | 'unlinked' | 'no_packaging';
 export type SortOption = 'schedule' | 'newest' | 'oldest';
 
 const SHORTCUTS: [string, string][] = [
@@ -68,7 +72,7 @@ function getMessageDetails(d: Design) {
   return { stickerTexts, cardTexts, recipient, sender, printDate };
 }
 
-export function DesignsTable({ designs, eventNames, filter, now }: Props) {
+export function DesignsTable({ designs, mergedItems, cafe24Error, eventNames, filter, now }: Props) {
   const router = useRouter();
   const exportQuery = filterQuery(filter);
   const [options, setOptions] = useState<PrintOptions>({ paper: 'A4', fill: false });
@@ -78,8 +82,9 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
   const [cursor, setCursor] = useState(-1);
   const [help, setHelp] = useState(false);
 
-  // 작업판 탭 및 필터 상태 (단순화: 4대 탭)
+  // 작업판 탭 및 필터 상태
   const [workTab, setWorkTab] = useState<WorkTab>('active');
+  const [kindFilter, setKindFilter] = useState<ItemKindFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('schedule');
 
@@ -91,6 +96,18 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const syncing = useRef(false);
 
+  // 1. 통합 항목 목록 (MergedBoardItem[])
+  const allItems: MergedBoardItem[] = useMemo(() => {
+    if (mergedItems && mergedItems.length > 0) return mergedItems;
+    return designs.map((d) => ({
+      kind: 'linked_design' as const,
+      id: d.code,
+      code: d.code,
+      design: d,
+      sortTime: Date.parse(d.createdAt) || 0,
+    }));
+  }, [mergedItems, designs]);
+
   // 각 디자인별 KST 일정 산출 맵
   const scheduleMap = useMemo(() => {
     const map = new Map<string, ScheduleInfo>();
@@ -100,52 +117,85 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
     return map;
   }, [designs, now]);
 
-  // 상단 3대 핵심 지표 집계
+  // 상단 3대 핵심 지표 집계 (디자인 접수 + 카페24 주문 포괄)
   const counts = useMemo(() => {
     let activeCount = 0;
     let imminentCount = 0;
     let needsCheckCount = 0;
+    let designsCount = 0;
+    let unlinkedCount = 0;
+    let noPkgCount = 0;
 
-    for (const d of designs) {
-      const isDone = d.status === 'completed' || d.status === 'no_packaging';
-      const isCanceled = d.status === 'canceled';
-      const isPending = d.status === 'pending';
-      const info = scheduleMap.get(d.code);
+    for (const item of allItems) {
+      if (item.kind === 'linked_design') {
+        designsCount++;
+        const d = item.design;
+        const isDone = d.status === 'completed' || d.status === 'no_packaging';
+        const isCanceled = d.status === 'canceled';
+        const isPending = d.status === 'pending';
+        const info = scheduleMap.get(d.code);
 
-      // 오늘 처리할 작업 (미완료 제작 진행 건)
-      if (!isDone && !isCanceled && !isPending) {
-        activeCount++;
-      }
+        // 오늘 처리할 작업 (미완료 제작 진행 건)
+        if (!isDone && !isCanceled && !isPending) {
+          activeCount++;
+        }
 
-      // 확인 필요 (검수 대기 또는 주문 미연결)
-      if (d.status === 'received' || (!d.orderNo && !isDone && !isCanceled && !isPending)) {
+        // 확인 필요 (검수 대기 또는 주문 미연결)
+        if (d.status === 'received' || (!d.orderNo && !isDone && !isCanceled && !isPending)) {
+          needsCheckCount++;
+        }
+
+        // 일정 임박 (미완료 건 중 긴급 또는 임박: D-3 이내, 당일, 경과)
+        if (!isDone && !isCanceled && !isPending && info && (info.urgency === 'emergency' || info.urgency === 'imminent')) {
+          imminentCount++;
+        }
+      } else if (item.kind === 'unlinked_order' || item.kind === 'unknown_order') {
+        // 디자인 미연결 주문 및 확인 불가 주문은 '확인 필요'에 포함!
         needsCheckCount++;
-      }
-
-      // 일정 임박 (미완료 건 중 긴급 또는 임박: D-3 이내, 당일, 경과)
-      if (!isDone && !isCanceled && !isPending && info && (info.urgency === 'emergency' || info.urgency === 'imminent')) {
-        imminentCount++;
+        unlinkedCount++;
+      } else if (item.kind === 'no_packaging_order') {
+        noPkgCount++;
       }
     }
 
-    return { activeCount, imminentCount, needsCheckCount, totalCount: designs.length };
-  }, [designs, scheduleMap]);
+    return {
+      activeCount,
+      imminentCount,
+      needsCheckCount,
+      totalCount: allItems.length,
+      designsCount,
+      unlinkedCount,
+      noPkgCount,
+    };
+  }, [allItems, scheduleMap]);
 
   // 실시간 필터링 및 기준일 임박순 정렬
-  const displayDesigns = useMemo(() => {
-    let list = [...designs];
+  const displayItems = useMemo(() => {
+    let list = [...allItems];
 
     // 1. 작업 탭 필터
     if (workTab === 'active') {
-      list = list.filter((d) => d.status !== 'completed' && d.status !== 'no_packaging' && d.status !== 'canceled');
+      list = list.filter((item) => {
+        if (item.kind !== 'linked_design') return false;
+        const d = item.design;
+        return d.status !== 'completed' && d.status !== 'no_packaging' && d.status !== 'canceled';
+      });
     } else if (workTab === 'needs_check') {
-      list = list.filter(
-        (d) =>
-          d.status === 'received' ||
-          (!d.orderNo && d.status !== 'completed' && d.status !== 'no_packaging' && d.status !== 'canceled'),
-      );
+      list = list.filter((item) => {
+        if (item.kind === 'unlinked_order' || item.kind === 'unknown_order') return true;
+        if (item.kind === 'linked_design') {
+          const d = item.design;
+          return (
+            d.status === 'received' ||
+            (!d.orderNo && d.status !== 'completed' && d.status !== 'no_packaging' && d.status !== 'canceled')
+          );
+        }
+        return false;
+      });
     } else if (workTab === 'imminent') {
-      list = list.filter((d) => {
+      list = list.filter((item) => {
+        if (item.kind !== 'linked_design') return false;
+        const d = item.design;
         const isDone = d.status === 'completed' || d.status === 'no_packaging';
         const isCanceled = d.status === 'canceled';
         const info = scheduleMap.get(d.code);
@@ -153,39 +203,69 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
       });
     }
 
-    // 2. 단일 검색어 필터
+    // 2. 항목 구분 서브 필터 (kindFilter)
+    if (kindFilter === 'designs') {
+      list = list.filter((item) => item.kind === 'linked_design');
+    } else if (kindFilter === 'unlinked') {
+      list = list.filter((item) => item.kind === 'unlinked_order');
+    } else if (kindFilter === 'no_packaging') {
+      list = list.filter((item) => item.kind === 'no_packaging_order');
+    }
+
+    // 3. 단일 검색어 필터
     const q = searchQuery.trim().toLowerCase();
     if (q) {
-      list = list.filter((d) => {
-        if (d.code.toLowerCase().includes(q)) return true;
-        if (d.orderNo && d.orderNo.toLowerCase().includes(q)) return true;
-        if (d.productName.toLowerCase().includes(q)) return true;
-        if (d.memo && d.memo.toLowerCase().includes(q)) return true;
-        const texts = getMessageDetails(d);
-        if (texts.recipient.toLowerCase().includes(q)) return true;
-        if (texts.sender.toLowerCase().includes(q)) return true;
-        if (texts.stickerTexts.some((t) => t.toLowerCase().includes(q))) return true;
-        if (texts.cardTexts.some((t) => t.toLowerCase().includes(q))) return true;
+      list = list.filter((item) => {
+        if (item.kind === 'linked_design') {
+          const d = item.design;
+          if (d.code.toLowerCase().includes(q)) return true;
+          if (d.orderNo && d.orderNo.toLowerCase().includes(q)) return true;
+          if (d.productName.toLowerCase().includes(q)) return true;
+          if (d.memo && d.memo.toLowerCase().includes(q)) return true;
+          const texts = getMessageDetails(d);
+          if (texts.recipient.toLowerCase().includes(q)) return true;
+          if (texts.sender.toLowerCase().includes(q)) return true;
+          if (texts.stickerTexts.some((t) => t.toLowerCase().includes(q))) return true;
+          if (texts.cardTexts.some((t) => t.toLowerCase().includes(q))) return true;
+          return false;
+        }
+
+        const o = item.order;
+        if (o.orderId.toLowerCase().includes(q)) return true;
+        if (o.orderStatusLabel.toLowerCase().includes(q)) return true;
+        if (o.paymentStatusLabel.toLowerCase().includes(q)) return true;
+        if (o.items.some((i) => i.productName.toLowerCase().includes(q) || i.optionsText.toLowerCase().includes(q))) return true;
+        if (item.kind === 'unlinked_order') {
+          if (item.suggestedCodes.some((c) => c.toLowerCase().includes(q))) return true;
+          if (item.missingReason.toLowerCase().includes(q)) return true;
+        }
+        if (item.kind === 'no_packaging_order' && item.reason.toLowerCase().includes(q)) return true;
+        if (item.kind === 'unknown_order' && item.reason.toLowerCase().includes(q)) return true;
         return false;
       });
     }
 
-    // 3. 정렬 (기준일 임박순 기본)
+    // 4. 정렬 (기준일 임박순 기본)
     if (sortBy === 'schedule') {
       list.sort((a, b) => {
-        const scoreA = scheduleMap.get(a.code)?.sortScore ?? 999999;
-        const scoreB = scheduleMap.get(b.code)?.sortScore ?? 999999;
+        const scoreA = a.kind === 'linked_design' ? (scheduleMap.get(a.design.code)?.sortScore ?? 999999) : 950000;
+        const scoreB = b.kind === 'linked_design' ? (scheduleMap.get(b.design.code)?.sortScore ?? 999999) : 950000;
         if (scoreA !== scoreB) return scoreA - scoreB;
-        return Date.parse(b.createdAt) - Date.parse(a.createdAt);
+        return b.sortTime - a.sortTime;
       });
     } else if (sortBy === 'newest') {
-      list.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+      list.sort((a, b) => b.sortTime - a.sortTime);
     } else if (sortBy === 'oldest') {
-      list.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+      list.sort((a, b) => a.sortTime - b.sortTime);
     }
 
     return list;
-  }, [designs, workTab, searchQuery, sortBy, scheduleMap]);
+  }, [allItems, workTab, kindFilter, searchQuery, sortBy, scheduleMap]);
+
+  // 하위 호환용 designs 목록
+  const displayDesigns = useMemo(() => {
+    return displayItems.filter((i): i is Extract<MergedBoardItem, { kind: 'linked_design' }> => i.kind === 'linked_design').map((i) => i.design);
+  }, [displayItems]);
 
   const toggleSelect = (code: string) =>
     setSelected((prev) => {
@@ -297,6 +377,43 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
+      {/* 카페24 API 오류/권한 부족 발생 시 상단 알림 */}
+      {cafe24Error && (
+        <div
+          role="alert"
+          style={{
+            padding: '10px 14px',
+            background: '#fff1f2',
+            color: '#be123c',
+            border: '1px solid #fecdd3',
+            borderRadius: 8,
+            fontSize: 13,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 10,
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 16 }}>⚠️</span>
+            <div>
+              <b>카페24 실시간 주문 연동 알림:</b> {cafe24Error}
+              <div style={{ fontSize: 11.5, color: '#9f1239', marginTop: 1 }}>
+                관리자 토큰 만료 또는 권한 부족 시 주문 조회가 제한될 수 있습니다.
+              </div>
+            </div>
+          </div>
+          <a
+            href="/admin/health"
+            className="btn small"
+            style={{ fontSize: 12, background: '#e11d48', color: '#fff', border: 'none', fontWeight: 600 }}
+          >
+            운영 상태 점검
+          </a>
+        </div>
+      )}
+
       {/* 1. 간결한 3대 핵심 요약 바 (Dashboard Summary) */}
       <div className="board-kpi-summary">
         <button
@@ -326,7 +443,9 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
         >
           <span className="summary-title">⚠️ 확인 필요</span>
           <b className="summary-val danger">{counts.needsCheckCount}건</b>
-          <span className="summary-hint">미연결 / 검수 대기</span>
+          <span className="summary-hint">
+            디자인 미연결 {counts.unlinkedCount > 0 ? `(${counts.unlinkedCount}건)` : ''} / 검수 대기
+          </span>
         </button>
       </div>
 
@@ -361,7 +480,7 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
               className={`board-tab ${workTab === 'all' ? 'active' : ''}`}
               onClick={() => setWorkTab('all')}
             >
-              전체 목록
+              전체 목록 ({counts.totalCount})
             </button>
           </div>
 
@@ -428,10 +547,42 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
               style={{ border: '1px solid var(--line)', borderRadius: 6, padding: '4px 8px', fontSize: 13 }}
             >
               <option value="schedule">기준일 임박순 (기본)</option>
-              <option value="newest">접수일 최신순</option>
-              <option value="oldest">접수일 오래된순</option>
+              <option value="newest">접수·주문일 최신순</option>
+              <option value="oldest">접수·주문일 오래된순</option>
             </select>
           </div>
+        </div>
+
+        {/* 항목 구분 서브 필터 */}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', borderTop: '1px solid var(--line-soft, #f1f5f9)', paddingTop: 8 }}>
+          <span className="small muted" style={{ fontSize: 12 }}>구분 필터:</span>
+          {(
+            [
+              ['all', `전체 (${counts.totalCount})`],
+              ['designs', `디자인 접수건 (${counts.designsCount})`],
+              ['unlinked', `디자인 미연결 (${counts.unlinkedCount})`],
+              ['no_packaging', `포장 미요청 (${counts.noPkgCount})`],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              className={`chip small ${kindFilter === k ? 'active' : ''}`}
+              style={{
+                padding: '3px 8px',
+                fontSize: 12,
+                borderRadius: 4,
+                background: kindFilter === k ? '#2563eb' : '#f1f5f9',
+                color: kindFilter === k ? '#fff' : '#475569',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: kindFilter === k ? 600 : 400,
+              }}
+              onClick={() => setKindFilter(k)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         {syncMessage && (
@@ -530,12 +681,12 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
       )}
 
       {/* 3. 통합 작업판 메인 테이블 */}
-      {displayDesigns.length === 0 ? (
+      {displayItems.length === 0 ? (
         <div className="panel" style={{ padding: 40, textAlign: 'center' }}>
           <p className="small muted" style={{ fontSize: 14, margin: 0 }}>
             {searchQuery
               ? '검색 결과와 일치하는 주문이 없습니다.'
-              : '해당 탭에 표시할 주문이 없습니다.'}
+              : '해당 조건에 표시할 주문이 없습니다.'}
           </p>
         </div>
       ) : (
@@ -561,22 +712,58 @@ export function DesignsTable({ designs, eventNames, filter, now }: Props) {
               </tr>
             </thead>
             <tbody>
-              {displayDesigns.map((d, i) => (
-                <BoardRow
-                  key={d.code}
-                  design={d}
-                  scheduleInfo={scheduleMap.get(d.code)!}
-                  eventNames={eventNames}
-                  options={options}
-                  now={now}
-                  active={i === cursor}
-                  selected={selected.has(d.code)}
-                  expanded={expanded.has(d.code)}
-                  onToggleSelect={() => toggleSelect(d.code)}
-                  onToggleExpand={() => toggleExpand(d.code)}
-                  onFocusRow={() => setCursor(i)}
-                />
-              ))}
+              {displayItems.map((item, i) => {
+                if (item.kind === 'linked_design') {
+                  const d = item.design;
+                  return (
+                    <BoardRow
+                      key={item.id}
+                      design={d}
+                      scheduleInfo={scheduleMap.get(d.code)!}
+                      eventNames={eventNames}
+                      options={options}
+                      now={now}
+                      active={i === cursor}
+                      selected={selected.has(d.code)}
+                      expanded={expanded.has(d.code)}
+                      onToggleSelect={() => toggleSelect(d.code)}
+                      onToggleExpand={() => toggleExpand(d.code)}
+                      onFocusRow={() => setCursor(i)}
+                    />
+                  );
+                }
+                if (item.kind === 'unlinked_order') {
+                  return (
+                    <UnlinkedOrderRow
+                      key={item.id}
+                      order={item.order}
+                      missingReason={item.missingReason}
+                      suggestedCodes={item.suggestedCodes}
+                      expanded={expanded.has(item.id)}
+                      onToggleExpand={() => toggleExpand(item.id)}
+                    />
+                  );
+                }
+                if (item.kind === 'no_packaging_order') {
+                  return (
+                    <NoPackagingOrderRow
+                      key={item.id}
+                      order={item.order}
+                      reason={item.reason}
+                    />
+                  );
+                }
+                if (item.kind === 'unknown_order') {
+                  return (
+                    <UnknownOrderRow
+                      key={item.id}
+                      order={item.order}
+                      reason={item.reason}
+                    />
+                  );
+                }
+                return null;
+              })}
             </tbody>
           </table>
         </div>
@@ -1327,5 +1514,313 @@ function BoardRow({
         </tr>
       )}
     </>
+  );
+}
+
+function UnlinkedOrderRow({
+  order,
+  missingReason,
+  suggestedCodes,
+  expanded,
+  onToggleExpand,
+}: {
+  order: Cafe24OrderSummary;
+  missingReason: string;
+  suggestedCodes: string[];
+  expanded: boolean;
+  onToggleExpand: () => void;
+}) {
+  const router = useRouter();
+  const [codeInput, setCodeInput] = useState(suggestedCodes[0] || '');
+  const [linkPending, startLink] = useTransition();
+  const [linkMsg, setLinkMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const handleLink = () => {
+    const targetCode = codeInput.trim();
+    if (!targetCode) return;
+    setLinkMsg(null);
+    startLink(async () => {
+      const res = await linkDesignToOrderAction(targetCode, order.orderId);
+      if (res.ok) {
+        setLinkMsg({ ok: true, text: `디자인(${targetCode})과 주문(${order.orderId})이 성공적으로 연결되었습니다!` });
+        router.refresh();
+      } else {
+        setLinkMsg({ ok: false, text: res.message });
+      }
+    });
+  };
+
+  const isPaid = order.paid;
+
+  return (
+    <>
+      <tr
+        className={`board-row unlinked-row ${expanded ? 'expanded' : ''}`}
+        style={{ background: '#fffdfa' }}
+        onClick={(e) => {
+          if ((e.target as HTMLElement).closest('button, input, select, a')) return;
+          onToggleExpand();
+        }}
+      >
+        <td style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>-</td>
+        <td>
+          <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink)' }}>
+            {order.orderDate ? order.orderDate.slice(0, 16) : '-'}
+          </div>
+          <span className="badge small" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
+            접수 대기
+          </span>
+        </td>
+        <td>
+          <div style={{ fontWeight: 600, fontSize: 13, color: '#1e3a8a' }}>{order.orderId}</div>
+          <div style={{ display: 'flex', gap: 4, marginTop: 2, flexWrap: 'wrap' }}>
+            <span
+              className="badge small"
+              style={{
+                background: isPaid ? '#dcfce7' : '#fee2e2',
+                color: isPaid ? '#166534' : '#991b1b',
+                fontWeight: 600,
+              }}
+            >
+              {order.paymentStatusLabel}
+            </span>
+            <span className="badge small" style={{ background: '#f1f5f9', color: '#475569' }}>
+              {order.orderStatusLabel}
+            </span>
+          </div>
+        </td>
+        <td>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span
+              className="badge"
+              style={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', fontWeight: 700 }}
+            >
+              ⚠️ 디자인 미연결
+            </span>
+            {suggestedCodes.length > 0 && (
+              <span className="code-text" style={{ fontSize: 11.5, background: '#fef9c3', padding: '1px 5px', borderRadius: 4 }}>
+                코드: {suggestedCodes.join(', ')}
+              </span>
+            )}
+          </div>
+          <div style={{ fontWeight: 500, fontSize: 13, marginTop: 3 }}>
+            {order.items.map((i) => i.productName).join(', ')}
+          </div>
+          <div className="small muted" style={{ fontSize: 11.5 }}>
+            총 {order.totalValidQuantity}개 (포장 필요: {order.packagingQuantity}개)
+          </div>
+        </td>
+        <td>
+          <div style={{ fontSize: 12, color: 'var(--ink)' }}>
+            {order.items.filter((i) => i.hasPackaging).map((i) => i.optionsText).filter(Boolean).join(' / ') || '포장 옵션 신청'}
+          </div>
+        </td>
+        <td>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button type="button" className="btn small" onClick={onToggleExpand}>
+              {expanded ? '닫기 ▲' : '검수·연결 ▼'}
+            </button>
+          </div>
+        </td>
+      </tr>
+
+      {expanded && (
+        <tr className="board-detail-row" style={{ background: '#fffbeb' }}>
+          <td colSpan={6} style={{ padding: '16px 20px', borderTop: '1px solid #fde68a' }}>
+            <div style={{ display: 'grid', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                <div>
+                  <h4 style={{ margin: '0 0 4px', fontSize: 14, color: '#92400e', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>⚠️ 디자인 미연결 안내</span>
+                    <span style={{ fontSize: 12, fontWeight: 400, color: '#78350f' }}>({missingReason})</span>
+                  </h4>
+                  <p className="small" style={{ margin: 0, color: '#78350f' }}>
+                    고객이 주문 시 포장 옵션을 선택했으나 아직 디자인을 접수하지 않았거나, 입력된 코드가 일치하지 않습니다.
+                    고객 접수 링크 안내를 전달하거나, 이미 접수된 디자인 코드가 있는 경우 아래에서 직접 연결해 주세요.
+                  </p>
+                </div>
+
+                {/* 디자인 수동 연결 폼 */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 280, background: '#fff', padding: 10, borderRadius: 6, border: '1px solid #fed7aa' }}>
+                  <b className="small" style={{ color: '#9a3412' }}>디자인 수동 연결 (5대 불변식 검증):</b>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input
+                      type="text"
+                      value={codeInput}
+                      onChange={(e) => setCodeInput(e.target.value)}
+                      placeholder="디자인 코드 (OD-XXXX-XXXX)"
+                      style={{ flex: 1, fontSize: 12, padding: '4px 8px', border: '1px solid #cbd5e1', borderRadius: 4 }}
+                    />
+                    <button
+                      type="button"
+                      className="btn small"
+                      disabled={linkPending || !codeInput.trim()}
+                      onClick={handleLink}
+                      style={{ background: '#ea580c', color: '#fff', fontWeight: 600 }}
+                    >
+                      {linkPending ? '검증 중...' : '검증 후 연결'}
+                    </button>
+                  </div>
+                  {linkMsg && (
+                    <div
+                      className="small"
+                      style={{
+                        color: linkMsg.ok ? '#15803d' : '#b91c1c',
+                        fontWeight: 600,
+                        fontSize: 11.5,
+                        marginTop: 2,
+                      }}
+                    >
+                      {linkMsg.text}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 주문 품목 상세 */}
+              <div style={{ background: '#fff', padding: '10px 14px', borderRadius: 6, border: '1px solid #e2e8f0' }}>
+                <b className="small" style={{ display: 'block', marginBottom: 6 }}>주문 품목 상세:</b>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  {order.items.map((item, idx) => (
+                    <div
+                      key={item.itemNo || idx}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        fontSize: 12.5,
+                        padding: '4px 0',
+                        borderBottom: idx < order.items.length - 1 ? '1px dashed #e2e8f0' : 'none',
+                      }}
+                    >
+                      <div>
+                        <b>{item.productName}</b>
+                        <span style={{ color: 'var(--muted)', marginLeft: 6 }}>#{item.productNo}</span>
+                        {item.optionsText && <span style={{ marginLeft: 8, color: '#475569' }}>({item.optionsText})</span>}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {item.hasPackaging ? (
+                          <span className="badge small" style={{ background: '#fef3c7', color: '#b45309' }}>
+                            포장 대상
+                          </span>
+                        ) : (
+                          <span className="badge small" style={{ background: '#f1f5f9', color: '#64748b' }}>
+                            일반 상품
+                          </span>
+                        )}
+                        {item.isCanceled && (
+                          <span className="badge small" style={{ background: '#fee2e2', color: '#991b1b' }}>
+                            취소/환불
+                          </span>
+                        )}
+                        <b>{item.quantity}개</b>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+function NoPackagingOrderRow({
+  order,
+  reason,
+}: {
+  order: Cafe24OrderSummary;
+  reason: string;
+}) {
+  const isPaid = order.paid;
+  return (
+    <tr className="board-row no-packaging-row" style={{ background: '#f8fafc', opacity: 0.88 }}>
+      <td style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>-</td>
+      <td>
+        <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+          {order.orderDate ? order.orderDate.slice(0, 16) : '-'}
+        </div>
+      </td>
+      <td>
+        <div style={{ fontSize: 13, color: '#334155' }}>{order.orderId}</div>
+        <div style={{ display: 'flex', gap: 4, marginTop: 2, flexWrap: 'wrap' }}>
+          <span
+            className="badge small"
+            style={{
+              background: isPaid ? '#dcfce7' : '#fee2e2',
+              color: isPaid ? '#166534' : '#991b1b',
+            }}
+          >
+            {order.paymentStatusLabel}
+          </span>
+          <span className="badge small" style={{ background: '#f1f5f9', color: '#475569' }}>
+            {order.orderStatusLabel}
+          </span>
+        </div>
+      </td>
+      <td>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span className="badge small" style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1' }}>
+            포장 미요청
+          </span>
+        </div>
+        <div style={{ fontSize: 13, marginTop: 2, color: '#334155' }}>
+          {order.items.map((i) => `${i.productName} (${i.quantity}개)`).join(', ')}
+        </div>
+      </td>
+      <td>
+        <span className="small muted" style={{ fontSize: 12 }}>
+          {reason}
+        </span>
+      </td>
+      <td>
+        <span className="small muted" style={{ fontSize: 12, color: '#64748b' }}>
+          포장 불필요 (일반 출고)
+        </span>
+      </td>
+    </tr>
+  );
+}
+
+function UnknownOrderRow({
+  order,
+  reason,
+}: {
+  order: Cafe24OrderSummary;
+  reason: string;
+}) {
+  return (
+    <tr className="board-row unknown-row" style={{ background: '#fef2f2' }}>
+      <td style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>-</td>
+      <td>
+        <div style={{ fontSize: 12, color: '#991b1b' }}>
+          {order.orderDate ? order.orderDate.slice(0, 16) : '-'}
+        </div>
+      </td>
+      <td>
+        <div style={{ fontWeight: 600, fontSize: 13, color: '#991b1b' }}>{order.orderId}</div>
+        <span className="badge small" style={{ background: '#fee2e2', color: '#991b1b' }}>
+          {order.paymentStatusLabel}
+        </span>
+      </td>
+      <td>
+        <span className="badge small" style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca' }}>
+          ⚠️ 확인 불가
+        </span>
+        <div style={{ fontSize: 12.5, color: '#7f1d1d', marginTop: 2 }}>
+          {reason}
+        </div>
+      </td>
+      <td>
+        <span className="small muted">-</span>
+      </td>
+      <td>
+        <span className="small" style={{ color: '#b91c1c', fontWeight: 500 }}>
+          카페24 상세 확인 필요
+        </span>
+      </td>
+    </tr>
   );
 }
