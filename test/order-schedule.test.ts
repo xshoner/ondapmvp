@@ -1113,6 +1113,10 @@ test('18-3. 부분 취소 대상 디자인이 불명확한 경우: 전체를 취
 
     const [d2] = await listDesigns({ code: 'OD-AMBG-0002', limit: 1, includePending: true });
     assert.equal(d2.status, 'order_confirmed', '다른 디자인도 canceled로 바뀌지 않아야 함');
+    await updateDesign('OD-AMBG-0002', { orderNo: '20261118-0099888' });
+    await verifyAndAcceptOrder(ambiguousOrder, 'OD-AMBG-0002');
+    const [otherOrder] = await listDesigns({ code: 'OD-AMBG-0002', limit: 1, includePending: true });
+    assert.equal(Boolean(otherOrder.cafe24Canceled), false, '다른 주문의 디자인은 부분 취소 경고로 차단하지 않는다');
   } finally {
     delete process.env.ONDAP_TEST_DATA_DIR;
     rmSync(testDir, { recursive: true, force: true });

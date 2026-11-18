@@ -217,7 +217,7 @@ async function markAmbiguousPartialCancel(
     const { listDesigns, updateDesign } = await import('../data/packaging-repository.ts');
     for (const code of targetCodes) {
       const [d] = await listDesigns({ code, limit: 1, includePending: true });
-      if (!d) continue;
+      if (!d || d.orderNo !== order.order_id) continue;
       // 상태는 canceled로 바꾸지 않고 기존 상태 유지! cafe24Canceled: true 플래그만 설정
       const nextMemo = !d.memo.includes(`${order.order_id} 부분 취소 발생`) && d.memo.length + warn.length + 1 <= 500
         ? [d.memo.trim(), warn].filter(Boolean).join('\n') : d.memo;
@@ -226,7 +226,8 @@ async function markAmbiguousPartialCancel(
   } else {
     const db = createServiceClient();
     for (const code of targetCodes) {
-      const { data: row } = await db.from('designs').select('memo').eq('code', code).maybeSingle();
+      const { data: row } = await db.from('designs').select('memo').eq('code', code).eq('order_no', order.order_id).maybeSingle();
+      if (!row) continue;
       const curMemo = (row?.memo as string) || '';
       const nextMemo = !curMemo.includes(`${order.order_id} 부분 취소 발생`) && curMemo.length + warn.length + 1 <= 500
         ? [curMemo.trim(), warn].filter(Boolean).join('\n') : curMemo;
@@ -234,7 +235,7 @@ async function markAmbiguousPartialCancel(
         cafe24_canceled: true,
         memo: nextMemo,
         updated_at: new Date().toISOString(),
-      }).eq('code', code);
+      }).eq('code', code).eq('order_no', order.order_id);
     }
   }
   await recordOperation('design_save', 'error', Date.now(), 'partial_cancel_ambiguous');
