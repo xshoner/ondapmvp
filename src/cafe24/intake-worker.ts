@@ -2,6 +2,7 @@ import { createServiceClient } from '../lib/supabase/service.ts';
 import { dataSource } from '../lib/supabase/env.ts';
 import { lookupDesign } from '../data/packaging-repository.ts';
 import { recordOperation } from '../data/operations-repository.ts';
+import { extractAllDesignCodes } from './readonly-orders.ts';
 import {
   extractDesignCode,
   extractItemDesignCode,
@@ -226,16 +227,18 @@ export async function markAmbiguousPartialCancel(
   } else {
     const db = createServiceClient();
     for (const code of targetCodes) {
-      const { data: row } = await db.from('designs').select('memo').eq('code', code).eq('order_no', order.order_id).maybeSingle();
+      const { data: row, error: readError } = await db.from('designs').select('memo').eq('code', code).eq('order_no', order.order_id).maybeSingle();
+      if (readError) throw new Error('부분 취소 상태를 확인하지 못했습니다.');
       if (!row) continue;
       const curMemo = (row?.memo as string) || '';
       const nextMemo = !curMemo.includes(`${order.order_id} 부분 취소 발생`) && curMemo.length + warn.length + 1 <= 500
         ? [curMemo.trim(), warn].filter(Boolean).join('\n') : curMemo;
-      await db.from('designs').update({
+      const { error: updateError } = await db.from('designs').update({
         cafe24_canceled: true,
         memo: nextMemo,
         updated_at: new Date().toISOString(),
       }).eq('code', code).eq('order_no', order.order_id);
+      if (updateError) throw new Error('부분 취소 확인 상태를 저장하지 못했습니다.');
     }
   }
   await recordOperation('design_save', 'error', Date.now(), 'partial_cancel_ambiguous');
@@ -441,7 +444,7 @@ export async function processPaymentEventQueue(limit = 10, deadlineMs = Date.now
   return { processed, confirmed, errors };
 }
 
-export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number; confirmed: number; pendingOrders: number }> {
+export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number; confirmed: number; pendingOrders: number; failedOrders: number; hasMore: boolean }> {
   const mallId = (process.env.CAFE24_MALL_ID || '').trim();
   if (!mallId) throw new Error('CAFE24_MALL_ID 환경변수가 필요합니다.');
 
@@ -462,6 +465,7 @@ export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number;
 
   let allOrders: Cafe24AdminOrder[] = [];
   let offset = 0;
+  let hasMore = false;
   const limit = 100;
   const maxPages = 10;
 
@@ -506,17 +510,21 @@ export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number;
     allOrders.push(...batch);
 
     if (batch.length < limit) break;
+    if (page === maxPages - 1) hasMore = true;
     offset += limit;
   }
 
   let confirmed = 0;
   let pendingOrders = 0;
+  let failedOrders = 0;
 
   for (const order of allOrders) {
     if (isOrderCanceled(order)) {
       try {
-        await handleCanceledOrder(order, Date.now());
+        const outcome = await handleCanceledOrder(order, Date.now());
+        if (outcome.status === 'conflict') failedOrders++;
       } catch (err) {
+        failedOrders++;
         console.warn(`[Cafe24 Sync] 취소 주문 ${order.order_id} 반영 실패:`, err instanceof Error ? err.message : err);
       }
       continue;
@@ -536,10 +544,11 @@ export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number;
             .map((d) => ({ code: d.code, productNo: d.productNo }));
         } else {
           const db = createServiceClient();
-          const { data: rows } = await db
+          const { data: rows, error: linkedError } = await db
             .from('designs')
             .select('code, product_no')
             .eq('order_no', order.order_id);
+          if (linkedError) throw new Error('연결된 접수를 확인하지 못했습니다.');
           linkedRows = (rows ?? []).map((r) => ({ code: r.code as string, productNo: r.product_no as number }));
         }
 
@@ -554,26 +563,31 @@ export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number;
               // 같은 상품번호의 디자인이 1개뿐이면 명확히 그 디자인만 부분 취소
               const sameProductDesigns = linkedRows.filter((r) => r.productNo === linked.productNo);
               if (sameProductDesigns.length === 1) {
-                await handleCanceledItem(order, Date.now(), linked.code);
+                const outcome = await handleCanceledItem(order, Date.now(), linked.code);
+                if (outcome.status === 'conflict') failedOrders++;
               } else {
                 // 같은 상품번호로 여러 디자인이 등록되어 있다면 대상 불명확 -> 확인 필요
                 await markAmbiguousPartialCancel(order, sameProductDesigns.map((r) => r.code));
+                failedOrders++;
               }
             } else {
               // 해당 상품번호 중 일부 품목만 취소된 경우:
               // 취소된 품목 옵션에 linked.code가 직접 명시되어 있는지 확인
               const directlyCanceled = productCanceledItems.some((item) => extractItemDesignCode(item) === linked.code);
               if (directlyCanceled) {
-                await handleCanceledItem(order, Date.now(), linked.code);
-              } else {
+                const outcome = await handleCanceledItem(order, Date.now(), linked.code);
+                if (outcome.status === 'conflict') failedOrders++;
+              } else if (productCanceledItems.some((item) => !extractItemDesignCode(item))) {
                 // 취소 품목에 코드가 없어 어느 디자인이 취소되었는지 불명확:
                 // 전체를 취소하지 말고 확인 필요(cafe24Canceled: true)로 처리
                 await markAmbiguousPartialCancel(order, [linked.code]);
+                failedOrders++;
               }
             }
           }
         }
       } catch (err) {
+        failedOrders++;
         console.warn(`[Cafe24 Sync] 부분 취소 주문 ${order.order_id} 확인 실패:`, err instanceof Error ? err.message : err);
       }
     }
@@ -592,6 +606,7 @@ export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number;
           fullOrder = await fetchAdminOrder(order.order_id, { customToken: token, shopNo: order.shop_no });
           code = extractDesignCode(fullOrder);
         } catch (err) {
+          failedOrders++;
           console.warn(`[Cafe24 Sync] 주문 ${order.order_id} 상세 보완 조회 실패:`, err instanceof Error ? err.message : err);
         }
       }
@@ -601,10 +616,13 @@ export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number;
       continue;
     }
 
+    for (const code of extractAllDesignCodes(fullOrder)) {
     if (isOrderPaid(fullOrder)) {
-      const decision = await verifyAndAcceptOrder(fullOrder);
+      const decision = await verifyAndAcceptOrder(fullOrder, code);
       if (decision.status === 'confirmed' || decision.status === 'already_confirmed') {
         confirmed++;
+      } else if (decision.status !== 'canceled' && decision.status !== 'not_applicable') {
+        failedOrders++;
       }
     } else {
       // 미결제(무통장 입금 대기 등) 주문:
@@ -647,10 +665,12 @@ export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number;
         }
 
         // 1. 디자인이 존재하고 status가 pending인지 확인 (이미 확인/인쇄/취소된 건은 변경하지 않음)
-        if (!d || d.status !== 'pending') continue;
+        if (!d) { failedOrders++; continue; }
+        if (d.status !== 'pending') continue;
 
         // 2. 다른 주문에 이미 연결된 디자인인지 확인
         if (d.orderNo && d.orderNo !== fullOrder.order_id) {
+          failedOrders++;
           console.warn(`[Cafe24 Sync] 디자인 ${code}는 이미 다른 주문(${d.orderNo})에 연결되어 있어 주문 ${fullOrder.order_id} 연결을 건너뜁니다.`);
           continue;
         }
@@ -660,18 +680,21 @@ export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number;
           ? fullOrder.items.find((item) => item.product_no === d.productNo)
           : undefined;
         if (!matchingItem) {
+          failedOrders++;
           console.warn(`[Cafe24 Sync] 주문 ${fullOrder.order_id} 상품번호와 디자인 ${code} 상품번호(${d.productNo}) 불일치`);
           continue;
         }
 
         // 4. 수량 일치 확인
         if (matchingItem.quantity !== d.quantity) {
+          failedOrders++;
           console.warn(`[Cafe24 Sync] 주문 ${fullOrder.order_id} 수량(${matchingItem.quantity})과 디자인 ${code} 수량(${d.quantity}) 불일치`);
           continue;
         }
 
         // 5. 포장 디자인 옵션 신청 여부 확인
         if (!hasPackagingOption(matchingItem)) {
+          failedOrders++;
           console.warn(`[Cafe24 Sync] 주문 ${fullOrder.order_id} 포장 디자인 유료 옵션 미선택`);
           continue;
         }
@@ -707,10 +730,12 @@ export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number;
           if (uErr) throw new Error(`디자인 메모 저장 실패: ${uErr.message}`);
         }
       } catch (err) {
+        failedOrders++;
         console.warn(`[Cafe24 Sync] 미결제 주문 ${fullOrder.order_id} (디자인: ${code}) 메모 작성 실패:`, err instanceof Error ? err.message : err);
       }
     }
+    }
   }
 
-  return { total: allOrders.length, confirmed, pendingOrders };
+  return { total: allOrders.length, confirmed, pendingOrders, failedOrders, hasMore };
 }

@@ -461,11 +461,14 @@ export async function confirmResumeAction(code: string, note?: string): Promise<
   if (d.status === 'canceled') {
     return { ok: false, message: '취소 확정된 접수는 정상 진행으로 변경할 수 없습니다.' };
   }
+  if (!d.cafe24Canceled || !d.orderNo) {
+    return { ok: false, message: '확인이 필요한 주문에 연결된 접수만 정상 진행할 수 있습니다.' };
+  }
 
   // 2) 실제 전체 취소나 해당 품목 취소가 확인된 건을 정상 진행으로 잘못 되돌리지 않도록 서버에서 주문 상태 검증
   if (d.orderNo) {
     try {
-      const { fetchAdminOrder, isOrderCanceled, isItemCanceledOrRefunded } = await import('../../../cafe24/admin-orders.ts');
+      const { fetchAdminOrder, isOrderCanceled, isOrderPaid, isItemCanceledOrRefunded } = await import('../../../cafe24/admin-orders.ts');
       const { extractItemDesignCode } = await import('../../../cafe24/readonly-orders.ts');
       const order = await fetchAdminOrder(d.orderNo);
 
@@ -475,24 +478,25 @@ export async function confirmResumeAction(code: string, note?: string): Promise<
           message: `카페24 주문(${d.orderNo}) 전체가 취소된 상태입니다. 정상 진행할 수 없으며 취소 확정이 필요합니다.`,
         };
       }
+      if (!isOrderPaid(order)) return { ok: false, message: '결제 상태를 확인할 수 없습니다. 카페24 주문을 확인해 주세요.' };
 
-      const items = Array.isArray(order.items) ? order.items : [];
-      const itemForThisDesign = items.find((item) => extractItemDesignCode(item) === c);
-      if (itemForThisDesign && isItemCanceledOrRefunded(itemForThisDesign)) {
+      const items = Array.isArray(order.items) ? order.items.filter((item) => item.product_no === d.productNo) : [];
+      if (!items.length) return { ok: false, message: '주문 품목을 확인할 수 없습니다. 카페24 주문을 확인해 주세요.' };
+      const matchingItems = items.filter((item) => extractItemDesignCode(item) === c);
+      if (matchingItems.some(isItemCanceledOrRefunded) || items.every(isItemCanceledOrRefunded)) {
         return {
           ok: false,
           message: '해당 품목이 카페24에서 취소된 상태입니다. 취소 확정 처리를 해 주세요.',
         };
       }
     } catch {
-      // 조회 실패 시에도 관리자 명시적 확인 메모가 기록되므로 진행
+      return { ok: false, message: '카페24 주문을 확인하지 못했습니다. 연결 상태를 확인한 뒤 다시 시도해 주세요.' };
     }
   }
 
   const confirmMsg = `[관리자 확인: 정상 진행${note?.trim() ? ` - ${note.trim()}` : ''}]`;
-  const nextMemo = d.memo.includes('정상 진행')
-    ? d.memo
-    : d.memo.trim()
+  if (d.memo.trim().length + confirmMsg.length + 1 > 500) return { ok: false, message: '메모가 가득 찼습니다. 기존 메모를 정리한 뒤 다시 확인해 주세요.' };
+  const nextMemo = d.memo.trim()
     ? `${d.memo.trim()}\n${confirmMsg}`.slice(0, 500)
     : confirmMsg;
 
@@ -520,9 +524,8 @@ export async function confirmCancelAction(code: string, note?: string): Promise<
   if (d.status === 'canceled') return { ok: true };
 
   const confirmMsg = `[관리자 확인: 취소 확정${note?.trim() ? ` - ${note.trim()}` : ''}]`;
-  const nextMemo = d.memo.includes('취소 확정')
-    ? d.memo
-    : d.memo.trim()
+  if (d.memo.trim().length + confirmMsg.length + 1 > 500) return { ok: false, message: '메모가 가득 찼습니다. 기존 메모를 정리한 뒤 다시 확인해 주세요.' };
+  const nextMemo = d.memo.trim()
     ? `${d.memo.trim()}\n${confirmMsg}`.slice(0, 500)
     : confirmMsg;
 
@@ -549,12 +552,12 @@ export async function syncCafe24OrdersAction(): Promise<{ ok: boolean; message: 
     await safeRevalidatePath('/admin/packaging');
     await safeRevalidatePath('/admin/health');
     return {
-      ok: queue.errors === 0,
-      message: `카페24 주문 동기화 완료: 최근 주문 ${result.total}건 확인 (입금 완료: ${result.confirmed}건, 결제 대기: ${result.pendingOrders}건)${queue.errors ? ' · 결제 알림 재처리 오류를 운영 상태에서 확인해 주세요.' : ''}`,
+      ok: queue.errors === 0 && result.failedOrders === 0 && !result.hasMore,
+      message: `최근 주문 ${result.total}건 확인 (입금 완료: ${result.confirmed}건, 결제 대기: ${result.pendingOrders}건)${result.failedOrders ? ` · 확인하지 못한 항목 ${result.failedOrders}건: 카페24 주문을 확인해 주세요.` : ''}${result.hasMore ? ' · 조회 한도에 도달했습니다. 나머지 주문을 카페24에서 확인해 주세요.' : ''}${queue.errors ? ' · 결제 알림 재처리 오류를 운영 상태에서 확인해 주세요.' : ''}`,
       confirmed: result.confirmed,
       total: result.total,
     };
   } catch (e) {
-    return { ok: false, message: `카페24 주문 동기화 실패: ${e instanceof Error ? e.message : String(e)}` };
+    return { ok: false, message: '카페24 주문을 확인하지 못했습니다. 운영 상태를 확인한 뒤 다시 시도해 주세요.' };
   }
 }

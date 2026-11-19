@@ -437,7 +437,7 @@ export function DesignsTable({ designs, mergedItems, cafe24Error, cafe24HasMore,
         >
           <span>ℹ️</span>
           <div>
-            <b>주문 조회 한도 도달:</b> 최근 주문량이 많아 일부 주문이 표시되지 않았을 수 있습니다. 기간을 좁히거나 주문번호로 검색해 확인해 주세요.
+            <b>주문 조회 한도 도달:</b> 일부 주문이 표시되지 않았을 수 있습니다. 기간을 좁히거나 카페24 관리자에서 확인해 주세요.
           </div>
         </div>
       )}
@@ -1654,7 +1654,7 @@ function BoardRow({
                 </div>
 
                 {/* 인쇄 파일 링크 (취소/대기 건은 차단) */}
-                {printable && !isCanceled && !isPending && d.orderNo && (
+                {printable && !isCanceled && !isPartialCancelCheckNeeded && !isPending && d.orderNo && (
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                     {hasSticker && (
                       <div className="row" style={{ gap: 4, alignItems: 'center' }}>

@@ -25,6 +25,7 @@ import {
   markAmbiguousPartialCancel,
 } from '../src/cafe24/intake-worker.ts';
 import { calculateScheduleStatus } from '../src/packaging/schedule.ts';
+import { saveStoredToken } from '../src/cafe24/oauth.ts';
 import type { Design } from '../src/packaging/types.ts';
 import type { Cafe24AdminOrder } from '../src/cafe24/admin-orders.ts';
 
@@ -140,6 +141,11 @@ test('필수 검증 1: 같은 주문의 여러 디자인 중 일부만 접수된
     assert.ok(unlinked.suggestedCodes.includes(codeB), '추천 코드에 미연결된 codeB가 포함되어야 함');
     assert.match(unlinked.missingReason, /일부 디자인 미접수|OD-MULT-4455/);
   }
+
+  const wrongOrder = createMockDesign({ code: codeB, orderNo: '20261118-0000009', productNo: 102, quantity: 10 });
+  const mismatched = mergeDesignsAndOrders([designA, wrongOrder], [order]);
+  const stillUnlinked = mismatched.find((m) => m.kind === 'unlinked_order');
+  assert.ok(stillUnlinked && stillUnlinked.kind === 'unlinked_order' && stillUnlinked.suggestedCodes.includes(codeB), '다른 주문에 연결된 코드는 이 주문의 미연결 항목에 남아야 함');
 });
 
 // ----------------------------------------------------------------------
@@ -208,6 +214,8 @@ test('필수 검증 2: 같은 주문의 일부 품목만 취소 시 해당 디�
 // ----------------------------------------------------------------------
 test('필수 검증 3: 부분 취소 대상 불명확 시 관리자의 정상 진행(confirmResume) 및 취소 확정(confirmCancel) 분기', async () => {
   const env = setupTestEnv();
+  const originalFetch = globalThis.fetch;
+  const originalMall = process.env.CAFE24_MALL_ID;
   try {
     const orderNo = '20261118-0000003';
     const codeResume = 'OD-RESU-2233';
@@ -246,6 +254,17 @@ test('필수 검증 3: 부분 취소 대상 불명확 시 관리자의 정상 �
     assert.equal(beforeCancel?.status, 'received');
     assert.equal(beforeCancel?.cafe24Canceled, true);
 
+    process.env.CAFE24_MALL_ID = 'testmall';
+    await saveStoredToken({ mall_id: 'testmall', shop_no: 1, access_token: 'test', refresh_token: 'test', expires_at: '2099-01-01T00:00:00Z', refresh_token_expires_at: '2099-01-01T00:00:00Z', scope: '' });
+    globalThis.fetch = async () => { throw new Error('offline'); };
+    const offline = await confirmResumeAction(codeResume, '확인');
+    assert.equal(offline.ok, false, '주문 조회 실패 시 취소 경고를 해제하지 않아야 함');
+    assert.equal((await getDesign(codeResume))?.cafe24Canceled, true);
+    globalThis.fetch = async () => new Response(JSON.stringify({ order: { ...mockOrder, canceled: 'T' } }), { status: 200 });
+    assert.equal((await confirmResumeAction(codeResume, '확인')).ok, false, '전체 취소 주문은 정상 진행할 수 없음');
+    assert.equal((await getDesign(codeResume))?.cafe24Canceled, true);
+    globalThis.fetch = async () => new Response(JSON.stringify({ order: mockOrder }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+
     // 3-A: 관리자가 주문서 대조 후 정상 건으로 판단 -> confirmResumeAction
     const resumeRes = await confirmResumeAction(codeResume, '고객 확인: 취소 품목 아님');
     assert.ok(resumeRes.ok, '정상 진행 확인 성공');
@@ -264,6 +283,9 @@ test('필수 검증 3: 부분 취소 대상 불명확 시 관리자의 정상 �
     assert.equal(afterCancel?.cafe24Canceled, true);
     assert.match(afterCancel?.memo || '', /\[관리자 확인: 취소 확정 - 주문서 대조: 취소된 상품 맞음\]/);
   } finally {
+    globalThis.fetch = originalFetch;
+    if (originalMall === undefined) delete process.env.CAFE24_MALL_ID;
+    else process.env.CAFE24_MALL_ID = originalMall;
     env.cleanup();
   }
 });

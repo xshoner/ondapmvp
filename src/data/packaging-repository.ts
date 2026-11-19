@@ -286,7 +286,7 @@ export async function listDesigns(opts: { limit?: number; code?: string | null; 
         && (!gte || d.createdAt >= gte) && (!lt || d.createdAt < lt) && (!opts.late || isLate(d, now)));
 
     if (opts.preserveIncomplete) {
-      const isIncomplete = (d: Design) => (d.status !== 'completed' && d.status !== 'no_packaging' && d.status !== 'canceled') || Boolean(d.cafe24Canceled);
+      const isIncomplete = (d: Design) => (d.status !== 'completed' && d.status !== 'no_packaging' && d.status !== 'canceled') || (Boolean(d.cafe24Canceled) && d.status !== 'canceled');
       const incompletedList = filtered.filter(isIncomplete);
       const completedList = filtered.filter((d) => !isIncomplete(d));
       const remainingSlots = Math.max(0, limit - incompletedList.length);
@@ -318,12 +318,20 @@ export async function listDesigns(opts: { limit?: number; code?: string | null; 
   if (error) fail('디자인 목록 읽기', error);
 
   // 미완료/확인필요 건이 최근 완료 건에 밀려 잘리지 않도록 추가 보존 조회
-  if (opts.preserveIncomplete && !opts.code && !opts.status && rows.length >= limit) {
-    try {
-      let incompleteQ = db.from('designs').select(LIST_COLUMNS).or('status.in.(received,order_confirmed,printed,holding),cafe24_canceled.eq.true').order('created_at', { ascending: false });
+  if (opts.preserveIncomplete && !opts.code && rows.length >= limit) {
+    {
+      let incompleteQ = db.from('designs').select(LIST_COLUMNS).or('status.in.(pending,received,order_confirmed,printed),and(cafe24_canceled.eq.true,status.neq.canceled)').order('created_at', { ascending: false });
       if (!opts.includePending) incompleteQ = incompleteQ.neq('status', 'pending');
+      if (opts.status) incompleteQ = incompleteQ.eq('status', opts.status);
       if (opts.intakeOnly) incompleteQ = incompleteQ.or('status.neq.pending,order_no.not.is.null,memo.like.*카페24 주문: 20*');
-      const { rows: incRows, error: incError } = await readPages((from, to) => incompleteQ.range(from, to) as unknown as DbPage<Row>, limit);
+      if (gte) incompleteQ = incompleteQ.gte('created_at', gte);
+      if (lt) incompleteQ = incompleteQ.lt('created_at', lt);
+      if (opts.late) {
+        const since = lateSince(now);
+        incompleteQ = incompleteQ.or(`and(status.eq.received,created_at.lt.\"${since.received}\"),and(status.eq.order_confirmed,status_changed_at.lt.\"${since.confirmed}\")`);
+      }
+      const { rows: incRows, error: incError } = await readPages((from, to) => incompleteQ.range(from, to) as unknown as DbPage<Row>, 20000, true);
+      if (incError) fail('미완료 접수 읽기', incError);
       if (!incError && incRows.length > 0) {
         const rowMap = new Map<string, Row>();
         for (const r of incRows) rowMap.set(r.code, r);
@@ -332,8 +340,6 @@ export async function listDesigns(opts: { limit?: number; code?: string | null; 
         mergedRows.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
         return mergedRows.map(designFromRow);
       }
-    } catch {
-      // 보존 쿼리 실패 시 기존 rows 유지
     }
   }
 

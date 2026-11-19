@@ -182,7 +182,6 @@ export function mergeDesignsAndOrders(
     }
   }
 
-  const existingCodesSet = new Set(designs.map((d) => d.code));
   const linkedDesignCountByOrder = new Map<string, number>();
   const fullyMatchedOrderIds = new Set<string>();
 
@@ -197,7 +196,7 @@ export function mergeDesignsAndOrders(
       linkedDesignCountByOrder.set(rawOrder.order_id, (linkedDesignCountByOrder.get(rawOrder.order_id) || 0) + 1);
     }
     // 2-2. 주문서 옵션에 적힌 코드로 매칭
-    else if (ordersByCode.has(d.code)) {
+    else if (!d.orderNo && ordersByCode.has(d.code)) {
       const candidates = ordersByCode.get(d.code)!;
       // 유효하고 취소되지 않은 주문 우선
       const cand = candidates.find((o) => !isOrderCanceled(o)) || candidates[0];
@@ -229,7 +228,7 @@ export function mergeDesignsAndOrders(
     if (codes.length > 0) {
       // 주문서에 디자인 코드가 있는 경우:
       // 모든 코드가 접수되어 있고, 포장 품목 수 대비 연결된 디자인 수가 부족하지 않을 때만 완전히 매칭된 것으로 판정
-      const unlinkedCodes = codes.filter((c) => !existingCodesSet.has(c));
+      const unlinkedCodes = codes.filter((c) => !designs.some((d) => d.code === c && (!d.orderNo || d.orderNo === o.order_id)));
       const requiredCount = packagingItems.length > 0 ? packagingItems.length : codes.length;
       if (unlinkedCodes.length === 0 && linkedCount >= requiredCount) {
         fullyMatchedOrderIds.add(o.order_id);
@@ -282,7 +281,7 @@ export function mergeDesignsAndOrders(
     // 4-3. 유효 품목 중 포장 옵션이 있거나, 주문에 디자인 코드가 기재된 경우 -> 디자인 미연결 (확인 필요)
     if (summary.hasPackaging || summary.extractedCodes.length > 0) {
       const codes = summary.extractedCodes;
-      const unlinkedCodes = codes.filter((c) => !existingCodesSet.has(c));
+      const unlinkedCodes = codes.filter((c) => !designs.some((d) => d.code === c && (!d.orderNo || d.orderNo === o.order_id)));
       const packagingItems = summary.items.filter((i) => !i.isCanceled && i.hasPackaging);
       const linkedCount = linkedDesignCountByOrder.get(o.order_id) || 0;
 

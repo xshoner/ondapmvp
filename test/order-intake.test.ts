@@ -13,6 +13,40 @@ import {
 import { syncRecentCafe24Orders, verifyAndAcceptOrder } from '../src/cafe24/intake-worker.ts';
 import { setLocalTokenCacheForTesting } from '../src/cafe24/oauth.ts';
 
+test('주문 동기화는 한 주문의 모든 디자인을 각각 확인한다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dapryeq-multi-'));
+  const previous = { dir: process.env.ONDAP_TEST_DATA_DIR, source: process.env.ONDAP_DATA_SOURCE, mall: process.env.CAFE24_MALL_ID, fetch: globalThis.fetch };
+  process.env.ONDAP_TEST_DATA_DIR = dir;
+  process.env.ONDAP_DATA_SOURCE = 'local';
+  process.env.CAFE24_MALL_ID = 'testmall';
+  setLocalTokenCacheForTesting({ mall_id: 'testmall', shop_no: 1, access_token: 'test', refresh_token: 'test', expires_at: '2099-01-01T00:00:00Z', refresh_token_expires_at: '2099-01-01T00:00:00Z', scope: 'mall.read_order', updated_at: new Date().toISOString() });
+  try {
+    const { createDesign, listDesigns } = await import('../src/data/packaging-repository.ts');
+    for (const [code, productNo] of [['OD-ABCD-2345', 20], ['OD-EFGH-6789', 21]] as const) {
+      await createDesign({ code, productNo, productName: '선물', quantity: 10, event: null, styleId: 'test', styleName: '포장', sticker: null, draft: null }, null);
+    }
+    const order: Cafe24AdminOrder = { order_id: '20261118-0000001', shop_no: 1, order_date: '2026-11-18', paid: 'T', items: [
+      { product_no: 20, product_name: '선물1', quantity: 10, options: [{ name: '포장 디자인 옵션', value: '포장신청 OD-ABCD-2345' }] },
+      { product_no: 21, product_name: '선물2', quantity: 10, options: [{ name: '포장 디자인 옵션', value: '포장신청 OD-EFGH-6789' }] },
+    ] };
+    globalThis.fetch = async () => new Response(JSON.stringify({ orders: [order] }), { status: 200 });
+    const result = await syncRecentCafe24Orders();
+    assert.equal(result.confirmed, 2);
+    assert.equal(result.failedOrders, 0);
+    const rows = await listDesigns({ includePending: true });
+    assert.equal(rows.filter((d) => d.orderNo === order.order_id && d.status === 'order_confirmed').length, 2);
+    order.items[1].options = [{ name: '포장 디자인 옵션', value: '포장신청 OD-KLMN-2345' }];
+    const incomplete = await syncRecentCafe24Orders();
+    assert.equal(incomplete.failedOrders, 1, '접수를 찾지 못한 디자인은 확인 실패로 알려야 함');
+  } finally {
+    globalThis.fetch = previous.fetch;
+    for (const [key, value] of Object.entries({ ONDAP_TEST_DATA_DIR: previous.dir, ONDAP_DATA_SOURCE: previous.source, CAFE24_MALL_ID: previous.mall })) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('주문 결제 상태 및 취소 상태를 정확히 판별한다', () => {
   // 1. 미결제 (무통장 입금전 F, 상태 N00)
   const unpaidOrder: Cafe24AdminOrder = {
