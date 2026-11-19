@@ -66,6 +66,27 @@ export function isOrderCanceled(order: Cafe24AdminOrder): boolean {
   return false;
 }
 
+/**
+ * 주문의 취소 상태 및 취소 품목 정보를 기반으로 고유 서명(fingerprint)을 산출합니다.
+ * 동일한 부분 취소 사건의 중복 확인 여부를 판단하고, 새로운 취소나 상태 변경이 발생했는지 감지하는 데 사용됩니다.
+ */
+export function computeOrderCancelFingerprint(order: Cafe24AdminOrder): string {
+  if (!order) return '';
+  const status = order.order_status || '';
+  const canceled = order.canceled || 'F';
+  const items = Array.isArray(order.items) ? order.items : [];
+  const canceledItems = items
+    .filter(isItemCanceledOrRefunded)
+    .map((i, idx) => {
+      const id = i.item_no ?? i.order_item_code ?? String(idx);
+      const stat = i.status_code ?? i.status ?? '';
+      return `${id}:${i.product_no}:${i.quantity}:${stat}`;
+    })
+    .sort()
+    .join(';');
+  return `st:${status}|can:${canceled}|items:${canceledItems}`;
+}
+
 export function extractDesignCode(order: Cafe24AdminOrder): string | null {
   if (!order) return null;
 

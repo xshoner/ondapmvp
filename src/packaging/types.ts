@@ -125,4 +125,5 @@ export interface Design {
   cafe24Canceled?: boolean;
   eventDate?: string | null;          // 행사일 (YYYY-MM-DD, 선택 입력)
   desiredDeliveryDate?: string | null; // 희망 수령일 (YYYY-MM-DD, 선택 입력)
+  reviewedCancelState?: string | null; // 관리자가 정상 진행으로 검토 완료한 취소 사건 서명
 }

@@ -214,11 +214,20 @@ export async function markAmbiguousPartialCancel(
   targetCodes: string[],
 ): Promise<void> {
   const warn = `[주의: 주문 ${order.order_id} 부분 취소 발생 — 대상 디자인 불명확, 관리자 확인 필요]`;
+  const { computeOrderCancelFingerprint } = await import('./admin-orders.ts');
+  const currentFingerprint = computeOrderCancelFingerprint(order);
+  let newlyMarked = false;
+
   if (dataSource() === 'local') {
     const { listDesigns, updateDesign } = await import('../data/packaging-repository.ts');
     for (const code of targetCodes) {
       const [d] = await listDesigns({ code, limit: 1, includePending: true });
       if (!d || d.orderNo !== order.order_id) continue;
+      // 동일 취소 사건에 대해 관리자가 이미 정상 진행으로 확인 완료한 경우 재경고 방지
+      if (d.reviewedCancelState === currentFingerprint && !d.cafe24Canceled) {
+        continue;
+      }
+      newlyMarked = true;
       // 상태는 canceled로 바꾸지 않고 기존 상태 유지! cafe24Canceled: true 플래그만 설정
       const nextMemo = !d.memo.includes(`${order.order_id} 부분 취소 발생`) && d.memo.length + warn.length + 1 <= 500
         ? [d.memo.trim(), warn].filter(Boolean).join('\n') : d.memo;
@@ -227,9 +236,18 @@ export async function markAmbiguousPartialCancel(
   } else {
     const db = createServiceClient();
     for (const code of targetCodes) {
-      const { data: row, error: readError } = await db.from('designs').select('memo').eq('code', code).eq('order_no', order.order_id).maybeSingle();
+      const { data: row, error: readError } = await db
+        .from('designs')
+        .select('memo, reviewed_cancel_state, cafe24_canceled')
+        .eq('code', code)
+        .eq('order_no', order.order_id)
+        .maybeSingle();
       if (readError) throw new Error('부분 취소 상태를 확인하지 못했습니다.');
       if (!row) continue;
+      if (row.reviewed_cancel_state === currentFingerprint && !row.cafe24_canceled) {
+        continue;
+      }
+      newlyMarked = true;
       const curMemo = (row?.memo as string) || '';
       const nextMemo = !curMemo.includes(`${order.order_id} 부분 취소 발생`) && curMemo.length + warn.length + 1 <= 500
         ? [curMemo.trim(), warn].filter(Boolean).join('\n') : curMemo;
@@ -241,7 +259,9 @@ export async function markAmbiguousPartialCancel(
       if (updateError) throw new Error('부분 취소 확인 상태를 저장하지 못했습니다.');
     }
   }
-  await recordOperation('design_save', 'error', Date.now(), 'partial_cancel_ambiguous');
+  if (newlyMarked) {
+    await recordOperation('design_save', 'error', Date.now(), 'partial_cancel_ambiguous');
+  }
 }
 
 async function handleCanceledOrderOrItem(
@@ -308,14 +328,20 @@ export async function verifyAndAcceptOrder(
     if (matchedCancelItem) {
       return handleCanceledItem(order, startedAt, code);
     }
-    // 취소 품목에 명시된 코드가 없거나 일치하지 않아 어느 디자인이 취소 대상인지 불명확한 경우:
-    // 전체를 취소하지 말고 확인 필요(conflict / cafe24Canceled: true)로 처리!
-    await markAmbiguousPartialCancel(order, [code]);
-    return {
-      status: 'conflict',
-      code,
-      message: `주문(${order.order_id}) 부분 취소가 확인되었으나 대상 디자인이 불명확합니다. 관리자 확인이 필요합니다.`,
-    };
+    const { computeOrderCancelFingerprint } = await import('./admin-orders.ts');
+    const currentFingerprint = computeOrderCancelFingerprint(order);
+    if (design.reviewedCancelState === currentFingerprint && !design.cafe24Canceled) {
+      // 이미 관리자가 이 취소 사건을 확인하고 정상 진행으로 확인한 상태 -> 취소 경고 생략하고 진행
+    } else {
+      // 취소 품목에 명시된 코드가 없거나 일치하지 않아 어느 디자인이 취소 대상인지 불명확한 경우:
+      // 전체를 취소하지 말고 확인 필요(conflict / cafe24Canceled: true)로 처리!
+      await markAmbiguousPartialCancel(order, [code]);
+      return {
+        status: 'conflict',
+        code,
+        message: `주문(${order.order_id}) 부분 취소가 확인되었으나 대상 디자인이 불명확합니다. 관리자 확인이 필요합니다.`,
+      };
+    }
   }
   const matchingItem =
     activeItems.find((item) => hasPackagingOption(item) && item.quantity === design.quantity) ??
@@ -338,44 +364,33 @@ export async function verifyAndAcceptOrder(
     return { status: 'option_mismatch', code, message: '포장 디자인 유료 옵션이 선택되지 않았습니다.' };
   }
 
-  // 8. DB 전환 트랜잭션 실행 (accept_paid_design)
-  if (dataSource() === 'local') {
-    // 로컬 파일/시험 모드일 때
-    const { updateDesign } = await import('../data/packaging-repository.ts');
-    if (design.status === 'order_confirmed' || design.status === 'printed') {
-      if (design.orderNo === order.order_id) {
-        return { status: 'already_confirmed', code, message: '이미 접수 확인된 주문입니다.' };
-      }
-      return { status: 'conflict', code, message: '다른 주문에 이미 사용된 디자인 코드입니다.' };
-    }
-    await updateDesign(code, { status: 'order_confirmed', orderNo: order.order_id, memo: design.memo });
-    await recordOperation('design_save', 'ok', startedAt, 'design_intake_confirmed');
-    return { status: 'confirmed', code, message: '주문 결제 확인 완료 및 접수 전환' };
-  }
-
-  const db = createServiceClient();
-  const { data, error } = await db.rpc('accept_paid_design', {
-    p_code: code,
-    p_order_no: order.order_id,
-    p_product_no: design.productNo,
-    p_quantity: design.quantity,
+  // 8. DB 전환 트랜잭션 실행 (원자적 잠금 및 주문 수량 초과 방지)
+  const totalOrderedQty = activeItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
+  const { atomicLinkDesignToOrder } = await import('../data/packaging-repository.ts');
+  const linkRes = await atomicLinkDesignToOrder({
+    code,
+    orderNo: order.order_id,
+    productNo: design.productNo,
+    quantity: design.quantity,
+    maxQuantity: totalOrderedQty,
+    isAutoIntake: true,
   });
 
-  if (error) {
-    await recordOperation('design_save', 'error', startedAt, 'accept_paid_design_rpc_error');
-    throw new Error(`디자인 접수 전환 실패: ${error.message}`);
-  }
-
-  if (data === 'confirmed') {
+  if (linkRes === 'confirmed') {
     await recordOperation('design_save', 'ok', startedAt, 'design_intake_confirmed');
     return { status: 'confirmed', code, message: '주문 결제 확인 완료 및 접수 전환' };
   }
 
-  if (data === 'already_confirmed') {
+  if (linkRes === 'already_confirmed') {
     return { status: 'already_confirmed', code, message: '이미 접수 확인된 주문입니다.' };
   }
 
-  if (data === 'conflict') {
+  if (linkRes === 'exceeded') {
+    await recordOperation('design_save', 'error', startedAt, 'quantity_exceeded');
+    return { status: 'conflict', code, message: `주문 수량(${totalOrderedQty}개)을 초과하여 연결할 수 없습니다.` };
+  }
+
+  if (linkRes === 'conflict' || linkRes === 'canceled') {
     await recordOperation('design_save', 'error', startedAt, 'design_conflict');
     return { status: 'conflict', code, message: '다른 주문에 이미 사용되었거나 취소된 디자인입니다.' };
   }
@@ -536,23 +551,37 @@ export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number;
     // 부분 취소/환불 품목이 포함된 주문에서 해당 품목에 연결된 디자인만 정확히 부분 취소 처리
     if (Array.isArray(order.items) && order.items.some(isItemCanceledOrRefunded)) {
       try {
-        let linkedRows: { code: string; productNo: number }[] = [];
+        const { computeOrderCancelFingerprint } = await import('./admin-orders.ts');
+        const currentFingerprint = computeOrderCancelFingerprint(order);
+
+        let linkedRows: { code: string; productNo: number; reviewedCancelState?: string | null; cafe24Canceled?: boolean }[] = [];
         if (dataSource() === 'local') {
           const { listDesigns } = await import('../data/packaging-repository.ts');
           linkedRows = (await listDesigns({ includePending: true }))
             .filter((d) => d.orderNo === order.order_id)
-            .map((d) => ({ code: d.code, productNo: d.productNo }));
+            .map((d) => ({
+              code: d.code,
+              productNo: d.productNo,
+              reviewedCancelState: d.reviewedCancelState,
+              cafe24Canceled: d.cafe24Canceled,
+            }));
         } else {
           const db = createServiceClient();
           const { data: rows, error: linkedError } = await db
             .from('designs')
-            .select('code, product_no')
+            .select('code, product_no, reviewed_cancel_state, cafe24_canceled')
             .eq('order_no', order.order_id);
           if (linkedError) throw new Error('연결된 접수를 확인하지 못했습니다.');
-          linkedRows = (rows ?? []).map((r) => ({ code: r.code as string, productNo: r.product_no as number }));
+          linkedRows = (rows ?? []).map((r) => ({
+            code: r.code as string,
+            productNo: r.product_no as number,
+            reviewedCancelState: r.reviewed_cancel_state as string | null,
+            cafe24Canceled: Boolean(r.cafe24_canceled),
+          }));
         }
 
         for (const linked of linkedRows) {
+          const isAlreadyReviewed = linked.reviewedCancelState === currentFingerprint && !linked.cafe24Canceled;
           const productItems = order.items.filter((item) => item.product_no === linked.productNo);
           const productCanceledItems = productItems.filter(isItemCanceledOrRefunded);
           const productActiveItems = productItems.filter((item) => !isItemCanceledOrRefunded(item));
@@ -567,8 +596,11 @@ export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number;
                 if (outcome.status === 'conflict') failedOrders++;
               } else {
                 // 같은 상품번호로 여러 디자인이 등록되어 있다면 대상 불명확 -> 확인 필요
-                await markAmbiguousPartialCancel(order, sameProductDesigns.map((r) => r.code));
-                failedOrders++;
+                const unreviewed = sameProductDesigns.filter((r) => !(r.reviewedCancelState === currentFingerprint && !r.cafe24Canceled));
+                if (unreviewed.length > 0) {
+                  await markAmbiguousPartialCancel(order, unreviewed.map((r) => r.code));
+                  failedOrders++;
+                }
               }
             } else {
               // 해당 상품번호 중 일부 품목만 취소된 경우:
@@ -579,9 +611,11 @@ export async function syncRecentCafe24Orders(days = 3): Promise<{ total: number;
                 if (outcome.status === 'conflict') failedOrders++;
               } else if (productCanceledItems.some((item) => !extractItemDesignCode(item))) {
                 // 취소 품목에 코드가 없어 어느 디자인이 취소되었는지 불명확:
-                // 전체를 취소하지 말고 확인 필요(cafe24Canceled: true)로 처리
-                await markAmbiguousPartialCancel(order, [linked.code]);
-                failedOrders++;
+                // 이미 관리자가 이 취소 사건을 확인한 건은 재경고하지 않음
+                if (!isAlreadyReviewed) {
+                  await markAmbiguousPartialCancel(order, [linked.code]);
+                  failedOrders++;
+                }
               }
             }
           }

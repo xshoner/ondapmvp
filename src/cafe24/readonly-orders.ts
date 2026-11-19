@@ -122,6 +122,26 @@ export function extractAllDesignCodes(order: Cafe24AdminOrder): string[] {
   // 2. 각 품목별 옵션
   if (Array.isArray(order.items)) {
     for (const item of order.items) {
+      if (Array.isArray(item.options)) {
+        for (const opt of item.options as Record<string, unknown>[]) {
+          if (!opt) continue;
+          const v = typeof opt.value === 'string' ? opt.value : (typeof opt.option_value === 'string' ? opt.option_value : '');
+          if (v) {
+            const code = normalizeDesignCode(v) || findDesignCode(v);
+            if (code) found.add(code);
+          }
+        }
+      }
+      if (Array.isArray(item.additional_option)) {
+        for (const opt of item.additional_option as Record<string, unknown>[]) {
+          if (!opt) continue;
+          const v = typeof opt.value === 'string' ? opt.value : (typeof opt.option_value === 'string' ? opt.option_value : '');
+          if (v) {
+            const code = normalizeDesignCode(v) || findDesignCode(v);
+            if (code) found.add(code);
+          }
+        }
+      }
       const code = extractItemDesignCode(item);
       if (code) found.add(code);
     }

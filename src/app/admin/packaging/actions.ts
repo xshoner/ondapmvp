@@ -10,7 +10,7 @@ async function safeRevalidatePath(path: string, type?: 'layout' | 'page') {
   }
 }
 import {
-  deleteAsset, getDesign, getDesignsByCodes, getDesignsByOrderNo, getPackagingAssets, listDesigns, saveAsset, updateDesign, updateDesignsStatus, uploadAssetFile, type AssetKind,
+  atomicLinkDesignToOrder, deleteAsset, getDesign, getDesignsByCodes, getDesignsByOrderNo, getPackagingAssets, listDesigns, saveAsset, updateDesign, updateDesignsStatus, uploadAssetFile, type AssetKind,
 } from '../../../data/packaging-repository.ts';
 import { MAX_ACTIVE, canActivate, isCategory, normalizeDesignCode, sanitizeIsoDate } from '../../../packaging/rules.ts';
 import type { DesignImage, DesignStatus, DesignText, PackagingStyle } from '../../../packaging/types.ts';
@@ -386,39 +386,40 @@ export async function linkDesignToOrderAction(code: string, rawOrderNo: string):
     };
   }
 
-  // 3) 주문번호에 연결된 기존 디자인 전수 조회 (최근 500개 제한 없는 전체 조회)
-  // 한 주문에 여러 디자인이 연결될 수 있으므로(다품목 주문 또는 동일 품목 분할), 다른 디자인에 기할당된 수량을 집계하여 초과 연결을 차단한다.
-  const existingForOrder = await getDesignsByOrderNo(orderNo);
-  const otherLinked = existingForOrder.filter((x) => x.code !== c && x.status !== 'canceled');
+  // 3) 원자적 수량 잠금 및 연결 실행 (동시 연결 수량 초과 원천 차단)
+  const linkRes = await atomicLinkDesignToOrder({
+    code: c,
+    orderNo,
+    productNo: d.productNo,
+    quantity: d.quantity,
+    maxQuantity: totalOrderedQty,
+    isAutoIntake: false,
+  });
 
-  const alreadyAllocatedQty = otherLinked
-    .filter((x) => x.productNo === d.productNo)
-    .reduce((sum, x) => sum + x.quantity, 0);
-
-  const remainingQty = totalOrderedQty - alreadyAllocatedQty;
-
-  if (remainingQty < d.quantity) {
-    const conflictingCodes = otherLinked
-      .filter((x) => x.productNo === d.productNo)
-      .map((x) => x.code)
-      .join(', ');
-
-    if (alreadyAllocatedQty >= totalOrderedQty) {
-      return {
-        ok: false,
-        message: `카페24 주문(${orderNo})의 상품(#${d.productNo}) 주문 수량(${totalOrderedQty}개)이 이미 다른 디자인(${conflictingCodes})에 전체 연결되어 있습니다.`,
-      };
-    }
+  if (linkRes === 'already_linked') {
+    return { ok: true };
+  }
+  if (linkRes === 'exceeded') {
     return {
       ok: false,
-      message: `카페24 주문(${orderNo})의 상품(#${d.productNo}) 남은 수량(${remainingQty}개)이 디자인 접수 수량(${d.quantity}개)보다 부족합니다. (기존 연결: ${conflictingCodes} - ${alreadyAllocatedQty}개)`,
+      message: `카페24 주문(${orderNo})의 상품(#${d.productNo}) 주문 수량(${totalOrderedQty}개)을 초과하여 디자인을 연결할 수 없습니다.`,
     };
   }
+  if (linkRes === 'conflict') {
+    return { ok: false, message: '이미 다른 주문에 연결되었거나 상태가 변경된 디자인입니다.' };
+  }
+  if (linkRes === 'canceled') {
+    return { ok: false, message: '취소되었거나 확인이 필요한 디자인은 연결할 수 없습니다.' };
+  }
+  if (linkRes === 'pending_not_allowed') {
+    return { ok: false, message: '결제 대기 중인 접수는 카페24 결제 확인이 선행되어야 합니다.' };
+  }
+  if (linkRes === 'mismatch') {
+    return { ok: false, message: '디자인의 상품 또는 수량 정보가 일치하지 않습니다.' };
+  }
 
-  // 5대 검증 불변식이 모두 통과한 경우에만 안전하게 기록
-  return run(() => updateDesign(c, {
-    orderNo,
-  }, { status: d.status, orderNo: d.orderNo, cafe24Canceled: d.cafe24Canceled }));
+  await safeRevalidatePath('/admin', 'layout');
+  return { ok: true };
 }
 
 // 포장이나 인쇄물이 없는 일반 단품 주문에 대해 '포장 없음' 상태로 확정
@@ -466,9 +467,10 @@ export async function confirmResumeAction(code: string, note?: string): Promise<
   }
 
   // 2) 실제 전체 취소나 해당 품목 취소가 확인된 건을 정상 진행으로 잘못 되돌리지 않도록 서버에서 주문 상태 검증
+  let currentFingerprint: string | null = null;
   if (d.orderNo) {
     try {
-      const { fetchAdminOrder, isOrderCanceled, isOrderPaid, isItemCanceledOrRefunded } = await import('../../../cafe24/admin-orders.ts');
+      const { fetchAdminOrder, isOrderCanceled, isOrderPaid, isItemCanceledOrRefunded, computeOrderCancelFingerprint } = await import('../../../cafe24/admin-orders.ts');
       const { extractItemDesignCode } = await import('../../../cafe24/readonly-orders.ts');
       const order = await fetchAdminOrder(d.orderNo);
 
@@ -489,6 +491,8 @@ export async function confirmResumeAction(code: string, note?: string): Promise<
           message: '해당 품목이 카페24에서 취소된 상태입니다. 취소 확정 처리를 해 주세요.',
         };
       }
+
+      currentFingerprint = computeOrderCancelFingerprint(order);
     } catch {
       return { ok: false, message: '카페24 주문을 확인하지 못했습니다. 연결 상태를 확인한 뒤 다시 시도해 주세요.' };
     }
@@ -506,6 +510,7 @@ export async function confirmResumeAction(code: string, note?: string): Promise<
       {
         cafe24Canceled: false,
         memo: nextMemo,
+        reviewedCancelState: currentFingerprint,
       },
       { status: d.status, orderNo: d.orderNo, cafe24Canceled: d.cafe24Canceled },
     ),

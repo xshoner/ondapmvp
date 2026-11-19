@@ -11,10 +11,12 @@ import {
   listDesigns,
   getDesign,
   updateDesign,
+  atomicLinkDesignToOrder,
 } from '../src/data/packaging-repository.ts';
 import {
   confirmResumeAction,
   confirmCancelAction,
+  linkDesignToOrderAction,
 } from '../src/app/admin/packaging/actions.ts';
 import {
   fetchRecentCafe24OrdersReadOnly,
@@ -23,11 +25,13 @@ import {
   handleCanceledItem,
   handleCanceledOrder,
   markAmbiguousPartialCancel,
+  syncRecentCafe24Orders,
+  verifyAndAcceptOrder,
 } from '../src/cafe24/intake-worker.ts';
 import { calculateScheduleStatus } from '../src/packaging/schedule.ts';
-import { saveStoredToken } from '../src/cafe24/oauth.ts';
+import { saveStoredToken, setLocalTokenCacheForTesting } from '../src/cafe24/oauth.ts';
 import type { Design } from '../src/packaging/types.ts';
-import type { Cafe24AdminOrder } from '../src/cafe24/admin-orders.ts';
+import { type Cafe24AdminOrder, computeOrderCancelFingerprint } from '../src/cafe24/admin-orders.ts';
 
 function createMockDesign(overrides: Partial<Design> = {}): Design {
   const code = overrides.code || `OD-TEST-2233`;
@@ -503,4 +507,270 @@ test('필수 검증 9: 관리자 작업판 문구 간결화 및 모바일 줄바
   assert.doesNotMatch(tsxContent, /관리자 토큰 만료/, '토큰 등 기술 용어가 화면에 노출되지 않아야 함');
   assert.ok(tsxContent.includes('정상 진행'), '정상 진행 확인 버튼이 존재해야 함');
   assert.ok(tsxContent.includes('취소 확정'), '취소 확정 버튼이 존재해야 함');
+});
+
+// ----------------------------------------------------------------------
+// 10. 같은 주문의 동시 연결에 따른 수량 초과 방지 (원자적 잠금 및 동시성 검증)
+// ----------------------------------------------------------------------
+test('필수 검증 10: 동일 주문·상품에 대한 동시 연결 시도 시 원자적 잠금으로 수량 초과 방지 (동시성 테스트)', async () => {
+  const env = setupTestEnv();
+  const originalFetch = globalThis.fetch;
+  const originalMall = process.env.CAFE24_MALL_ID;
+  try {
+    const orderNo = '20261118-0000010';
+    const codeA = 'OD-TEST-2233';
+    const codeB = 'OD-TEST-4455';
+
+    // 상품 101번, 수량: A는 7개, B는 5개 (총합 12개)
+    // 주문의 총 수량은 10개이므로 둘 다 성공하면 12개로 초과됨!
+    env.writeDesigns([
+      createMockDesign({ code: codeA, productNo: 101, quantity: 7, status: 'received' }),
+      createMockDesign({ code: codeB, productNo: 101, quantity: 5, status: 'received' }),
+    ]);
+
+    process.env.CAFE24_MALL_ID = 'testmall';
+    await saveStoredToken({
+      mall_id: 'testmall',
+      shop_no: 1,
+      access_token: 'test',
+      refresh_token: 'test',
+      expires_at: '2099-01-01T00:00:00Z',
+      refresh_token_expires_at: '2099-01-01T00:00:00Z',
+      scope: 'mall.read_order',
+    });
+    setLocalTokenCacheForTesting({
+      mall_id: 'testmall',
+      shop_no: 1,
+      access_token: 'test',
+      refresh_token: 'test',
+      expires_at: '2099-01-01T00:00:00Z',
+      refresh_token_expires_at: '2099-01-01T00:00:00Z',
+      scope: 'mall.read_order',
+      updated_at: new Date().toISOString(),
+    });
+
+    // 카페24 주문 모의: 상품 101번 수량 10개, 결제 완료
+    const mockOrder: Cafe24AdminOrder = {
+      order_id: orderNo,
+      order_date: '2026-11-18T10:00:00+09:00',
+      shop_no: 1,
+      order_status: 'N20',
+      payment_status: 'P',
+      paid: 'T',
+      items: [
+        {
+          item_no: 1,
+          product_no: 101,
+          product_name: '도라지정과 세트',
+          quantity: 10,
+          options: [
+            { name: '포장 디자인 옵션', value: `포장신청 ${codeA}` },
+            { name: '포장 디자인 옵션', value: `포장신청 ${codeB}` },
+          ],
+        },
+      ],
+    };
+    globalThis.fetch = async () => new Response(JSON.stringify({ order: mockOrder }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+
+    // 동시 연결 실행 (두 관리자가 동시에 각각 연결 시도)
+    const [resA, resB] = await Promise.all([
+      linkDesignToOrderAction(codeA, orderNo),
+      linkDesignToOrderAction(codeB, orderNo),
+    ]);
+    // 반드시 둘 중 하나는 성공하고, 다른 하나는 주문 수량(10개) 초과로 거절되어야 함!
+    const successCount = [resA, resB].filter((r) => r.ok).length;
+    const failureCount = [resA, resB].filter((r) => !r.ok).length;
+
+    assert.equal(successCount, 1, '둘 중 정확히 1건만 연결 성공해야 함');
+    assert.equal(failureCount, 1, '초과된 1건은 반드시 거절되어야 함');
+
+    const failedRes = (!resA.ok ? resA : resB) as { ok: false; message: string };
+    assert.match(failedRes.message || '', /주문 수량\(10개\)을 초과/);
+
+    // 저장소의 최종 상태 확인: 연결된 디자인의 수량 합계가 10을 넘지 않음
+    const savedA = await getDesign(codeA);
+    const savedB = await getDesign(codeB);
+    const totalLinkedQty = (savedA?.orderNo === orderNo ? savedA.quantity : 0) + (savedB?.orderNo === orderNo ? savedB.quantity : 0);
+    assert.ok(totalLinkedQty <= 10, `총 연결 수량(${totalLinkedQty})이 주문 수량 10개를 초과하지 않아야 함`);
+
+    // 수동 연결과 자동 결제 확인 intake가 동시에 실행되는 경우도 테스트
+    const codeC = 'OD-FAST-6677';
+    const codeD = 'OD-RACE-8899';
+    env.writeDesigns([
+      createMockDesign({ code: codeC, productNo: 102, quantity: 6, status: 'received' }),
+      createMockDesign({ code: codeD, productNo: 102, quantity: 6, status: 'received' }),
+    ]);
+
+    const [atomicRes1, atomicRes2] = await Promise.all([
+      atomicLinkDesignToOrder({ code: codeC, orderNo: '20261118-0000020', productNo: 102, quantity: 6, maxQuantity: 8, isAutoIntake: false }),
+      atomicLinkDesignToOrder({ code: codeD, orderNo: '20261118-0000020', productNo: 102, quantity: 6, maxQuantity: 8, isAutoIntake: true }),
+    ]);
+
+    const atomicSuccesses = [atomicRes1, atomicRes2].filter((r) => r === 'confirmed');
+    const atomicExceeded = [atomicRes1, atomicRes2].filter((r) => r === 'exceeded');
+    assert.equal(atomicSuccesses.length, 1, '원자적 잠금으로 인해 정확히 1건만 confirmed');
+    assert.equal(atomicExceeded.length, 1, '원자적 잠금으로 인해 1건은 exceeded로 거절');
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalMall === undefined) delete process.env.CAFE24_MALL_ID;
+    else process.env.CAFE24_MALL_ID = originalMall;
+    env.cleanup();
+  }
+});
+
+// ----------------------------------------------------------------------
+// 11. 부분 취소 확인 후 반복 경고 방지 및 신규 취소 감지
+// ----------------------------------------------------------------------
+test('필수 검증 11: 부분 취소 정상 진행 확인 후 동일 사건 재동기화 시 반복 경고 방지 및 신규 취소 발생 시 재경고 감지', async () => {
+  const env = setupTestEnv();
+  const originalFetch = globalThis.fetch;
+  const originalMall = process.env.CAFE24_MALL_ID;
+  try {
+    const orderNo = '20261118-0000030';
+    const targetCode = 'OD-REVW-2233';
+
+    env.writeDesigns([
+      createMockDesign({
+        code: targetCode,
+        orderNo,
+        productNo: 201,
+        quantity: 10,
+        status: 'printed',
+        cafe24Canceled: false,
+        memo: '기존 작업 메모',
+      }),
+    ]);
+
+    process.env.CAFE24_MALL_ID = 'testmall';
+    await saveStoredToken({
+      mall_id: 'testmall',
+      shop_no: 1,
+      access_token: 'test',
+      refresh_token: 'test',
+      expires_at: '2099-01-01T00:00:00Z',
+      refresh_token_expires_at: '2099-01-01T00:00:00Z',
+      scope: 'mall.read_order',
+    });
+    setLocalTokenCacheForTesting({
+      mall_id: 'testmall',
+      shop_no: 1,
+      access_token: 'test',
+      refresh_token: 'test',
+      expires_at: '2099-01-01T00:00:00Z',
+      refresh_token_expires_at: '2099-01-01T00:00:00Z',
+      scope: 'mall.read_order',
+      updated_at: new Date().toISOString(),
+    });
+
+    // 주문에 2개 품목: 1개 정상, 1개 취소 (하지만 취소 품목에 디자인 코드가 없어 불명확)
+    const mockOrder: Cafe24AdminOrder = {
+      order_id: orderNo,
+      order_date: '2026-11-18T10:00:00+09:00',
+      shop_no: 1,
+      order_status: 'N20',
+      payment_status: 'P',
+      paid: 'T',
+      canceled: 'F',
+      items: [
+        { item_no: 1, product_no: 201, product_name: '도라지정과', quantity: 10, status: 'N20' },
+        { item_no: 2, product_no: 201, product_name: '도라지정과', quantity: 5, status_code: 'C40', status: '취소완료' },
+      ],
+    };
+
+    // 1단계: 동기화 시 불명확한 부분 취소로 인해 확인 필요(cafe24Canceled = true)로 감지됨
+    await markAmbiguousPartialCancel(mockOrder, [targetCode]);
+    let design = await getDesign(targetCode);
+    assert.equal(design?.cafe24Canceled, true, '확인 필요(cafe24Canceled=true) 마킹');
+
+    // 2단계: 관리자가 카페24 주문서 대조 후 '정상 진행' 확인
+    globalThis.fetch = async () => new Response(JSON.stringify({ order: mockOrder }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const resumeRes = await confirmResumeAction(targetCode, '주문서 대조: 정상 품목 맞음');
+    assert.ok(resumeRes.ok, '정상 진행 확인 성공');
+
+    design = await getDesign(targetCode);
+    assert.equal(design?.cafe24Canceled, false, 'cafe24Canceled가 false로 복구');
+    assert.ok(design?.reviewedCancelState, '취소 사건 서명이 저장되어야 함');
+    assert.equal(design.reviewedCancelState, computeOrderCancelFingerprint(mockOrder));
+
+    // 3단계 (동일 사건 반복 동기화): 아무 변경 없는 같은 주문을 다시 동기화
+    // markAmbiguousPartialCancel 호출
+    await markAmbiguousPartialCancel(mockOrder, [targetCode]);
+    design = await getDesign(targetCode);
+    assert.equal(design?.cafe24Canceled, false, '동일 사건 재동기화 시 반복 경고로 되돌아가지 않아야 함');
+
+    // syncRecentCafe24Orders에서도 경고나 failedOrders 증가 없이 통과
+    globalThis.fetch = async (url) => {
+      const u = String(url);
+      if (u.includes('/api/v2/admin/orders?')) {
+        return new Response(JSON.stringify({ orders: [mockOrder] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({ order: mockOrder }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    };
+    const syncRes = await syncRecentCafe24Orders();
+    assert.equal(syncRes.failedOrders, 0, '이미 확인 완료된 동일 사건은 failedOrders로 세지 않아야 함');
+    design = await getDesign(targetCode);
+    assert.equal(design?.cafe24Canceled, false, '동기화 후에도 cafe24Canceled false 유지');
+
+    // 4단계 (새로운 취소 발생): 동일 주문에 추가 취소 품목(item_no: 3)이 발생!
+    const updatedOrder: Cafe24AdminOrder = {
+      ...mockOrder,
+      items: [
+        ...mockOrder.items!,
+        { item_no: 3, product_no: 201, product_name: '도라지정과', quantity: 2, status_code: 'C40', status: '추가취소' },
+      ],
+    };
+    // 새로운 취소 사건이므로 서명이 달라져 다시 확인 필요(cafe24Canceled = true)로 감지되어야 함!
+    await markAmbiguousPartialCancel(updatedOrder, [targetCode]);
+    design = await getDesign(targetCode);
+    assert.equal(design?.cafe24Canceled, true, '새로운 취소 발생 시 다시 확인 필요로 마킹되어야 함');
+    assert.match(design?.memo || '', /부분 취소 발생/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalMall === undefined) delete process.env.CAFE24_MALL_ID;
+    else process.env.CAFE24_MALL_ID = originalMall;
+    env.cleanup();
+  }
+});
+
+// ----------------------------------------------------------------------
+// 12. 오래된 미완료 접수 누락 방지 및 불완전 조회 안전 처리
+// ----------------------------------------------------------------------
+test('필수 검증 12: 오래된 미완료 접수 조회 시 누락 방지 및 조회 한도/오류 시 안전 안내 검증', async () => {
+  const env = setupTestEnv();
+  try {
+    // 250개의 완료 건과 오래된 미완료(pending / received) 건 생성
+    const designs: Design[] = [];
+    for (let i = 0; i < 220; i++) {
+      designs.push(createMockDesign({
+        code: `OD-DONE-${String(i).padStart(4, '0')}`,
+        status: 'completed',
+        createdAt: '2026-10-01T00:00:00Z',
+      }));
+    }
+    // 30일 전 오래된 미완료 접수
+    const oldPendingCode = 'OD-OLDP-1234';
+    designs.push(createMockDesign({
+      code: oldPendingCode,
+      status: 'pending',
+      createdAt: '2026-10-15T00:00:00Z',
+    }));
+    const oldReceivedCode = 'OD-OLDR-1234';
+    designs.push(createMockDesign({
+      code: oldReceivedCode,
+      status: 'received',
+      createdAt: '2026-10-16T00:00:00Z',
+    }));
+
+    env.writeDesigns(designs);
+
+    // listDesigns({ includePending: true, preserveIncomplete: true })로 조회 시 오래된 미완료 건이 목록에서 빠지지 않아야 함
+    const listed = await listDesigns({ includePending: true, preserveIncomplete: true });
+    const foundPending = listed.find((d) => d.code === oldPendingCode);
+    const foundReceived = listed.find((d) => d.code === oldReceivedCode);
+
+    assert.ok(foundPending, '오래된 pending 접수가 조회되어야 함');
+    assert.ok(foundReceived, '오래된 received 접수가 조회되어야 함');
+  } finally {
+    env.cleanup();
+  }
 });

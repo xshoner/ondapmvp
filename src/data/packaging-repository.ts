@@ -51,6 +51,7 @@ function readLocalDesigns(): Design[] {
       printCode: (d.hasPrintFile || d.hasCardPrintFile) && !sourceCode ? d.code : sourceCode,
       eventDate: d.eventDate ?? null,
       desiredDeliveryDate: d.desiredDeliveryDate ?? null,
+      reviewedCancelState: d.reviewedCancelState ?? null,
     };
   });
 }
@@ -89,6 +90,7 @@ const designFromRow = (r: Row): Design => ({
   cafe24Canceled: Boolean(r.cafe24_canceled),
   eventDate: r.event_date ?? null,
   desiredDeliveryDate: r.desired_delivery_date ?? null,
+  reviewedCancelState: r.reviewed_cancel_state ?? null,
 });
 
 function assetToRow(kind: AssetKind, a: AssetRow): Record<string, unknown> {
@@ -272,7 +274,7 @@ export async function createDesign(
 }
 
 // 목록에는 편집 내용(draft·cardDraft, 건당 최대 64KB)이 필요 없으므로 빼고 읽는다 (draft·cardDraft는 null)
-const LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, event, style_id, style_name, sticker, card, print_path, card_print_path, source_code, status, status_changed_at, order_no, memo, cafe24_canceled, event_date, desired_delivery_date';
+const LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, event, style_id, style_name, sticker, card, print_path, card_print_path, source_code, status, status_changed_at, order_no, memo, cafe24_canceled, event_date, desired_delivery_date, reviewed_cancel_state';
 // 20261025000000_operations.sql을 실행하기 전 DB: 새 칸(상태 시각·원본)이 없다 (42703 undefined_column)
 const OLD_LIST_COLUMNS = 'code, created_at, product_no, product_name, quantity, event, style_id, style_name, sticker, print_path, status, order_no, memo';
 
@@ -353,6 +355,7 @@ export async function updateDesign(code: string, patch: {
   eventDate?: string | null;
   desiredDeliveryDate?: string | null;
   cafe24Canceled?: boolean;
+  reviewedCancelState?: string | null;
 }, expected?: { status: DesignStatus; orderNo: string | null; cafe24Canceled?: boolean }): Promise<void> {
   if (dataSource() === 'local') {
     const all = readLocalDesigns();
@@ -368,6 +371,7 @@ export async function updateDesign(code: string, patch: {
     if (patch.eventDate !== undefined) d.eventDate = patch.eventDate;
     if (patch.desiredDeliveryDate !== undefined) d.desiredDeliveryDate = patch.desiredDeliveryDate;
     if (patch.cafe24Canceled !== undefined) d.cafe24Canceled = patch.cafe24Canceled;
+    if (patch.reviewedCancelState !== undefined) d.reviewedCancelState = patch.reviewedCancelState;
     return writeLocalDesigns(all);
   }
   const db = await createClient();
@@ -380,6 +384,7 @@ export async function updateDesign(code: string, patch: {
   if (patch.eventDate !== undefined) updatePayload.event_date = patch.eventDate;
   if (patch.desiredDeliveryDate !== undefined) updatePayload.desired_delivery_date = patch.desiredDeliveryDate;
   if (patch.cafe24Canceled !== undefined) updatePayload.cafe24_canceled = patch.cafe24Canceled;
+  if (patch.reviewedCancelState !== undefined) updatePayload.reviewed_cancel_state = patch.reviewedCancelState;
   let query = db
     .from('designs')
     .update(updatePayload, { count: 'exact' })
@@ -579,4 +584,124 @@ export async function getDesignTodo(staleBefore: { received: string; confirmed: 
   ]);
   for (const r of [a, b, c, d]) if (r.error) fail('할 일 세기', r.error);
   return { received: a.count ?? 0, confirmed: b.count ?? 0, staleReceived: c.count ?? 0, lateConfirmed: d.count ?? 0 };
+}
+
+// ---------- 주문-상품 단위 원자적 잠금 및 연결 (동시 연결 수량 초과 방지) ----------
+
+const orderProductLocks = new Map<string, Promise<void>>();
+
+export async function runWithOrderProductLock<T>(
+  orderNo: string,
+  productNo: number,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const key = `${orderNo}:${productNo}`;
+  const prev = orderProductLocks.get(key) ?? Promise.resolve();
+  let release: () => void;
+  const next = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  orderProductLocks.set(key, next);
+
+  try {
+    await prev;
+    return await fn();
+  } finally {
+    release!();
+    if (orderProductLocks.get(key) === next) {
+      orderProductLocks.delete(key);
+    }
+  }
+}
+
+export type AtomicLinkResult =
+  | 'confirmed'
+  | 'already_confirmed'
+  | 'already_linked'
+  | 'conflict'
+  | 'canceled'
+  | 'pending_not_allowed'
+  | 'mismatch'
+  | 'exceeded';
+
+export async function atomicLinkDesignToOrder(opts: {
+  code: string;
+  orderNo: string;
+  productNo: number;
+  quantity: number;
+  maxQuantity: number;
+  isAutoIntake?: boolean;
+}): Promise<AtomicLinkResult> {
+  if (dataSource() === 'local') {
+    return runWithOrderProductLock(opts.orderNo, opts.productNo, async () => {
+      const all = readLocalDesigns();
+      const d = all.find((x) => x.code === opts.code);
+      if (!d || d.productNo !== opts.productNo || d.quantity !== opts.quantity) {
+        return 'mismatch';
+      }
+      if (d.status === 'canceled' || d.cafe24Canceled) {
+        return 'canceled';
+      }
+      if (opts.isAutoIntake) {
+        if (['order_confirmed', 'printed', 'completed', 'no_packaging'].includes(d.status) && d.orderNo === opts.orderNo) {
+          return 'already_confirmed';
+        }
+        if (!['pending', 'received'].includes(d.status) || (d.orderNo && d.orderNo !== opts.orderNo)) {
+          return 'conflict';
+        }
+      } else {
+        if (d.status === 'pending') {
+          return 'pending_not_allowed';
+        }
+        if (d.orderNo && d.orderNo !== opts.orderNo) {
+          return 'conflict';
+        }
+        if (d.orderNo === opts.orderNo) {
+          return 'already_linked';
+        }
+      }
+
+      // 동일 주문·동일 상품에 이미 연결된 다른 디자인들의 수량 합산 (취소 건 제외)
+      const allocated = all
+        .filter((x) => x.orderNo === opts.orderNo && x.productNo === opts.productNo && x.code !== opts.code && x.status !== 'canceled')
+        .reduce((sum, x) => sum + x.quantity, 0);
+
+      if (allocated + opts.quantity > opts.maxQuantity) {
+        return 'exceeded';
+      }
+
+      d.orderNo = opts.orderNo;
+      if (opts.isAutoIntake && d.status === 'pending') {
+        d.status = 'order_confirmed';
+      }
+      d.statusChangedAt = new Date().toISOString();
+      writeLocalDesigns(all);
+      return 'confirmed';
+    });
+  }
+
+  // Supabase 모드: DB 트랜잭션 자문 잠금(pg_advisory_xact_lock) 기반 RPC 호출
+  const { createServiceClient } = await import('../lib/supabase/service.ts');
+  const db = createServiceClient();
+  if (opts.isAutoIntake) {
+    const { data, error } = await db.rpc('accept_paid_design', {
+      p_code: opts.code,
+      p_order_no: opts.orderNo,
+      p_product_no: opts.productNo,
+      p_quantity: opts.quantity,
+      p_max_quantity: opts.maxQuantity,
+    });
+    if (error) throw new Error(`디자인 결제 확인 실패: ${error.message}`);
+    return data as AtomicLinkResult;
+  }
+
+  const { data, error } = await db.rpc('link_design_to_order', {
+    p_code: opts.code,
+    p_order_no: opts.orderNo,
+    p_product_no: opts.productNo,
+    p_quantity: opts.quantity,
+    p_max_quantity: opts.maxQuantity,
+  });
+  if (error) throw new Error(`디자인 주문 연결 실패: ${error.message}`);
+  return data as AtomicLinkResult;
 }
