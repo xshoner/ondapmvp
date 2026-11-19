@@ -1,6 +1,6 @@
 -- 온답 새 Supabase 프로젝트 한 번에 만들기 (npm run db:setup-sql로 생성, 직접 고치지 말 것)
 -- 빈 프로젝트의 SQL Editor에 전체를 붙여넣고 Run. 이미 만든 프로젝트에 다시 실행하면 "already exists" 오류가 난다.
--- 포함: migrations/20261020000000_init.sql, migrations/20261021000000_packaging.sql, migrations/20261022000000_packaging_hardening.sql, migrations/20261023000000_design_lookup.sql, migrations/20261024000000_usage_count.sql, migrations/20261025000000_operations.sql, migrations/20261026000000_feedback_hardening.sql, migrations/20261027000000_integrated_improvements.sql, migrations/20261031000000_formality_v2.sql, migrations/20261102000000_approval_drafts.sql, migrations/20261108000000_admin_sync_preview.sql, migrations/20261108000000_design_payment_pending.sql, migrations/20261111000000_payment_retry.sql, migrations/20261114000000_add_postcard_design.sql, migrations/20261114010000_large_print_storage.sql, migrations/20261114020000_finish_print_upload.sql, migrations/20261117000000_main_banners.sql, migrations/20261117010000_order_schedule.sql, migrations/20261118000000_partial_cancel_paid_designs.sql, migrations/20261119000000_atomic_order_linking_and_cancel_review.sql, seed.sql
+-- 포함: migrations/20261020000000_init.sql, migrations/20261021000000_packaging.sql, migrations/20261022000000_packaging_hardening.sql, migrations/20261023000000_design_lookup.sql, migrations/20261024000000_usage_count.sql, migrations/20261025000000_operations.sql, migrations/20261026000000_feedback_hardening.sql, migrations/20261027000000_integrated_improvements.sql, migrations/20261031000000_formality_v2.sql, migrations/20261102000000_approval_drafts.sql, migrations/20261108000000_admin_sync_preview.sql, migrations/20261108000000_design_payment_pending.sql, migrations/20261111000000_payment_retry.sql, migrations/20261114000000_add_postcard_design.sql, migrations/20261114010000_large_print_storage.sql, migrations/20261114020000_finish_print_upload.sql, migrations/20261117000000_main_banners.sql, migrations/20261117010000_order_schedule.sql, migrations/20261118000000_partial_cancel_paid_designs.sql, migrations/20261119000000_atomic_order_linking_and_cancel_review.sql, migrations/20261119010000_restrict_order_link_rpc.sql, seed.sql
 
 -- ==================== migrations/20261020000000_init.sql ====================
 -- 온답 추천 엔진 초기 스키마
@@ -1975,6 +1975,11 @@ end;
 $$;
 revoke all on function public.accept_paid_design(text,text,integer,integer,integer) from public, anon, authenticated;
 grant execute on function public.accept_paid_design(text,text,integer,integer,integer) to service_role;
+
+-- ==================== migrations/20261119010000_restrict_order_link_rpc.sql ====================
+-- 카페24 주문 검증을 수행한 서버만 주문 연결 함수를 호출할 수 있다.
+revoke all on function public.link_design_to_order(text,text,integer,integer,integer) from public, anon, authenticated;
+grant execute on function public.link_design_to_order(text,text,integer,integer,integer) to service_role;
 
 -- ==================== seed.sql ====================
 -- 온답 초기 데이터 (npm run db:seed-sql로 생성). SQL Editor에서 Run
