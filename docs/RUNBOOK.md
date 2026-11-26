@@ -62,7 +62,7 @@
 | `CAFE24_SCOPE` | `mall.read_product` | - | 아님 | 〃 |
 | `CAFE24_API_VERSION` | 비움 | - | 아님 | 비우면 개발자센터 설정 버전 |
 | `ondap_ai` | **아직 없음** | O (**Sensitive**, Production) | **비밀** | Gemini API 키 |
-| `ONDAP_AI_MODEL` | 선택 | 미설정(기본 `gemini-3.6-flash`) | 아님 | 기본 모델 |
+| `ONDAP_AI_MODEL` | 선택 | 미설정(기본 `gemini-3.1-flash-lite`) | 아님 | 기본 모델 |
 | `ONDAP_AI_FALLBACK_MODEL` | 선택 | 미설정(기본 `gemini-flash-latest`) | 아님 | 대체 모델, 빈 값이면 끔 |
 | `ONDAP_ALLOW_LOCAL_ADMIN` | - | - | 아님 | 로컬 모드 운영 빌드에서 관리자 허용(쓰지 말 것) |
 

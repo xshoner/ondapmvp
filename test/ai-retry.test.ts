@@ -6,7 +6,7 @@ const fail = (status: number) => Object.assign(new Error(`HTTP ${status}`), { st
 const noSleep = { sleep: async () => {}, log: () => {} };
 
 test('모델 목록: 기본 + 대체, 중복·빈 값 제거', () => {
-  assert.deepEqual(aiModels({}), ['gemini-3.6-flash', 'gemini-flash-latest']);
+  assert.deepEqual(aiModels({}), ['gemini-3.1-flash-lite', 'gemini-flash-latest']);
   assert.deepEqual(aiModels({ ONDAP_AI_MODEL: 'a', ONDAP_AI_FALLBACK_MODEL: 'a' }), ['a']);
   assert.deepEqual(aiModels({ ONDAP_AI_MODEL: 'a', ONDAP_AI_FALLBACK_MODEL: '' }), ['a']);
 });

@@ -1,11 +1,11 @@
 // Gemini 호출 (서버 전용)
 // 키: 환경변수 ondap_ai
-// 모델: ONDAP_AI_MODEL(기본 gemini-3.6-flash) → 실패하면 ONDAP_AI_FALLBACK_MODEL(기본 gemini-flash-latest, 빈 값이면 끔)
+// 모델: ONDAP_AI_MODEL(기본 gemini-3.1-flash-lite) → 실패하면 ONDAP_AI_FALLBACK_MODEL(기본 gemini-flash-latest, 빈 값이면 끔)
 // 일시 오류(429·500·503·504)는 잠깐 기다렸다 다시 시도하고, 그래도 안 되면 대체 모델로 넘어간다.
 
 import { ApiError, GoogleGenAI, ThinkingLevel } from '@google/genai';
 
-const DEFAULT_AI_MODEL = 'gemini-3.6-flash';
+const DEFAULT_AI_MODEL = 'gemini-3.1-flash-lite';
 const DEFAULT_FALLBACK_MODEL = 'gemini-flash-latest';
 const RETRYABLE = new Set([429, 500, 503, 504]);
 // 한 번 호출의 최대 대기 시간. 넘으면 끊고 다음 모델로 (응답이 늦어 화면이 마냥 '검토 중'에 머무는 것 방지)

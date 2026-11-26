@@ -57,7 +57,7 @@ npm run e2e
 | `CAFE24_FRONT_API_KEY` | 〃 Front API Key | **비밀** | 없으면 호출 한도 5 |
 | `CAFE24_REDIRECT_URI` | 개발자센터에 적은 값과 **글자 하나까지 같게** | | 앱 설치 주소 만들 때만 |
 | `ondap_ai` | Google AI Studio API 키 | **비밀** | 선택: 관리자 AI 점수 제안 |
-| `ONDAP_AI_MODEL`, `ONDAP_AI_FALLBACK_MODEL` | — | | 비우면 `gemini-3.6-flash` → `gemini-flash-latest` |
+| `ONDAP_AI_MODEL`, `ONDAP_AI_FALLBACK_MODEL` | — | | 기본 모델 `gemini-3.1-flash-lite`, 대체 모델 `gemini-flash-latest` |
 
 ```bash
 npm run doctor
