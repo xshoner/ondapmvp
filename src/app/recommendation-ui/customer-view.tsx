@@ -155,7 +155,7 @@ export function CustomerRecommendationView({
     : '';
 
   return (
-    <div className="customer-recommendation-view" style={{ maxWidth: 640, margin: '0 auto', padding: '16px 12px' }}>
+    <div className={`customer-recommendation-view${successfulReq?.event === 'funeral' ? ' mood-calm' : ''}`} style={{ maxWidth: 640, margin: '0 auto', padding: '16px 12px' }}>
       {successfulQuery && <RememberQuery query={successfulQuery} />}
       {/* 헤더 & 조건 요약 바 */}
       <header style={{ marginBottom: 16 }}>

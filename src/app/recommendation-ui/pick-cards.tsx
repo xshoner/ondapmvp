@@ -144,13 +144,12 @@ export function CoreMainPick({
 
         {/* 도장/배지 형태의 추천점수 S */}
         <div
-          className="seal"
+          className="seal score-badge"
           style={{
             position: 'absolute',
             top: 14,
             right: 14,
             background: 'rgba(255, 255, 255, 0.95)',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
             borderRadius: 8,
             padding: '6px 10px',
             textAlign: 'center',
@@ -400,6 +399,7 @@ export function CoreOtherPick({
 
               {/* 작은 추천점수 배지 */}
               <div
+                className="score-badge"
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
