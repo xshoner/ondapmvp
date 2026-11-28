@@ -1345,6 +1345,7 @@ table.data.designs-table tr.late.cursor td:first-child { box-shadow: inset 3px 0
 /* ---------- 단계 공통 헤딩 & 액션 ---------- */
 .pkg-step-content {
   display: grid;
+  grid-template-columns: minmax(0, 1fr); /* 날짜 칸 등 넓은 자식이 모바일 화면보다 넓어지지 않게 */
   gap: 18px;
 }
 
@@ -1399,6 +1400,8 @@ table.data.designs-table tr.late.cursor td:first-child { box-shadow: inset 3px 0
   gap: 12px;
   margin-top: 10px;
 }
+/* 좁은 화면에서 긴 버튼 글자가 화면 밖으로 밀려나지 않게 줄바꿈 허용 */
+.pkg-step-actions .btn { min-width: 0; white-space: normal; text-align: center; }
 
 /* 모바일: 편집 화면이 길어 '다음' 버튼을 화면 아래에 붙여 둔다 */
 @media (max-width: 1023px) {
