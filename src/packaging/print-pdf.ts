@@ -38,8 +38,8 @@ export async function buildPrintPdf(input: PrintSheetInput): Promise<{ pdf: Uint
   const layout = sheetLayout(item, paper);
   const plan = sheetPlan(layout, input.count, input.fill);
   const doc = await PDFDocument.create();
-  doc.setTitle(`ONDAP ${input.label.code} ${paper}`);
-  doc.setCreator('ONDAP');
+  doc.setTitle(`DAPCUE ${input.label.code} ${paper}`);
+  doc.setCreator('DAPCUE');
   const image = await doc.embedPng(input.png);
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const { width, height } = PAPERS[paper];
@@ -73,7 +73,7 @@ export async function buildPrintPdf(input: PrintSheetInput): Promise<{ pdf: Uint
 
     const { code, orderNo, productNo, quantity, test } = input.label;
     const itemDesc = isCard ? `Card ${item.sizeMm}mm` : `${item.shape} ${item.sizeCm}cm`;
-    const head = `${test ? 'TEST PRINT  ' : ''}ONDAP ${code}${orderNo ? `  order ${orderNo}` : ''}  product #${productNo}  qty ${quantity}  |  ${itemDesc}  ${paper}  sheet ${sheetIndex + 1}/${plan.length}  (${onSheet} pcs)`;
+    const head = `${test ? 'TEST PRINT  ' : ''}DAPCUE ${code}${orderNo ? `  order ${orderNo}` : ''}  product #${productNo}  qty ${quantity}  |  ${itemDesc}  ${paper}  sheet ${sheetIndex + 1}/${plan.length}  (${onSheet} pcs)`;
     page.drawText(ascii(head), { x: mm(6), y: y(4.5), size: 7, font, color: INK });
     page.drawText('Print at 100% (actual size). Magenta line = cut line (not printed). Colors are RGB; slight shift after CMYK conversion.', {
       x: mm(6), y: mm(2.5), size: 6, font, color: INK,
