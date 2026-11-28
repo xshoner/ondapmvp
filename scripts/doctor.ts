@@ -104,7 +104,7 @@ if (!origin) {
     }
   };
   const SSO = 'Vercel 배포 보호가 켜져 있으면 401: Settings > Deployment Protection 확인, 운영 도메인 주소로 점검';
-  await check('/', (r, b) => r.status === 200 && b.includes('온답'), '고객 첫 화면', SSO);
+  await check('/', (r, b) => r.status === 200 && b.includes('답례큐'), '고객 첫 화면', SSO);
   await check('/formality', (r) => r.status === 200, '격식지수 소개 화면');
   await check('/packaging/pick', (r, b) => r.status === 200 && b.includes('포장'), '포장만 꾸미기 화면', 'Supabase 포장 표(setup.sql) 확인');
   await check('/cafe24/ondap-helper.js', (r, b) => r.status === 200 && b.includes('ondap_code'), '카페24 도우미 스크립트');
