@@ -45,6 +45,7 @@ export function Step1Wrapping({
   }, [styles, event, purpose, productNo]);
 
   const selectedStyle = styles.find((s) => s.id === styleId);
+  const hasRecommended = filteredStyles.some((s) => matchesTarget(s, event, purpose, productNo));
 
   return (
     <div className="pkg-step-content">
@@ -54,7 +55,7 @@ export function Step1Wrapping({
           어울리는 포장지를 골라주세요
         </h2>
         <p className="pkg-step-desc">
-          {eventName ? `${eventName} 행사에 어울리는 포장지를 먼저 추천해 드려요.` : '선물에 맞는 단아한 포장지를 골라보세요.'}
+          {eventName && hasRecommended ? `${eventName} 행사에 어울리는 포장지를 먼저 추천해 드려요.` : '선물에 맞는 단아한 포장지를 골라보세요.'}
           {packagingOption?.status === 'loading'
             ? ' 포장·스티커 요금을 확인하고 있습니다.'
             : packagingOption?.status === 'confirmed' && packagingOption.unitPrice !== null

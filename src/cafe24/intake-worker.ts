@@ -399,9 +399,26 @@ export async function verifyAndAcceptOrder(
   return { status: 'product_mismatch', code, message: '상품 또는 수량 불일치' };
 }
 
-export async function processSingleOrder(orderNo: string, shopNo = 1, timeoutMs = 8000): Promise<IntakeDecision> {
+// 한 주문에 디자인 코드가 여럿이면(상품마다 포장) 모두 확인한다. 웹훅·재처리·관리자 재확인이 모두 여기를 지난다.
+// 결과는 가장 나쁜 것 하나(실패 > 결제 대기 > 완료)를 돌려줘, 하나라도 남으면 재처리 대상에 남는다.
+// targetCode를 주면 그 코드만 확인한다(관리자가 특정 접수를 이을 때).
+export async function processSingleOrder(orderNo: string, shopNo = 1, timeoutMs = 8000, targetCode?: string | null): Promise<IntakeDecision> {
   const order = await fetchAdminOrder(orderNo, { shopNo, timeoutMs });
-  return verifyAndAcceptOrder(order);
+  const codes = extractAllDesignCodes(order);
+  if (targetCode) {
+    return codes.includes(targetCode)
+      ? verifyAndAcceptOrder(order, targetCode)
+      : { status: 'conflict', code: targetCode, message: '카페24 주문에 이 디자인 코드가 확인되지 않습니다.' };
+  }
+  // 취소·미결제는 코드와 상관없이 주문 단위로 한 번만 처리한다
+  if (codes.length <= 1 || isOrderCanceled(order) || !isOrderPaid(order)) return verifyAndAcceptOrder(order);
+  const rank = { failed: 2, waiting_payment: 1, completed: 0 } as const;
+  let worst: IntakeDecision | null = null;
+  for (const code of codes) {
+    const decision = await verifyAndAcceptOrder(order, code);
+    if (!worst || rank[eventStatusFromDecision(decision).status] > rank[eventStatusFromDecision(worst).status]) worst = decision;
+  }
+  return worst!;
 }
 
 export async function processPaymentEventQueue(limit = 10, deadlineMs = Date.now() + 20000): Promise<{ processed: number; confirmed: number; errors: number }> {

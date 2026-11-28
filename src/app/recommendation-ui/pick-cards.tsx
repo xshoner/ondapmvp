@@ -37,7 +37,7 @@ export function PlanBadge({ slot, rank }: { slot?: RecommendationItem['slot']; r
           whiteSpace: 'nowrap',
         }}
       >
-        표준안 · ONDAP'S PICK
+        표준안 · 답례큐 PICK
       </span>
     );
   }

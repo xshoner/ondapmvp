@@ -132,5 +132,9 @@ export function formatCustomerReason(reason: string, slot?: RecommendationItem['
   ) {
     return '표준안 외 가성비 측면에서 가장 우수해요!';
   }
+  // 엔진 설명(점수 비교 문장)을 고객에게 그대로 보이지 않는다
+  if (slot === 'formal' && reason.startsWith('표준안과 실속안을 제외한')) {
+    return '표준안·실속안 외에 상품 특성 점수가 가장 높은 선택이에요!';
+  }
   return reason;
 }

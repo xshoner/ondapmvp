@@ -10,8 +10,40 @@ import {
   isOrderPaid,
   type Cafe24AdminOrder,
 } from '../src/cafe24/admin-orders.ts';
-import { syncRecentCafe24Orders, verifyAndAcceptOrder } from '../src/cafe24/intake-worker.ts';
+import { processSingleOrder, syncRecentCafe24Orders, verifyAndAcceptOrder } from '../src/cafe24/intake-worker.ts';
 import { setLocalTokenCacheForTesting } from '../src/cafe24/oauth.ts';
+
+test('결제 알림 단건 처리도 한 주문의 모든 디자인을 확인한다', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dapryeq-single-multi-'));
+  const previous = { dir: process.env.ONDAP_TEST_DATA_DIR, source: process.env.ONDAP_DATA_SOURCE, mall: process.env.CAFE24_MALL_ID, fetch: globalThis.fetch };
+  process.env.ONDAP_TEST_DATA_DIR = dir;
+  process.env.ONDAP_DATA_SOURCE = 'local';
+  process.env.CAFE24_MALL_ID = 'testmall';
+  setLocalTokenCacheForTesting({ mall_id: 'testmall', shop_no: 1, access_token: 'test', refresh_token: 'test', expires_at: '2099-01-01T00:00:00Z', refresh_token_expires_at: '2099-01-01T00:00:00Z', scope: 'mall.read_order', updated_at: new Date().toISOString() });
+  try {
+    const { createDesign, listDesigns } = await import('../src/data/packaging-repository.ts');
+    for (const [code, productNo] of [['OD-ABCD-2345', 20], ['OD-EFGH-6789', 21]] as const) {
+      await createDesign({ code, productNo, productName: '선물', quantity: 10, event: null, styleId: 'test', styleName: '포장', sticker: null, draft: null }, null);
+    }
+    const order: Cafe24AdminOrder = { order_id: '20261118-0000002', shop_no: 1, order_date: '2026-11-18', paid: 'T', items: [
+      { product_no: 20, product_name: '선물1', quantity: 10, options: [{ name: '포장 디자인 옵션', value: '포장신청 OD-ABCD-2345' }] },
+      { product_no: 21, product_name: '선물2', quantity: 10, options: [{ name: '포장 디자인 옵션', value: '포장신청 OD-EFGH-6789' }] },
+    ] };
+    globalThis.fetch = async () => new Response(JSON.stringify({ order }), { status: 200 });
+    const decision = await processSingleOrder(order.order_id);
+    assert.equal(decision.status, 'confirmed');
+    const rows = await listDesigns({ includePending: true });
+    assert.equal(rows.filter((d) => d.orderNo === order.order_id && d.status === 'order_confirmed').length, 2, '두 번째 디자인도 접수돼야 함');
+    const other = await processSingleOrder(order.order_id, 1, 8000, 'OD-KLMN-2345');
+    assert.equal(other.status, 'conflict', '주문서에 없는 코드는 잇지 않는다');
+  } finally {
+    globalThis.fetch = previous.fetch;
+    for (const [key, value] of Object.entries({ ONDAP_TEST_DATA_DIR: previous.dir, ONDAP_DATA_SOURCE: previous.source, CAFE24_MALL_ID: previous.mall })) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+    await rm(dir, { recursive: true, force: true });
+  }
+});
 
 test('주문 동기화는 한 주문의 모든 디자인을 각각 확인한다', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'dapryeq-multi-'));

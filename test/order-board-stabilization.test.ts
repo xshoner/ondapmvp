@@ -466,6 +466,7 @@ test('필수 검증 8: 고객의 행사일 및 희망 수령일이 저장소에 
     env.writeDesigns([
       createMockDesign({
         code: scheduleCode,
+        createdAt: '2026-11-17T01:00:00Z', // 고정: 오늘 날짜로 두면 11/20 이후 '생성일보다 과거'로 판정돼 깨진다
         desiredDeliveryDate,
         eventDate,
         status: 'received',

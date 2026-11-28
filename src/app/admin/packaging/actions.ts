@@ -192,7 +192,7 @@ export async function linkOrdersAction(links: { code: string; orderNo: string }[
         // 결제 대기 건은 카페24 결제 확인을 먼저 거쳐야 한다
         try {
           const { processSingleOrder } = await import('../../../cafe24/intake-worker.ts');
-          const decision = await processSingleOrder(orderNo);
+          const decision = await processSingleOrder(orderNo, 1, 8000, code);
           if (decision.status === 'confirmed' || decision.status === 'already_confirmed') {
             results.push({ code, ok: true, message: '카페24 결제 확인 완료 · 주문 확인' });
           } else {
