@@ -5,6 +5,8 @@ import { FEEDBACK_REASONS } from '@/lib/feedback.ts';
 import { kstLabel } from '@/lib/kst.ts';
 import { LATE_DAYS, lateSince } from '@/packaging/design-filter.ts';
 import { kstDate } from '@/stats/summary.ts';
+import { countDraftsCreated } from '@/data/approval-repository.ts';
+import { isApprovalEnabled } from '@/approval/guard.ts';
 import { DailyColumns, PrintButton, RankBars } from './stats/charts.tsx';
 
 export const dynamic = 'force-dynamic';
@@ -46,9 +48,10 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
   }
 
   const catalog = await getCatalog();
-  const [statsResult, todoResult] = await Promise.allSettled([
+  const [statsResult, todoResult, approvalResult] = await Promise.allSettled([
     getStats(from, to),
     getDesignTodo(lateSince(Date.now())),
+    isApprovalEnabled() ? countDraftsCreated(from, to) : Promise.resolve(null),
   ]);
 
   if (statsResult.status === 'rejected') {
@@ -63,6 +66,7 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
 
   const stats = statsResult.value;
   const todo = todoResult.status === 'fulfilled' ? todoResult.value : null;
+  const approvals = approvalResult.status === 'fulfilled' ? approvalResult.value : undefined;
   const late = todo ? todo.staleReceived + todo.lateConfirmed : 0;
   const packagingListUrl = '/admin/packaging?tab=designs';
 
@@ -253,6 +257,15 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
           <span className="kpi-subnote">스티커 라벨 및 포장 안내 인쇄가 완료된 건수</span>
         </div>
       </section>
+
+      {/* 결재 문서 기능을 계속 키울지 판단하는 근거 (기능이 꺼져 있으면 숨김) */}
+      {approvals !== null && (
+        <p className="small muted" style={{ margin: 0 }}>
+          같은 기간 결재 문서(지출결의·품의서) 생성:{' '}
+          {approvals === undefined ? '확인할 수 없음' : <b className="num">{num(approvals)}건</b>}
+          {approvals !== undefined && s.totals.recommendations > 0 && ` (추천 조회의 ${Math.round((approvals / s.totals.recommendations) * 100)}%)`}
+        </p>
+      )}
 
       {/* 4. 기간별 추이와 행사별 수요 */}
       <div className="stats-grid">

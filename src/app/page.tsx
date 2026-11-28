@@ -35,15 +35,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
 
       <SavedPicks />
 
-      <p className="small muted" style={{ textAlign: 'center', margin: '28px 0 0' }}>
-        추천 없이 원하는 상품의 포장만 꾸미려면 <a className="text-link" href="/packaging/pick">상품 고르기</a>
-      </p>
-      <p className="small muted" style={{ textAlign: 'center', margin: '8px 0 0' }}>
-        저장한 포장 디자인은 <a className="text-link" href="/packaging/mine">내 디자인</a>에서 다시 볼 수 있습니다
-      </p>
-      <p className="small muted" style={{ textAlign: 'center', margin: '8px 0 0' }}>
-        <a className="text-link" href="/formality">격식지수란?</a> 답례큐가 답례품을 고르는 방법
-      </p>
+      {/* 보조 길 세 가지는 한 줄로: 추천 없이 꾸미기 · 저장한 디자인 · 격식지수 설명 */}
+      <nav className="small muted home-links" aria-label="다른 길">
+        <a className="text-link" href="/packaging/pick">상품 골라 포장만 꾸미기</a>
+        <span aria-hidden>·</span>
+        <a className="text-link" href="/packaging/mine">내 디자인</a>
+        <span aria-hidden>·</span>
+        <a className="text-link" href="/formality">격식지수란?</a>
+      </nav>
     </main>
   );
 }

@@ -207,32 +207,9 @@ export function CustomerRecommendationView({
 
         {/* 제외된 상품 복구 바 */}
         {successfulReq && successfulReq.excludedProductNos.length > 0 && (
-          <div
-            style={{
-              marginTop: 8,
-              padding: '8px 12px',
-              background: '#FFFBEB',
-              borderRadius: 6,
-              border: '1px solid #FDE68A',
-              fontSize: 12,
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}
-          >
+          <div className="rec-notice" style={{ marginTop: 8, marginBottom: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
             <span>제외해 둔 상품이 {successfulReq.excludedProductNos.length}개 있습니다.</span>
-            <button
-              type="button"
-              onClick={handleResetExcluded}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#B45309',
-                fontWeight: 600,
-                cursor: 'pointer',
-                textDecoration: 'underline',
-              }}
-            >
+            <button type="button" className="link-btn" onClick={handleResetExcluded}>
               모두 되돌리기
             </button>
           </div>
@@ -252,16 +229,7 @@ export function CustomerRecommendationView({
       {pending && (
         <div
           data-testid="request-loading"
-          style={{
-            padding: '12px 16px',
-            background: '#F0F9FF',
-            border: '1px solid #BAE6FD',
-            borderRadius: 8,
-            color: '#0369A1',
-            fontSize: 14,
-            marginBottom: 16,
-            textAlign: 'center',
-          }}
+          className="rec-notice info"
         >
           새 조건(수량 {pendingRequest?.quantity}개)으로 추천을 계산하는 중입니다…
         </div>
@@ -271,33 +239,12 @@ export function CustomerRecommendationView({
       {errorMessage && (
         <div
           data-testid="request-error"
-          style={{
-            padding: '14px 16px',
-            background: '#FEF2F2',
-            border: '1px solid #FECACA',
-            borderRadius: 8,
-            color: '#DC2626',
-            fontSize: 14,
-            marginBottom: 16,
-          }}
+          className="rec-notice error"
         >
-          <div style={{ fontWeight: 700, marginBottom: 4 }}>추천 요청에 실패했습니다</div>
+          <div style={{ fontWeight: 700, marginBottom: 4, color: 'var(--danger)' }}>추천 요청에 실패했습니다</div>
           <div style={{ fontSize: 13, marginBottom: 10 }}>{errorMessage}</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button
-              type="button"
-              onClick={() => fetchRecommendations(draftRequest)}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 4,
-                background: '#DC2626',
-                color: '#FFF',
-                border: 'none',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
+            <button type="button" className="btn small" onClick={() => fetchRecommendations(draftRequest)}>
               다시 시도
             </button>
             <span style={{ fontSize: 12, color: 'var(--ink-soft, #666)' }}>

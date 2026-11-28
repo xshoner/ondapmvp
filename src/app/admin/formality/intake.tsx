@@ -316,7 +316,7 @@ export function Intake({ initial, eventTest = true, mode }: { initial: Pilot; ev
           </p>
         </div>
         <div className="row" style={{ gap: 8 }}>
-          <a className="btn ghost small" href="/admin/formality/lab">격식 기준 검증실 (전체 시뮬레이션) →</a>
+          <a className="btn ghost small" href="/admin/verify">알고리즘 검증 (전체 시나리오) →</a>
         </div>
       </header>
 
@@ -716,7 +716,7 @@ export function Intake({ initial, eventTest = true, mode }: { initial: Pilot; ev
                 />
               ) : (
                 <p className="small muted">
-                  확인된 상품의 행사별 적합 여부는 <a href="/admin/formality/lab">격식 기준 검증실</a>에서 시험할 수 있습니다.
+                  확인된 상품의 행사별 적합 여부는 <a href="/admin/verify">알고리즘 검증</a>에서 시험할 수 있습니다.
                 </p>
               )}
             </>

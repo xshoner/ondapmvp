@@ -235,7 +235,7 @@ export function EventTest({ productNo, ready }: { productNo: number; ready: bool
             </p>
             {result.incomplete && <p className="small" style={{ color: 'var(--red)' }}>발신 주체 또는 행사 목적이 미입력 상태입니다.</p>}
             <p className="small muted" style={{ marginTop: 8, borderTop: '1px dashed #ccc', paddingTop: 6 }}>
-              * 특허출원서 구조에 따른 1차 적격 후보 필터링 결과입니다. 실제 고객 추천 순위는 가격 실속, 신뢰, 실용성 등을 종합 평가하여 상위 3개를 선정합니다. 전체 카탈로그 시뮬레이션은 <a href="/admin/formality/lab" className="text-link">격식 기준 검증실</a>에서 확인할 수 있습니다.
+              * 특허출원서 구조에 따른 1차 적격 후보 필터링 결과입니다. 실제 고객 추천 순위는 가격 실속, 신뢰, 실용성 등을 종합 평가하여 상위 3개를 선정합니다. 전체 카탈로그 시뮬레이션은 <a href="/admin/verify" className="text-link">알고리즘 검증</a>에서 확인할 수 있습니다.
             </p>
           </div>
         )}

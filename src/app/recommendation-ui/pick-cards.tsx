@@ -236,7 +236,7 @@ export function CoreMainPick({
         {/* 상세 점수 확인 */}
         <details className="disclosure" style={{ marginBottom: 16 }}>
           <summary style={{ cursor: 'pointer', fontWeight: 600, fontSize: 14, color: 'var(--ink, #333)' }}>
-            추천 점수 자세히 보기
+            추천점수는 어떻게 나왔나요?
           </summary>
           <div style={{ marginTop: 12 }}>
             <CoreScoreBreakdown item={item} customer />
@@ -244,44 +244,20 @@ export function CoreMainPick({
         </details>
 
         {/* 버튼 액션 */}
-        <div style={{ display: 'grid', gap: 8 }}>
+        <div className="pick-actions">
           <a
-            className="btn block"
-            href={packagingHref}
-            data-testid="packaging-link"
-            style={{
-              display: 'block',
-              textAlign: 'center',
-              padding: '12px 16px',
-              borderRadius: 6,
-              background: 'var(--pine, #2D5A43)',
-              color: '#FFF',
-              fontWeight: 600,
-              textDecoration: 'none',
-            }}
-          >
-            포장·스티커 꾸미기(유료)
-          </a>
-
-          <a
-            className="btn ghost block"
+            className="btn"
             href={productOrderUrl(item.productUrl, quantity)}
             target="_blank"
             rel="noreferrer"
-            style={{
-              display: 'block',
-              textAlign: 'center',
-              padding: '10px 16px',
-              borderRadius: 6,
-              border: '1px solid var(--line, #D0C9B8)',
-              color: 'var(--ink, #333)',
-              fontWeight: 500,
-              textDecoration: 'none',
-              background: '#FFF',
-            }}
           >
-            상품 상세 보기 및 주문 ↗
+            상품 보기·주문 ↗
           </a>
+          <a className="btn ghost pkg-cta" href={packagingHref} data-testid="packaging-link">
+            포장·스티커 꾸미기<small>(유료)</small>
+          </a>
+        </div>
+        <div style={{ display: 'grid', gap: 8 }}>
 
           {!preview && (excludeHref || onExclude) && (
             <div style={{ textAlign: 'center', marginTop: 4 }}>
@@ -438,7 +414,7 @@ export function CoreOtherPick({
         {/* 상세 점수 확인 */}
         <details className="disclosure" style={{ marginTop: 12, marginBottom: 12 }}>
           <summary style={{ cursor: 'pointer', fontSize: 13, color: 'var(--ink-soft, #555)' }}>
-            추천 점수 자세히 보기
+            추천점수는 어떻게 나왔나요?
           </summary>
           <div style={{ marginTop: 10 }}>
             <CoreScoreBreakdown item={item} customer />
@@ -446,43 +422,20 @@ export function CoreOtherPick({
         </details>
 
         {/* 액션 버튼 */}
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div className="pick-actions small">
           <a
-            className="btn small"
-            href={packagingHref}
-            data-testid="packaging-link"
-            style={{
-              flex: 1,
-              minWidth: 120,
-              textAlign: 'center',
-              padding: '8px 12px',
-              borderRadius: 6,
-              background: 'var(--pine, #2D5A43)',
-              color: '#FFF',
-              fontSize: 13,
-              fontWeight: 600,
-              textDecoration: 'none',
-            }}
-          >
-            포장·스티커 꾸미기(유료)
-          </a>
-          <a
-            className="btn ghost small"
+            className="btn"
             href={productOrderUrl(item.productUrl, quantity)}
             target="_blank"
             rel="noreferrer"
-            style={{
-              padding: '8px 12px',
-              borderRadius: 6,
-              border: '1px solid var(--line, #D0C9B8)',
-              color: 'var(--ink, #333)',
-              fontSize: 13,
-              textDecoration: 'none',
-              background: '#FFF',
-            }}
           >
-            상품 상세 보기 및 주문 ↗
+            상품 보기·주문 ↗
           </a>
+          <a className="btn ghost pkg-cta" href={packagingHref} data-testid="packaging-link">
+            포장·스티커 꾸미기<small>(유료)</small>
+          </a>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {!preview && (excludeHref || onExclude) && (
             <div style={{ width: '100%', textAlign: 'right', marginTop: 2 }}>
               {onExclude ? (

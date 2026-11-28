@@ -96,3 +96,16 @@
     0 2px 8px color-mix(in srgb, var(--seal) 18%, transparent);
 }
 .seal.score-badge::before { display: none; }
+
+/* 추천 카드 버튼: 주문(채움)과 포장(테두리)을 같은 크기로 나란히 */
+.pick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.pick-actions .btn { display: flex; align-items: center; justify-content: center; gap: 2px; flex-wrap: wrap; text-align: center; text-decoration: none; padding: 12px 10px; font-weight: 600; }
+.pick-actions.small .btn { padding: 9px 8px; font-size: 13px; }
+.pick-actions .pkg-cta { border: 1.5px solid var(--pine); color: var(--pine); background: var(--surface); }
+.pick-actions .pkg-cta small { font-weight: 400; color: var(--muted); }
+
+/* 결과 화면 안내 상자: 한지 바탕 + 왼쪽 색 띠 (일반 웹 노랑·하늘·빨강 대신 브랜드 색) */
+.rec-notice { padding: 10px 14px; margin-bottom: 16px; background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--brass); border-radius: var(--radius-sm); font-size: 13px; color: var(--ink-soft); }
+.rec-notice.info { border-left-color: var(--pine); text-align: center; }
+.rec-notice.error { border-left-color: var(--danger); background: var(--danger-weak); }
+.rec-notice .link-btn { background: none; border: 0; padding: 0; color: var(--pine); font-weight: 600; text-decoration: underline; cursor: pointer; font-size: inherit; }

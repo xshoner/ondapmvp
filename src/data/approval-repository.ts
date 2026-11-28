@@ -68,6 +68,32 @@ function getDraftPath(id: string): string {
   return path.join(DRAFTS_DIR, `${id}.json`);
 }
 
+// 대시보드용: 기간(한국 날짜 from~to, 양끝 포함) 안에 만들어진 결재 문서 수
+export async function countDraftsCreated(from: string, to: string): Promise<number> {
+  const start = new Date(`${from}T00:00:00+09:00`).toISOString();
+  const end = new Date(Date.parse(`${to}T00:00:00+09:00`) + 86400000).toISOString();
+  if (dataSource() === 'supabase') {
+    const client = await getServiceClient();
+    const { count, error } = await client
+      .from('approval_drafts')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', start)
+      .lt('created_at', end);
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+  }
+  let names: string[];
+  try { names = await fs.readdir(DRAFTS_DIR); } catch { return 0; }
+  let n = 0;
+  for (const name of names.filter((f) => f.endsWith('.json'))) {
+    try {
+      const { createdAt } = JSON.parse(await fs.readFile(path.join(DRAFTS_DIR, name), 'utf-8')) as ApprovalDraft;
+      if (createdAt && createdAt >= start && createdAt < end) n++;
+    } catch { /* 깨진 파일은 세지 않는다 */ }
+  }
+  return n;
+}
+
 export async function getDraft(id: string): Promise<ApprovalDraft | null> {
   if (!isValidUUID(id)) return null;
 
