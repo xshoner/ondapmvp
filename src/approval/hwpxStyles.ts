@@ -15,9 +15,10 @@ export interface CharPrSpec {
 
 export interface ParaPrSpec {
   align?: 'LEFT' | 'CENTER' | 'RIGHT';
-  prev?: number;
-  next?: number;
+  prev?: number; // 문단 위 간격 (1pt = 100)
+  next?: number; // 문단 아래 간격 (1pt = 100)
   lineSpacingPercent?: number;
+  keepWithNext?: boolean; // 다음 문단(표)과 같은 쪽에 둔다: 소제목이 쪽 끝에 홀로 남지 않게
 }
 
 export interface BorderFillSpec {
@@ -87,9 +88,9 @@ export function createStyleRegistry() {
   const PP_LEFT = registerParaPr({ align: 'LEFT', prev: 0, next: 0, lineSpacingPercent: 150 }); // id=0 (줄간격 150%)
   const PP_CENTER = registerParaPr({ align: 'CENTER', prev: 0, next: 0, lineSpacingPercent: 150 }); // id=1
   const PP_RIGHT = registerParaPr({ align: 'RIGHT', prev: 0, next: 0, lineSpacingPercent: 150 }); // id=2
-  const PP_HEADING = registerParaPr({ align: 'LEFT', prev: 800, next: 400, lineSpacingPercent: 140 }); // id=3 (위8pt, 아래4pt)
-  const PP_TITLE = registerParaPr({ align: 'CENTER', prev: 300, next: 500, lineSpacingPercent: 140 }); // id=4 (위3pt, 아래5pt)
-  const PP_META = registerParaPr({ align: 'LEFT', prev: 800, next: 100, lineSpacingPercent: 140 }); // id=5 (위8pt)
+  const PP_HEADING = registerParaPr({ align: 'LEFT', prev: 1600, next: 600, lineSpacingPercent: 140, keepWithNext: true }); // id=3 (위16pt, 아래6pt)
+  const PP_TITLE = registerParaPr({ align: 'CENTER', prev: 1800, next: 1000, lineSpacingPercent: 140 }); // id=4 (결재란과 위18pt, 아래10pt)
+  const PP_META = registerParaPr({ align: 'LEFT', prev: 1400, next: 200, lineSpacingPercent: 140 }); // id=5 (위14pt)
 
   const PP_TBL_LEFT = registerParaPr({ align: 'LEFT', prev: 0, next: 0, lineSpacingPercent: 100 }); // id=6 (표 담는 문단)
   const PP_TBL_RIGHT = registerParaPr({ align: 'RIGHT', prev: 0, next: 0, lineSpacingPercent: 100 }); // id=7 (표 담는 문단, 우측)
@@ -148,15 +149,19 @@ export function createStyleRegistry() {
     const prev = pp.prev || 0;
     const next = pp.next || 0;
     const lSpacing = pp.lineSpacingPercent || 180;
+    // 한글은 HwpUnitChar 문단 여백을 적힌 값의 절반으로 읽는다(한글 2020 렌더링으로 확인: 4000을 넣으면 약 20pt).
+    // 그래서 원하는 pt 값의 2배를 적는다. 이걸 빼면 위·아래 간격이 반으로 줄어 표와 소제목이 붙어 보인다.
+    const prevXml = prev * 2;
+    const nextXml = next * 2;
     return `<hh:paraPr id="${pp.id}" tabPrIDRef="0" condense="0" fontLineHeight="0" snapToGrid="1" suppressLineNumbers="0" checked="0">` +
       `<hh:align horizontal="${align}" vertical="BASELINE"/>` +
       `<hh:heading type="NONE" idRef="0" level="0"/>` +
-      `<hh:breakSetting breakLatinWord="KEEP_WORD" breakNonLatinWord="BREAK_WORD" widowOrphan="0" keepWithNext="0" keepLines="0" pageBreakBefore="0" lineWrap="BREAK"/>` +
+      `<hh:breakSetting breakLatinWord="KEEP_WORD" breakNonLatinWord="BREAK_WORD" widowOrphan="0" keepWithNext="${pp.keepWithNext ? 1 : 0}" keepLines="0" pageBreakBefore="0" lineWrap="BREAK"/>` +
       `<hp:switch><hp:case hp:required-namespace="http://www.hancom.co.kr/hwpml/2016/HwpUnitChar">` +
-        `<hh:margin><hc:intent value="0" unit="HWPUNIT"/><hc:left value="0" unit="HWPUNIT"/><hc:right value="0" unit="HWPUNIT"/><hc:prev value="${prev}" unit="HWPUNIT"/><hc:next value="${next}" unit="HWPUNIT"/></hh:margin>` +
+        `<hh:margin><hc:intent value="0" unit="HWPUNIT"/><hc:left value="0" unit="HWPUNIT"/><hc:right value="0" unit="HWPUNIT"/><hc:prev value="${prevXml}" unit="HWPUNIT"/><hc:next value="${nextXml}" unit="HWPUNIT"/></hh:margin>` +
         `<hh:lineSpacing type="PERCENT" value="${lSpacing}" unit="HWPUNIT"/>` +
       `</hp:case><hp:default>` +
-        `<hh:margin><hc:intent value="0" unit="HWPUNIT"/><hc:left value="0" unit="HWPUNIT"/><hc:right value="0" unit="HWPUNIT"/><hc:prev value="${prev}" unit="HWPUNIT"/><hc:next value="${next}" unit="HWPUNIT"/></hh:margin>` +
+        `<hh:margin><hc:intent value="0" unit="HWPUNIT"/><hc:left value="0" unit="HWPUNIT"/><hc:right value="0" unit="HWPUNIT"/><hc:prev value="${prevXml}" unit="HWPUNIT"/><hc:next value="${nextXml}" unit="HWPUNIT"/></hh:margin>` +
         `<hh:lineSpacing type="PERCENT" value="${lSpacing}" unit="HWPUNIT"/>` +
       `</hp:default></hp:switch>` +
       `<hh:autoSpacing eAsianEng="0" eAsianNum="0"/>` +
