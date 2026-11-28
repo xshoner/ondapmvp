@@ -50,7 +50,6 @@ async function run() {
     check('기존 하단 "선택한 문구 편집" textarea 완전 삭제 확인', !oldTextareaExists);
 
     // 4. Step 2 (메시지 꾸미기)로 이동
-    await b.click('button', '다음: 인쇄물 꾸미기');
     await b.sleep(400);
 
     // 5. 캔버스에서 메인 문구 클릭 시뮬레이션

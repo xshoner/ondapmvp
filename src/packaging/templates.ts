@@ -260,12 +260,18 @@ export function extractMainTextFromLayers(layers: EditorLayer[], format?: DraftF
 /**
  * 인쇄 대상 레이어 중 이름/날짜 항목이 포함되어 있는지 확인합니다.
  */
+export const NAME_PLACEHOLDERS = [
+  { key: 'recipient', token: '{받는분}', label: '받는 분' },
+  { key: 'sender', token: '{보내는분}', label: '보내는 분' },
+  { key: 'date', token: '{날짜}', label: '날짜' },
+] as const;
+
 export function isNamesUsedInLayers(layers: EditorLayer[]): boolean {
   return layers.some(
     (l) =>
       l.type === 'text' &&
-      ['role-recipient', 'role-sender', 'role-date'].includes(l.id) &&
-      Boolean((l as any).text?.trim()),
+      ((['role-recipient', 'role-sender', 'role-date'].includes(l.id) && Boolean((l as any).text?.trim())) ||
+        NAME_PLACEHOLDERS.some((p) => (l as any).text?.includes(p.token))),
   );
 }
 

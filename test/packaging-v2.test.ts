@@ -980,3 +980,10 @@ test('문구 직접 편집 중 줄바꿈 차이 방지: 명시적 줄바꿈만 1
   assert.equal(textLayer.text, explicitTwoLines, '저장 시 명시적 개행 문자가 손실 없이 그대로 보존되어야 함');
 });
 
+
+test('메인 문구 속 이름 자리표시자도 이름 사용으로 본다', () => {
+  const layer = (text: string): EditorLayer => ({ id: 'role-main', type: 'text', text, x: 500, y: 500, rotation: 0, scaleX: 1, scaleY: 1, font: 'serif', fontSize: 60, color: '#000000', stroke: null, shadow: false });
+  assert.equal(isNamesUsedInLayers([layer('감사합니다\n{보내는분} 드림')]), true);
+  assert.equal(isNamesUsedInLayers([layer('{받는분}님께')]), true);
+  assert.equal(isNamesUsedInLayers([layer('감사합니다')]), false);
+});

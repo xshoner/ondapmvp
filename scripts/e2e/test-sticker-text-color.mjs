@@ -46,7 +46,6 @@ async function run() {
     await b.sleep(300);
 
     // 3. Step 2 (인쇄물 꾸미기)로 이동
-    await b.click('button', '다음: 인쇄물 꾸미기');
     await b.sleep(500);
 
     // 4. 글자색 및 배경색 OS 컬러 선택기 (input[type="color"]) 검증

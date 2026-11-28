@@ -5,7 +5,6 @@ const b = await launch({ port: 9345, mobile: true });
 try {
   await b.goto(`${process.env.E2E_BASE ?? 'http://localhost:3367'}/packaging?product=49&qty=30&event=wedding&relation=business`);
   await b.waitFor("window.Konva?.stages?.[0]?.find('Text').length > 0", 30000);
-  await b.click('button', '다음: 인쇄물 꾸미기');
   await b.evaluate(`const node = window.Konva.stages[0].find('Text')[0]; node.fire('mousedown', {evt:{clientX:180,clientY:200}}); node.fire('click', {evt:{clientX:180,clientY:200}});`);
   await b.waitFor("document.querySelector('.pkg-inline-editor-textarea')");
   await b.evaluate(`const t = document.querySelector('.pkg-inline-editor-textarea'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(t, ''); t.dispatchEvent(new Event('input', {bubbles:true}));`);

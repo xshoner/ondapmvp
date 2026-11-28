@@ -4,7 +4,6 @@ const b = await launch({port: 9346, mobile: true});
 try {
   await b.goto(`${process.env.E2E_BASE ?? 'http://localhost:3367'}/packaging?product=49&qty=30&event=wedding&relation=business`);
   await b.waitFor("window.Konva?.stages?.[0]?.find('Text').length > 0", 30000);
-  await b.click('button', '다음: 인쇄물 꾸미기');
   await b.click('button', '다음: 최종 확인');
   await b.waitFor("document.querySelector('.pkg-review-summary')");
   const summary = await b.evaluate("return document.querySelector('.pkg-review-summary').innerText");

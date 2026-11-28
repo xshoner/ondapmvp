@@ -1400,6 +1400,27 @@ table.data.designs-table tr.late.cursor td:first-child { box-shadow: inset 3px 0
   margin-top: 10px;
 }
 
+/* 모바일: 편집 화면이 길어 '다음' 버튼을 화면 아래에 붙여 둔다 */
+@media (max-width: 1023px) {
+  .pkg-step-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    background: var(--bg);
+    padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
+    box-shadow: 0 -8px 12px -10px rgba(28, 36, 32, 0.25);
+  }
+}
+
+/* 2단계 위 포장지 요약: 추천 포장지를 미리 골라 두고 여기서만 바꾼다 */
+.pkg-style-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+}
+
 .btn.large {
   min-height: 50px;
   font-size: 16px;

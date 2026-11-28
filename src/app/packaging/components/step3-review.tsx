@@ -1,6 +1,7 @@
 'use client';
 
 import { won } from '@/lib/result-query.ts';
+import { PLACEHOLDER_BLANK } from '@/packaging/rules.ts';
 import { calcPackagingTotal, calcExpectedOrderTotal, type PackagingOptionInfo } from '@/packaging/pricing.ts';
 import type { CardSizeMm, PackagingStyle, StickerShape, StickerSizeCm, TextLayer } from '@/packaging/types.ts';
 import type { EditorLayer } from '../editor-types.ts';
@@ -87,6 +88,11 @@ export function Step3Review(props: Props) {
   const cardTextLayers = cardLayers.filter((l): l is TextLayer => l.type === 'text');
 
   const isNeither = !withSticker && !withCard;
+  const blankTarget = withSticker && stickerTextLayers.some((l) => l.text.includes(PLACEHOLDER_BLANK))
+    ? 'sticker'
+    : withCard && cardTextLayers.some((l) => l.text.includes(PLACEHOLDER_BLANK))
+    ? 'card'
+    : null;
 
   const renderTextSummary = (textLayers: TextLayer[]) => {
     if (textLayers.length === 0) {
@@ -330,6 +336,16 @@ export function Step3Review(props: Props) {
           </div>
         )}
 
+        {blankTarget && (
+          <div className="pkg-alert-box danger" role="alert" style={{ marginTop: 8 }}>
+            <span className="pkg-alert-icon">⚠️</span>
+            <div className="small">
+              문구에 비어 있는 이름·날짜 자리({PLACEHOLDER_BLANK})가 있어 이대로는 접수할 수 없어요.{' '}
+              <button type="button" className="link-btn small" onClick={() => onGoStep(2, blankTarget)}>이름 채우러 가기</button>
+            </div>
+          </div>
+        )}
+
         <div className="pkg-checklist-items" style={{ marginTop: 10 }}>
           {namesUsed && (
             <label className="pkg-check-label">
@@ -385,7 +401,7 @@ export function Step3Review(props: Props) {
           type="button"
           className="btn block large"
           style={{ flex: 1, maxWidth: 300 }}
-          disabled={saving || (namesUsed && !namesChecked) || (uploadsCount > 0 && !consent)}
+          disabled={saving || Boolean(blankTarget) || (namesUsed && !namesChecked) || (uploadsCount > 0 && !consent)}
           onClick={onSave}
         >
           {saving ? '디자인 저장하는 중…' : '디자인 완료하고 코드 받기'}

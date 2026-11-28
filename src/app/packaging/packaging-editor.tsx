@@ -18,6 +18,7 @@ import {
   effectiveDpi,
   effectiveDpiCard,
   fillPlaceholders,
+  PLACEHOLDER_BLANK,
   fitScale,
   fitScaleCard,
   overlaps,
@@ -191,7 +192,15 @@ export function PackagingEditor(props: Props) {
   const { product, styles, categoryNames, fontFamilies, events, from, backHref = '/', backLabel = '‹ 뒤로' } = props;
 
   // 1. 단일 핵심 상태 머신
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  // 포장지는 추천안으로 미리 골라 두고 2단계(인쇄물)부터 시작한다. 고를 포장지가 없을 때만 1단계에서 안내한다.
+  const startStep: 1 | 2 =
+    styles.some((s) => !s.targeting?.productNos?.length || s.targeting.productNos.includes(product.productNo)) ? 2 : 1;
+  const [currentStep, setStep] = useState<1 | 2 | 3>(startStep);
+  const [maxStep, setMaxStep] = useState<1 | 2 | 3>(startStep);
+  const setCurrentStep = (step: 1 | 2 | 3) => {
+    setStep(step);
+    setMaxStep((m) => (step > m ? step : m));
+  };
   const [subStep, setSubStep] = useState<'sticker' | 'card'>('sticker');
   const [purpose, setPurpose] = useState<GiftPurpose>('return');
   const [quantity, setQuantity] = useState(props.quantity);
@@ -722,6 +731,22 @@ export function PackagingEditor(props: Props) {
     cardLastPush.current = 0;
   };
 
+  // 이름·날짜 자리표시자 채우기: 스티커와 카드는 같은 사람이 보내므로 함께 바꾼다
+  const handleFieldsChange = (patch: Partial<DesignDraft['fields']>) => {
+    setFields((f) => ({ ...f, ...patch }));
+    setCardFields((f) => ({ ...f, ...patch }));
+    setNamesChecked(false);
+    setCardNamesChecked(false);
+  };
+
+  // 카드를 처음 켤 때, 카드를 아직 손대지 않았으면 스티커 문구를 이어받는다
+  const handleSetWithCard = (next: boolean) => {
+    setWithCard(next);
+    if (next && !withCard && withSticker && !cardAutoTextEdited.current && !cardHasChosenImage.current && cardMainText !== mainText) {
+      handleCardMainTextChange(mainText);
+    }
+  };
+
   // 메인 문구 입력 변경
   const handleMainTextChange = (text: string) => {
     autoTextEdited.current = true;
@@ -1124,6 +1149,10 @@ export function PackagingEditor(props: Props) {
       } finally { setSaving(false); }
     }
     if (!styleId) return setError('포장 스타일을 골라 주세요.');
+    const blankLeft = (ls: EditorLayer[]) => ls.some((l) => l.type === 'text' && l.text.includes(PLACEHOLDER_BLANK));
+    if ((withSticker && blankLeft(rendered)) || (withCard && blankLeft(renderedCard))) {
+      return setError(`문구에 비어 있는 이름·날짜 자리(${PLACEHOLDER_BLANK})가 있어요. 2단계 문구 아래 칸에 채워 주세요.`);
+    }
 
     const hasAny = withSticker || withCard;
     if (hasAny) {
@@ -1326,7 +1355,7 @@ export function PackagingEditor(props: Props) {
   return (
     <div className="pkg-page-wrapper">
       {/* 1. 상단 단계 내비게이션 바 */}
-      <StepNavigation currentStep={currentStep} onStepClick={setCurrentStep} />
+      <StepNavigation currentStep={currentStep} maxStep={maxStep} onStepClick={setCurrentStep} />
 
       {/* 2. 상품 정보 & 선물 목적 요약 헤더 */}
       <ProductHeader
@@ -1396,7 +1425,7 @@ export function PackagingEditor(props: Props) {
               withSticker={withSticker}
               setWithSticker={setWithSticker}
               withCard={withCard}
-              setWithCard={setWithCard}
+              setWithCard={handleSetWithCard}
               subStep={subStep}
               setSubStep={setSubStep}
               eventName={eventName}
@@ -1453,6 +1482,10 @@ export function PackagingEditor(props: Props) {
               categoryNames={categoryNames}
               onPrev={() => setCurrentStep(1)}
               onNext={() => setCurrentStep(3)}
+              onFieldsChange={handleFieldsChange}
+              packagingOption={packagingOption}
+              styleName={selectedStyle?.name ?? null}
+              onChangeStyle={() => setCurrentStep(1)}
             />
           )}
 

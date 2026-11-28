@@ -2,6 +2,7 @@
 
 interface Props {
   currentStep: 1 | 2 | 3;
+  maxStep: 1 | 2 | 3; // 한 번이라도 열었던 가장 먼 단계
   onStepClick: (step: 1 | 2 | 3) => void;
 }
 
@@ -11,14 +12,14 @@ const STEPS = [
   { no: 3 as const, name: '최종 확인', desc: '포장 모습과 주문 접수' },
 ];
 
-export function StepNavigation({ currentStep, onStepClick }: Props) {
+export function StepNavigation({ currentStep, maxStep, onStepClick }: Props) {
   return (
     <nav className="step-nav-bar" aria-label="포장 제작 단계">
       <ol className="step-nav-list">
         {STEPS.map((s) => {
           const isCurrent = s.no === currentStep;
-          const isDone = s.no < currentStep;
-          const isClickable = s.no <= currentStep;
+          const isDone = !isCurrent && s.no <= maxStep;
+          const isClickable = s.no <= maxStep;
 
           return (
             <li

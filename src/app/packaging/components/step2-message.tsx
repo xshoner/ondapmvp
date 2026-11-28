@@ -20,6 +20,9 @@ import type {
   StickerSizeCm,
   TextLayer,
 } from '@/packaging/types.ts';
+import type { PackagingOptionInfo } from '@/packaging/pricing.ts';
+import { NAME_PLACEHOLDERS } from '@/packaging/templates.ts';
+import { won } from '@/lib/result-query.ts';
 import type { EditorImageLayer, EditorLayer } from '../editor-types.ts';
 
 const COLORS = ['#1f2a26', '#ffffff', '#2f5a4b', '#b8903a', '#b5523b', '#1d3557', '#7a2e3a', '#e8a0b4'];
@@ -94,6 +97,10 @@ interface Props {
 
   onPrev: () => void;
   onNext: () => void;
+  onFieldsChange: (patch: Partial<DesignDraft['fields']>) => void;
+  packagingOption: PackagingOptionInfo | null;
+  styleName: string | null;
+  onChangeStyle: () => void;
 }
 
 export function Step2Message(props: Props) {
@@ -158,6 +165,10 @@ export function Step2Message(props: Props) {
     categoryNames,
     onPrev,
     onNext,
+    onFieldsChange,
+    packagingOption,
+    styleName,
+    onChangeStyle,
   } = props;
 
   const handleToggleSticker = () => {
@@ -203,11 +214,23 @@ export function Step2Message(props: Props) {
         </p>
       </div>
 
+      {/* 포장지는 추천안으로 미리 골라 두고, 바꾸고 싶을 때만 1단계로 간다 */}
+      {styleName && (
+        <div className="pkg-style-strip card">
+          <span className="small">포장지: <b>{styleName}</b></span>
+          <button type="button" className="btn ghost small" onClick={onChangeStyle}>포장지 바꾸기</button>
+        </div>
+      )}
+
       {/* (a) 함께 제작할 인쇄물 선택 (스티커, 카드, 인쇄물 없음) */}
       <div className="pkg-sticker-toggle card">
         <div className="pkg-toggle-header">
           <span className="pkg-toggle-title">함께 넣을 인쇄물 선택</span>
-          <span className="pill green">포장·인쇄물 유료옵션</span>
+          <span className="pill green">
+            {packagingOption?.status === 'confirmed' && packagingOption.unitPrice !== null
+              ? `포장·인쇄 1개당 ${won(packagingOption.unitPrice)}`
+              : '포장·인쇄물 유료옵션'}
+          </span>
         </div>
         <div className="pkg-print-choice-grid" role="group" aria-label="인쇄물 선택">
           {/* 1. 메시지 스티커 */}
@@ -370,6 +393,7 @@ export function Step2Message(props: Props) {
               mainText={mainText}
               onMainTextChange={onMainTextChange}
               fields={fields}
+              onFieldsChange={onFieldsChange}
               background={background}
               setBackground={setBackground}
               layers={layers}
@@ -431,6 +455,7 @@ export function Step2Message(props: Props) {
               mainText={cardMainText}
               onMainTextChange={onCardMainTextChange}
               fields={cardFields}
+              onFieldsChange={onFieldsChange}
               background={cardBackground}
               setBackground={setCardBackground}
               layers={cardLayers}
@@ -493,6 +518,7 @@ interface ItemEditorSectionProps {
   mainText: string;
   onMainTextChange: (t: string) => void;
   fields: DesignDraft['fields'];
+  onFieldsChange: (patch: Partial<DesignDraft['fields']>) => void;
   background: string;
   setBackground: (b: string) => void;
   layers: EditorLayer[];
@@ -525,6 +551,7 @@ function ItemEditorSection(props: ItemEditorSectionProps) {
     mainText,
     onMainTextChange,
     fields,
+    onFieldsChange,
     background,
     setBackground,
     layers,
@@ -555,6 +582,9 @@ function ItemEditorSection(props: ItemEditorSectionProps) {
   const [showMoreImages, setShowMoreImages] = useState(false);
 
   const isCard = itemType === 'card';
+  const usedPlaceholders = NAME_PLACEHOLDERS.filter((p) =>
+    layers.some((l) => l.type === 'text' && l.text.includes(p.token)) || mainText.includes(p.token),
+  );
   const itemLabel = isCard ? '카드(엽서)' : '스티커';
 
   const currentImage = layers.find((l): l is EditorImageLayer => l.type === 'image') ?? null;
@@ -630,6 +660,28 @@ function ItemEditorSection(props: ItemEditorSectionProps) {
             {mainText.length} / 120자
           </div>
         </div>
+
+        {/* 문구에 이름 자리({받는분} 등)가 있으면 바로 아래에서 채운다. 비우면 ○○○로 남아 저장이 막힌다 */}
+        {usedPlaceholders.length > 0 && (
+          <div className="name-fields">
+            <span className="small muted">
+              문구의 {usedPlaceholders.map((p) => p.token).join(' · ')} 자리에 아래 내용이 들어가요
+            </span>
+            {usedPlaceholders.map((p) => (
+              <label key={p.key} className="pkg-input-group" style={{ margin: 0 }}>
+                <span className="pkg-label">{p.label}</span>
+                <input
+                  className="pkg-textarea"
+                  value={fields[p.key]}
+                  maxLength={30}
+                  placeholder={p.key === 'date' ? '예: 2026. 12. 5.' : p.key === 'sender' ? '예: 김철수·이영희' : '예: 홍길동'}
+                  aria-invalid={!fields[p.key].trim()}
+                  onChange={(e) => onFieldsChange({ [p.key]: e.target.value })}
+                />
+              </label>
+            ))}
+          </div>
+        )}
 
         {/* 추천 문구 적용 */}
         <div className="pkg-recommended-phrases">
