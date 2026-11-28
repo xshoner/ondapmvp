@@ -12,7 +12,7 @@
 | 사업 기간 | 2026-10-20 ~ [확인 필요: 종료일] (저장소 기록은 2026-10-20 ~ 2026-11-28) |
 | 담당자 | 지병석 |
 | 운영 주소 | https://dapcue.vercel.app (구 주소 ondapmvp.vercel.app) |
-| 쇼핑몰 | https://axopenlab.cafe24.com |
+| 쇼핑몰 | https://dapcue.cafe24.com (구 쇼핑몰 axopenlab.cafe24.com은 2026-11-11 전환 이전) |
 | 저장소 | github.com/xshoner/ondapmvp (`main` = 운영 배포본) |
 | 최종 형식 | 한글(HWPX) + PDF. 원고는 Markdown으로 쓰고 Claude가 조립한다 |
 
